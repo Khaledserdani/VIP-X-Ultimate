@@ -48,7 +48,7 @@ private data class ChatMessage(val role: String, val text: String)
 @Composable
 private fun CloudAssistantScreen(context: Context, onBack: () -> Unit) {
     val prefs = remember { context.getSharedPreferences("vipx_cloud", Context.MODE_PRIVATE) }
-    var endpoint by remember { mutableStateOf(prefs.getString("endpoint", "") ?: "") }
+    var endpoint by remember { mutableStateOf(prefs.getString("endpoint", "https://vip-x-ultimate-api-production.up.railway.app") ?: "https://vip-x-ultimate-api-production.up.railway.app") }
     var accessToken by remember { mutableStateOf("") }
     var prompt by remember { mutableStateOf("") }
     var busy by remember { mutableStateOf(false) }
@@ -66,7 +66,7 @@ private fun CloudAssistantScreen(context: Context, onBack: () -> Unit) {
             }
             Card(colors = CardDefaults.cardColors(containerColor = CloudPanel), shape = RoundedCornerShape(16.dp)) {
                 Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    OutlinedTextField(endpoint, { endpoint = it }, Modifier.fillMaxWidth(), singleLine = true, label = { Text("رابط الخادم HTTPS") }, placeholder = { Text("https://your-worker.example.workers.dev") })
+                    OutlinedTextField(endpoint, { endpoint = it }, Modifier.fillMaxWidth(), singleLine = true, label = { Text("رابط الخادم HTTPS") }, placeholder = { Text("https://vip-x-ultimate-api-production.up.railway.app") })
                     OutlinedTextField(accessToken, { accessToken = it }, Modifier.fillMaxWidth(), singleLine = true, label = { Text("رمز الوصول") }, visualTransformation = PasswordVisualTransformation(), keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password))
                     Text("يحفظ التطبيق الرابط فقط. رمز الوصول يبقى في الذاكرة ولا يُحفظ على الهاتف.", color = CloudMuted, fontSize = 10.sp)
                     Text(status, color = CloudAccent, fontSize = 11.sp)
