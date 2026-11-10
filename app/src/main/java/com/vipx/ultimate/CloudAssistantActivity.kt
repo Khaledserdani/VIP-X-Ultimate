@@ -93,6 +93,8 @@ private fun CloudAssistantScreen(context: Context, onBack: () -> Unit) {
                         busy = true
                         status = "جارٍ الاتصال بالخادم..."
                         prefs.edit().putString("endpoint", endpoint.trim().trimEnd('/')).apply()
+                        val history = JSONArray()
+                        messages.dropLast(1).takeLast(12).forEach { item -> history.put(JSONObject().put("role", item.role).put("content", item.text)) }
                         scope.launch {
                             try {
                                 val answer = withContext(Dispatchers.IO) {
@@ -102,8 +104,6 @@ private fun CloudAssistantScreen(context: Context, onBack: () -> Unit) {
                                         setRequestProperty("Authorization", "Bearer " + accessToken)
                                     }
                                     try {
-                                        val history = JSONArray()
-                                        messages.dropLast(1).takeLast(12).forEach { item -> history.put(JSONObject().put("role", item.role).put("content", item.text)) }
                                         val payload = JSONObject().put("message", question).put("history", history)
                                         conn.outputStream.use { it.write(payload.toString().toByteArray(Charsets.UTF_8)) }
                                         val stream = if (conn.responseCode in 200..299) conn.inputStream else conn.errorStream
