@@ -16,3 +16,7 @@
 gradle :app:assembleDebug
 
 الناتج: app/build/outputs/apk/debug/app-debug.apk
+
+
+## Cloud AI assistant (v1.2.0)
+The Android app now includes an Arabic cloud-chat screen. To use live AI, deploy `cloud/worker.js` and configure the server-side secrets described in `cloud/README.md`. The APK does not contain provider credentials; the cloud service is not live until you deploy it.
