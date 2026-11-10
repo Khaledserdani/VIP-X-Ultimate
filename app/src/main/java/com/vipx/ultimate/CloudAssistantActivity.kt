@@ -103,7 +103,7 @@ private fun CloudAssistantScreen(context: Context, onBack: () -> Unit) {
                                     }
                                     try {
                                         val history = JSONArray()
-                                        messages.takeLast(12).forEach { item -> history.put(JSONObject().put("role", item.role).put("content", item.text)) }
+                                        messages.dropLast(1).takeLast(12).forEach { item -> history.put(JSONObject().put("role", item.role).put("content", item.text)) }
                                         val payload = JSONObject().put("message", question).put("history", history)
                                         conn.outputStream.use { it.write(payload.toString().toByteArray(Charsets.UTF_8)) }
                                         val stream = if (conn.responseCode in 200..299) conn.inputStream else conn.errorStream
