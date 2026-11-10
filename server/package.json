@@ -1,0 +1,12 @@
+{
+  "name": "vip-x-ultimate-cloud",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Secure cloud AI API for VIP X Ultimate Android app",
+  "scripts": {
+    "start": "node index.js"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}
