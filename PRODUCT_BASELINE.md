@@ -1,31 +1,20 @@
-# VIP X Ultimate — Product Baseline
+# VIP X Ultimate — Cloud Platform Baseline
 
-## الهدف
-تطبيق Android محلي لإدارة التطبيقات المثبتة وفحص معلومات APK، مع مسار لاحق لتحليل مشاريع المصدر المصرح بها وبناء نسخ يراجعها المستخدم.
+## Android app
+- Local installed-app inventory and APK metadata inspection.
+- Arabic RTL cloud assistant screen.
+- HTTPS gateway configuration; only the gateway URL is persisted.
+- Bearer access token is held in memory only.
+- Sends recent chat context to a user-controlled gateway.
 
-## المنفذ في الإصدار 1.1.0
-- عرض التطبيقات التي لها واجهة تشغيل على الهاتف مع بحث بالاسم أو اسم الحزمة.
-- عرض رقم الإصدار وحجم ملف APK الأساسي وتاريخ التثبيت وآخر تحديث.
-- حساب بصمة SHA-256 لملف APK الأساسي.
-- عرض الصلاحيات المعلنة في Manifest.
-- إظهار عدد ملفات split الإضافية، والتنبيه بأن التصدير يحفظ APK الأساسي فقط.
-- فتح التطبيق أو صفحة إعداداته في Android.
-- تصدير APK الأساسي عبر نافذة حفظ الملفات في Android.
+## Cloud gateway
+- Cloudflare Worker template at `cloud/worker.js`.
+- Requires server-side `OPENAI_API_KEY` and `APP_ACCESS_TOKEN` secrets.
+- Proxies chat requests to an OpenAI-compatible Chat Completions API.
+- Validates bearer access, method, path, and message length.
 
-## قواعد أساسية
-1. لا إعادة استخدام مصدر SmartAppMaster أو التطبيقات السابقة.
-2. لا تزوير اشتراكات VIP أو سرقة بيانات أو تجاوز حماية التطبيقات.
-3. توصيف كل ميزة: منفذة، تحتاج إذناً، غير مدعومة، أو لم تختبر.
-4. لا توضع مفاتيح API أو الأسرار داخل APK.
-5. يراجع المستخدم تغييرات المصدر قبل البناء والتوقيع.
-6. لا يعلن نجاح البناء إلا بعد نجاح CI وتسجيل اختبار التثبيت.
+## Not yet live
+The Worker is source code only until deployed to a Cloudflare account and configured with valid provider credentials. No cloud AI call can succeed before that. API usage may incur provider charges.
 
-## غير منفذ بعد
-- استيراد وتحليل مشاريع المصدر الكاملة.
-- اقتراح تعديلات بالذكاء الاصطناعي ومراجعة الفروقات.
-- خدمة سحابية آمنة وموثقة للمستخدم.
-- عامل بناء معزول واختبارات وتوقيع يتحكم فيه المستخدم.
-- أدوات overlay وPiP؛ تتطلب أذونات صريحة وتوافق Android والتطبيق المستهدف.
-
-## حدود Android
-التطبيق العادي لا يستطيع قراءة /data/data لتطبيق آخر. استخراج APK لا يعيد الشيفرة المصدرية الأصلية. لا يمكن لتطبيق مستقل منح اشتراك VIP لدى خدمة خارجية أو فتح ميزات مدفوعة دون تفويض رسمي من مزود الخدمة.
+## Platform boundaries
+The app does not unlock VIP subscriptions, bypass payment, or access private app data. It can inspect package metadata and APK files Android exposes to it.
