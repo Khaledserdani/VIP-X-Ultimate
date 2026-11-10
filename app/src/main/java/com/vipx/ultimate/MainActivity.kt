@@ -71,7 +71,8 @@ class MainActivity : ComponentActivity() {
                         onOpen = { app -> packageManager.getLaunchIntentForPackage(app.packageName)?.let(::startActivity) },
                         onSettings = { app ->
                             startActivity(Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.parse("package:${app.packageName}")))
-                        }
+                        },
+                        onCloud = { startActivity(Intent(this, CloudAssistantActivity::class.java)) }
                     )
                 }
             }
@@ -133,7 +134,8 @@ private fun VipXHome(
     initialApps: List<InstalledApp>,
     onRefresh: () -> List<InstalledApp>,
     onOpen: (InstalledApp) -> Unit,
-    onSettings: (InstalledApp) -> Unit
+    onSettings: (InstalledApp) -> Unit,
+    onCloud: () -> Unit
 ) {
     var apps by remember { mutableStateOf(initialApps) }
     var query by remember { mutableStateOf("") }
@@ -167,7 +169,10 @@ private fun VipXHome(
                     Text("VIP X ULTIMATE", fontSize = 25.sp, fontWeight = FontWeight.Bold, color = Color.White)
                     Text("مدير ومحلّل التطبيقات على هاتفك", color = Muted, fontSize = 12.sp)
                 }
-                Icon(Icons.Default.Security, null, tint = Accent, modifier = Modifier.size(32.dp))
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    TextButton(onClick = onCloud) { Text("الذكاء السحابي", color = Accent) }
+                    Icon(Icons.Default.Security, null, tint = Accent, modifier = Modifier.size(28.dp))
+                }
             }
 
             Card(colors = CardDefaults.cardColors(containerColor = Panel), shape = RoundedCornerShape(18.dp)) {
