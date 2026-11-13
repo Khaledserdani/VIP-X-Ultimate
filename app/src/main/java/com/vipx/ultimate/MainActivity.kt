@@ -205,7 +205,7 @@ private fun VipXScreen(scan:suspend()->List<AppInfo>,open:(AppInfo)->Unit,settin
                 Text("مراجعة الصلاحيات",color=Accent,fontWeight=FontWeight.Bold)
                 Text("التصنيف إرشادي ولا يثبت أن التطبيق ضار.",color=Warn,fontSize=10.sp)
                 if(notes.isEmpty())Text("لا توجد صلاحيات ضمن قائمة المراجعة.",color=Muted,fontSize=10.sp)
-                notes.forEach{Text("• ${it.level}: ${it.name.substringAfterLast('.')} — ${it.explanation}",color=Muted,fontSize=10.sp)}
+                notes.forEach{Text("• ${it.level}: ${it.name.substringAfterLast('.')} — ${it.reason}",color=Muted,fontSize=10.sp)}
                 TextButton(onClick={scope.launch{hash=withContext(Dispatchers.IO){sha256(File(app.apk))}}}){Text(if(hash==null)"حساب SHA-256" else "SHA-256: $hash",fontSize=10.sp)}
             }
         },confirmButton={
