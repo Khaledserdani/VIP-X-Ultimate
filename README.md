@@ -1,22 +1,23 @@
 # VIP X Ultimate
 
-مشروع Android مستقل باستخدام Kotlin وJetpack Compose، بواجهة عربية RTL ومعرّف الحزمة com.vipx.ultimate.
+تطبيق Android أصلي باستخدام Kotlin وJetpack Compose، بواجهة عربية RTL ومعرّف الحزمة `com.vipx.ultimate`.
 
-## النواة الحالية
-- عرض التطبيقات التي تظهر في مشغّل الهاتف.
-- البحث بالاسم أو اسم الحزمة.
-- عرض الاسم واسم الحزمة والإصدار.
-- فتح التطبيق المختار.
-- بناء APK تجريبي عبر GitHub Actions.
+## إصدار إعادة البناء 2.0.0
+- تحميل قائمة التطبيقات في الخلفية حتى لا تتجمد الواجهة عند التشغيل.
+- تأجيل حساب SHA-256 إلى طلب المستخدم، وعدم قراءة ملفات APK كلها عند بدء التطبيق.
+- عرض اسم التطبيق والحزمة والإصدار والحجم والتواريخ والصلاحيات المعلنة.
+- بحث سريع بالاسم أو اسم الحزمة.
+- فتح التطبيق وإعداداته من صفحة التفاصيل.
+- نسخ احتياطي ZIP يجمع APK الأساسي وكل ملفات split اللازمة للتطبيقات متعددة الملفات.
+- مساعد سحابي مستقل، مع إبقاء رمز الوصول في الذاكرة فقط.
 
-## الحدود
-هذه نواة تأسيسية وليست النسخة النهائية. لا تدّعي تعديل التطبيقات المثبتة أو قراءة بياناتها الخاصة أو تجاوز اشتراكاتها. لا يمكن استعادة المصدر الأصلي من APK مثبت.
+## حدود Android والخصوصية
+- الفحص محلي ويقتصر على بيانات الحزم والملفات التي يسمح Android للتطبيق بقراءتها.
+- لا يقرأ بيانات التطبيقات الخاصة، ولا يتجاوز الاشتراكات أو الحماية، ولا يعدّل تطبيقات الآخرين.
+- تصدير APK هو نسخة احتياطية؛ تثبيت الحزم يتطلب موافقة المستخدم ومثبت Android.
+- المساعد السحابي لا يصبح فعّالاً إلا عند نشر الخادم وضبط أسرار الوصول ومفتاح مزود الذكاء الاصطناعي.
 
 ## البناء
-gradle :app:assembleDebug
+`gradle --no-daemon :app:assembleDebug`
 
-الناتج: app/build/outputs/apk/debug/app-debug.apk
-
-
-## Cloud AI assistant (v1.2.0)
-The Android app now includes an Arabic cloud-chat screen. To use live AI, deploy `cloud/worker.js` and configure the server-side secrets described in `cloud/README.md`. The APK does not contain provider credentials; the cloud service is not live until you deploy it.
+الناتج: `app/build/outputs/apk/debug/app-debug.apk`
