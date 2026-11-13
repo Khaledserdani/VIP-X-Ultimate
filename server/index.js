@@ -1,6 +1,7 @@
 const http = require("node:http");
 const crypto = require("node:crypto");
 const { runVipTeam, AGENTS } = require("./agents");
+const memoryStore = require("./memory");
 
 const PORT = Number(process.env.PORT || 3000);
 const APP_ACCESS_TOKEN = process.env.APP_ACCESS_TOKEN || "";
@@ -53,15 +54,32 @@ const server = http.createServer(async (req, res) => {
   const url = new URL(req.url, "http://localhost");
 
   if (req.method === "GET" && url.pathname === "/health") {
-    return send(res, 200, { status: "ok", service: "VIP X Ultimate Cloud", aiConfigured: Boolean(OPENAI_API_KEY), accessConfigured: Boolean(APP_ACCESS_TOKEN), agents: AGENTS.map(({id,name}) => ({id,name})) });
+    return send(res, 200, { status: "ok", service: "VIP X Ultimate Cloud", aiConfigured: Boolean(OPENAI_API_KEY), accessConfigured: Boolean(APP_ACCESS_TOKEN), memoryConfigured: Boolean(process.env.DATABASE_URL), agents: AGENTS.map(({id,name}) => ({id,name})) });
   }
 
-  if (req.method !== "POST" || !["/api/chat", "/api/vip-plan", "/api/vip-team"].includes(url.pathname)) {
+  if (req.method !== "POST" || !["/api/chat", "/api/vip-plan", "/api/vip-team"].includes(url.pathname) || url.pathname.startsWith("/api/agent-memory/")) {
     return send(res, 404, { error: "المسار غير موجود" });
   }
   if (!authorized(req)) return send(res, 401, { error: "رمز الوصول غير صحيح أو لم يُضبط على الخادم" });
 
   try {
+    if (url.pathname.startsWith("/api/agent-memory/")) {
+      if (!process.env.DATABASE_URL) return send(res, 503, { error: "قاعدة الذاكرة الدائمة غير مهيأة" });
+      const parts = url.pathname.split("/").filter(Boolean);
+      const agentId = parts[2];
+      if (!AGENTS.some(a => a.id === agentId)) return send(res, 404, { error: "المساعد غير معروف" });
+      if (req.method === "GET") return send(res, 200, await memoryStore.getAgentMemory(agentId));
+      if (req.method !== "POST") return send(res, 405, { error: "الطريقة غير مدعومة" });
+      const b = await readBody(req);
+      if (parts[3] === "promote") {
+        const v = b.verification || {};
+        if (v.passed !== true || !Array.isArray(v.tests) || v.tests.length === 0 || !String(v.evidence || "").trim())
+          return send(res, 400, { error: "يلزم نجاح اختبارات موثقة وأدلة قبل تثبيت النتيجة" });
+        return send(res, 200, await memoryStore.promoteVersion(agentId, Number(b.versionId), v));
+      }
+      if (parts[3] === "rollback") return send(res, 200, await memoryStore.rollbackToLastVerified(agentId));
+      return send(res, 404, { error: "عملية الذاكرة غير معروفة" });
+    }
     const body = await readBody(req);
     let messages;
     if (url.pathname === "/api/vip-team") {
@@ -70,7 +88,7 @@ const server = http.createServer(async (req, res) => {
       const goal = String(body.goal || "").trim().slice(0, 2000);
       const evidence = String(body.evidence || "").trim().slice(0, 12000);
       if (!appName || !packageName || !goal) return send(res, 400, { error: "بيانات التطبيق والهدف مطلوبة" });
-      const result = await runVipTeam({ appName, packageName, goal, evidence, apkAttached: false }, askAI);
+      const result = await runVipTeam({ appName, packageName, goal, evidence, apkAttached: false }, askAI, memoryStore);
       return send(res, 200, result);
     } else if (url.pathname === "/api/vip-plan") {
       const appName = String(body.appName || "").trim().slice(0, 100);
