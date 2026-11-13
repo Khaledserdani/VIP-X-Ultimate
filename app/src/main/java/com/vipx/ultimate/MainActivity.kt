@@ -89,7 +89,7 @@ private fun VipBuilderScreen(loadApps:()->List<InstalledApp>){
                     Text("AI VIP Builder",color=Color.White,fontSize=27.sp,fontWeight=FontWeight.Bold)
                     Text("حوّل اختيارك إلى خطة تطوير ذكية",color=Soft,fontSize=12.sp)
                 }
-                Icon(Icons.Default.AutoAwesome,null,tint=Mint,modifier=Modifier.size(34.dp))
+                Icon(Icons.Default.Android,null,tint=Mint,modifier=Modifier.size(34.dp))
             }
             Card(colors=CardDefaults.cardColors(containerColor=Panel),shape=RoundedCornerShape(18.dp)){
                 Column(Modifier.fillMaxWidth().padding(13.dp),verticalArrangement=Arrangement.spacedBy(8.dp)){
@@ -148,7 +148,7 @@ private fun VipBuilderScreen(loadApps:()->List<InstalledApp>){
                         }
                     },enabled=!busy,modifier=Modifier.fillMaxWidth()){
                         if(busy)CircularProgressIndicator(Modifier.size(18.dp),strokeWidth=2.dp)
-                        else Icon(Icons.Default.AutoAwesome,null)
+                        else Icon(Icons.Default.Android,null)
                         Spacer(Modifier.width(8.dp));Text(if(busy)"جارٍ التحليل..." else "حلّل وابتكر ميزات VIP")
                     }
                 }
