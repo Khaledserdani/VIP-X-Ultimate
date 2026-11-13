@@ -1,5 +1,6 @@
 const http = require("node:http");
 const crypto = require("node:crypto");
+const { runVipTeam, AGENTS } = require("./agents");
 
 const PORT = Number(process.env.PORT || 3000);
 const APP_ACCESS_TOKEN = process.env.APP_ACCESS_TOKEN || "";
@@ -52,10 +53,10 @@ const server = http.createServer(async (req, res) => {
   const url = new URL(req.url, "http://localhost");
 
   if (req.method === "GET" && url.pathname === "/health") {
-    return send(res, 200, { status: "ok", service: "VIP X Ultimate Cloud", aiConfigured: Boolean(OPENAI_API_KEY), accessConfigured: Boolean(APP_ACCESS_TOKEN) });
+    return send(res, 200, { status: "ok", service: "VIP X Ultimate Cloud", aiConfigured: Boolean(OPENAI_API_KEY), accessConfigured: Boolean(APP_ACCESS_TOKEN), agents: AGENTS.map(({id,name}) => ({id,name})) });
   }
 
-  if (req.method !== "POST" || !["/api/chat", "/api/vip-plan"].includes(url.pathname)) {
+  if (req.method !== "POST" || !["/api/chat", "/api/vip-plan", "/api/vip-team"].includes(url.pathname)) {
     return send(res, 404, { error: "المسار غير موجود" });
   }
   if (!authorized(req)) return send(res, 401, { error: "رمز الوصول غير صحيح أو لم يُضبط على الخادم" });
@@ -63,7 +64,15 @@ const server = http.createServer(async (req, res) => {
   try {
     const body = await readBody(req);
     let messages;
-    if (url.pathname === "/api/vip-plan") {
+    if (url.pathname === "/api/vip-team") {
+      const appName = String(body.appName || "").trim().slice(0, 100);
+      const packageName = String(body.packageName || "").trim().slice(0, 180);
+      const goal = String(body.goal || "").trim().slice(0, 2000);
+      const evidence = String(body.evidence || "").trim().slice(0, 12000);
+      if (!appName || !packageName || !goal) return send(res, 400, { error: "بيانات التطبيق والهدف مطلوبة" });
+      const result = await runVipTeam({ appName, packageName, goal, evidence, apkAttached: false }, askAI);
+      return send(res, 200, result);
+    } else if (url.pathname === "/api/vip-plan") {
       const appName = String(body.appName || "").trim().slice(0, 100);
       const packageName = String(body.packageName || "").trim().slice(0, 180);
       const goal = String(body.goal || "").trim().slice(0, 2000);
