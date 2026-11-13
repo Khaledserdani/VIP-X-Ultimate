@@ -124,11 +124,11 @@ private fun VipBuilderScreen(loadApps:()->List<InstalledApp>){
                         val app=selected
                         if(app==null){status="اختر تطبيقاً أولاً";return@Button}
                         if(token.isBlank()||!endpoint.startsWith("https://")){status="أدخل رمز الربط الصحيح";return@Button}
-                        busy=true;answer="";status="الذكاء الاصطناعي يحلل التطبيق والطلب..."
+                        busy=true;answer="";status="فريق المساعدين يعمل بالتوازي..."
                         scope.launch{
                             try{
                                 val result=withContext(Dispatchers.IO){
-                                    val conn=(URL(endpoint.trimEnd('/')+"/api/vip-plan").openConnection() as HttpURLConnection).apply{
+                                    val conn=(URL(endpoint.trimEnd('/')+"/api/vip-team").openConnection() as HttpURLConnection).apply{
                                         requestMethod="POST";connectTimeout=20000;readTimeout=90000;doOutput=true
                                         setRequestProperty("Content-Type","application/json; charset=utf-8")
                                         setRequestProperty("Authorization","Bearer "+token.trim())
@@ -139,7 +139,19 @@ private fun VipBuilderScreen(loadApps:()->List<InstalledApp>){
                                         val stream=if(conn.responseCode in 200..299)conn.inputStream else conn.errorStream
                                         val response=stream.bufferedReader().use{it.readText()}
                                         if(conn.responseCode !in 200..299)throw IllegalStateException(JSONObject(response).optString("error","HTTP ${conn.responseCode}"))
-                                        JSONObject(response).optString("reply")
+                                        run {
+                                            val payload=JSONObject(response)
+                                            val team=payload.optJSONArray("team") ?: JSONArray()
+                                            buildString {
+                                                for(i in 0 until team.length()){
+                                                    val agent=team.getJSONObject(i)
+                                                    append("◆ ").append(agent.optString("name")).append("\n")
+                                                    append(agent.optString("result")).append("\n\n")
+                                                }
+                                                append("القرار الموحد للفريق\n")
+                                                append(payload.optString("decision","لم يصل القرار النهائي"))
+                                            }
+                                        }
                                     }finally{conn.disconnect()}
                                 }
                                 answer=result
@@ -150,7 +162,7 @@ private fun VipBuilderScreen(loadApps:()->List<InstalledApp>){
                     },enabled=!busy,modifier=Modifier.fillMaxWidth()){
                         if(busy)CircularProgressIndicator(Modifier.size(18.dp),strokeWidth=2.dp)
                         else Icon(Icons.Default.Android,null)
-                        Spacer(Modifier.width(8.dp));Text(if(busy)"جارٍ التحليل..." else "حلّل وابتكر ميزات VIP")
+                        Spacer(Modifier.width(8.dp));Text(if(busy)"جارٍ عمل الفريق..." else "شغّل فريق مساعدين VIP")
                     }
                 }
             }
