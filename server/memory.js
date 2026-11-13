@@ -50,7 +50,6 @@ async function promoteVersion(agentId,versionId,verification) {
   try { await c.query("BEGIN");
     const f=await c.query("SELECT id FROM agent_memory_versions WHERE id=$1 AND agent_id=$2 AND status='candidate' FOR UPDATE",[versionId,agentId]);
     if(!f.rowCount) throw new Error("الإصدار غير موجود أو ليس مرشحاً");
-    await c.query("UPDATE agent_memory_versions SET status='superseded' WHERE agent_id=$1 AND status='verified'",[agentId]);
     await c.query("UPDATE agent_memory_versions SET status='verified',verification=$2,verified_at=NOW() WHERE id=$1",[versionId,JSON.stringify(verification)]);
     await c.query(`INSERT INTO agent_memory_heads(agent_id,last_verified_version,latest_candidate_version) VALUES($1,$2,NULL)
       ON CONFLICT(agent_id) DO UPDATE SET last_verified_version=EXCLUDED.last_verified_version,updated_at=NOW()`,[agentId,versionId]);
@@ -62,9 +61,12 @@ async function rollbackToLastVerified(agentId) {
   try { await c.query("BEGIN");
     const h=await c.query("SELECT last_verified_version FROM agent_memory_heads WHERE agent_id=$1 FOR UPDATE",[agentId]);
     if(!h.rowCount||!h.rows[0].last_verified_version){await c.query("ROLLBACK");return {agentId,restored:false,reason:"لا توجد نتيجة مثبتة سابقة"};}
-    const id=Number(h.rows[0].last_verified_version);
-    await c.query("UPDATE agent_memory_heads SET latest_candidate_version=NULL,updated_at=NOW() WHERE agent_id=$1",[agentId]);
-    await c.query("COMMIT"); return {agentId,restored:true,lastVerifiedVersion:id};
+    const current=Number(h.rows[0].last_verified_version);
+    const prior=await c.query("SELECT id FROM agent_memory_versions WHERE agent_id=$1 AND status='verified' AND id<$2 ORDER BY id DESC LIMIT 1",[agentId,current]);
+    if(!prior.rowCount){await c.query("ROLLBACK");return {agentId,restored:false,reason:"لا توجد نسخة مثبتة أقدم للرجوع إليها"};}
+    const id=Number(prior.rows[0].id);
+    await c.query("UPDATE agent_memory_heads SET last_verified_version=$2,latest_candidate_version=NULL,updated_at=NOW() WHERE agent_id=$1",[agentId,id]);
+    await c.query("COMMIT"); return {agentId,restored:true,lastVerifiedVersion:id,rolledBackFrom:current};
   } catch(e){await c.query("ROLLBACK");throw e;} finally{c.release();}
 }
 module.exports={getAgentMemory,saveCandidate,promoteVersion,rollbackToLastVerified};
