@@ -141,7 +141,7 @@ private fun VipXScreen(scan:suspend()->List<AppEntry>,launchApp:(AppEntry)->Unit
                     Text("مساحة الأدوات الذكية",color=Color.White,fontSize=23.sp,fontWeight=FontWeight.Bold)
                     Text("ألعابك • تصدير تطبيقاتك • مساعدك الذكي",color=Muted,fontSize=11.sp)
                 }
-                Icon(Icons.Default.AutoAwesome,null,tint=Accent,modifier=Modifier.size(38.dp))
+                Icon(Icons.Default.Shield,null,tint=Accent,modifier=Modifier.size(38.dp))
             }
             Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.spacedBy(6.dp)){
                 listOf("الرئيسية","الألعاب","تصدير التطبيقات","المساعد").forEachIndexed{index,label->
@@ -153,8 +153,8 @@ private fun VipXScreen(scan:suspend()->List<AppEntry>,launchApp:(AppEntry)->Unit
                     Text("أهلاً بك في VIP X",color=Color.White,fontSize=20.sp,fontWeight=FontWeight.Bold)
                     Text("اختر ما تريد إنجازه دون تكرار أدوات إعدادات الهاتف.",color=Muted,fontSize=12.sp)
                     ActionCard("مركز الألعاب","اعرض ألعابك وشغّلها واحتسب مدة الجلسة",Icons.Default.SportsEsports){tab=1}
-                    ActionCard("تصدير التطبيقات","احفظ نسخة APK أساسية من تطبيق تختاره",Icons.Default.FileDownload){tab=2}
-                    ActionCard("المساعد الذكي","افتح المساعد السحابي",Icons.Default.AutoAwesome){cloud()}
+                    ActionCard("تصدير التطبيقات","احفظ نسخة APK أساسية من تطبيق تختاره",Icons.Default.Android){tab=2}
+                    ActionCard("المساعد الذكي","افتح المساعد السحابي",Icons.Default.Shield){cloud()}
                     Text(status,color=Muted,fontSize=11.sp)
                     OutlinedButton(onClick={scope.launch{refresh()}},enabled=!loading,modifier=Modifier.fillMaxWidth()){
                         Icon(Icons.Default.Refresh,null);Spacer(Modifier.width(7.dp));Text("تحديث قائمة الألعاب والتطبيقات")
@@ -200,7 +200,7 @@ private fun VipXScreen(scan:suspend()->List<AppEntry>,launchApp:(AppEntry)->Unit
                     if(loading) Box(Modifier.fillMaxWidth().weight(1f),contentAlignment=Alignment.Center){CircularProgressIndicator(color=Accent)}
                     else LazyColumn(Modifier.weight(1f),verticalArrangement=Arrangement.spacedBy(8.dp)){
                         items(exportList,key={it.pkg}){app->
-                            AppCard(app,"تصدير APK",Icons.Default.FileDownload){
+                            AppCard(app,"تصدير APK",Icons.Default.Android){
                                 pendingExport=app
                                 exportLauncher.launch("${app.pkg}.apk")
                             }
