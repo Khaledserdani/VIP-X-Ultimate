@@ -1,7 +1,7 @@
 name: Android CI
 on:
   push:
-    branches: [ "main" ]
+    branches: [ "main", "final/vipx-ultimate-rebuild" ]
   pull_request:
     branches: [ "main" ]
   workflow_dispatch:
