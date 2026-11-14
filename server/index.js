@@ -179,12 +179,28 @@ const server = http.createServer(async (req, res) => {
             { role: "user", content: "المهمة: " + goal + "\\nقرار الفريق: " + result.decision + "\\nنتائج التنفيذ الفعلية: " + JSON.stringify(execution.results).slice(0, 18000) }
           ])
         : result.decision;
+      const actionText = await askAI([
+        { role: "system", content: "أخرج JSON فقط ككائن يحوي summary و actions. كل إجراء له type و target و reason. الأنواع المسموحة: OPEN_URL و SHARE_TEXT و TAP_TEXT و SCROLL_FORWARD و SCROLL_BACK و BACK. بحد أقصى 5 إجراءات. OPEN_URL يجب أن يكون رابط HTTPS عام واضح ومذكور في نتائج الأدوات أو طلب المستخدم. SHARE_TEXT يفتح قائمة مشاركة Android ولا يرسل وحده. TAP_TEXT لا تستخدمه إلا إذا كان نص العنصر موجوداً حرفياً في سياق الشاشة. لا تنفذ دفعاً أو شراءً أو حذفاً أو مراسلة تلقائية أو تسجيل دخول. إذا لم يوجد إجراء محلي مناسب أعد مصفوفة فارغة." },
+        { role: "user", content: "المهمة: " + goal + "\\nالسياق الظاهر: " + String(body.context || "").slice(0, 8000) + "\\nالقرار: " + finalDecision + "\\nنتائج الأدوات: " + JSON.stringify(execution.results).slice(0, 12000) }
+      ]);
+      let localPlan = {};
+      try { localPlan = JSON.parse(actionText.replace(/^\`\`\`(?:json)?\\s*/i, "").replace(/\\s*\`\`\`$/i, "")); } catch {}
+      const allowedLocal = new Set(["OPEN_URL", "SHARE_TEXT", "TAP_TEXT", "SCROLL_FORWARD", "SCROLL_BACK", "BACK"]);
+      const actions = (Array.isArray(localPlan.actions) ? localPlan.actions : []).slice(0, 5).filter(a => {
+        if (!a || !allowedLocal.has(a.type)) return false;
+        const target = String(a.target || "").trim();
+        if (a.type === "OPEN_URL") return /^https:\\/\\//i.test(target);
+        if (a.type === "SHARE_TEXT") return target.length > 0 && target.length <= 4000;
+        if (a.type === "TAP_TEXT") return target.length > 0 && String(body.context || "").includes(target);
+        return true;
+      }).map(a => ({ type: a.type, target: String(a.target || "").slice(0, 4000), reason: String(a.reason || "").slice(0, 240) }));
       return send(res, 200, {
         mission: goal,
         decision: finalDecision,
         team: result.team.map(a => ({ id: a.id, name: a.name, result: a.result })),
         execution: execution.results,
-        availableTools: TOOL_REGISTRY.map(({id,name,description}) => ({id,name,description}))
+        availableTools: TOOL_REGISTRY.map(({id,name,description}) => ({id,name,description})),
+        actions
       });
     }
     if (url.pathname === "/api/in-app/plan") {
