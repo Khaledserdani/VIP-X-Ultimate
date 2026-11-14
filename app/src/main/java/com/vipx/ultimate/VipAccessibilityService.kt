@@ -3,6 +3,8 @@ package com.vipx.ultimate
 import android.accessibilityservice.AccessibilityService
 import android.content.Intent
 import android.graphics.PixelFormat
+import android.graphics.Path
+import android.accessibilityservice.GestureDescription
 import android.provider.Settings
 import android.view.Gravity
 import android.view.WindowManager
@@ -91,6 +93,14 @@ class VipAccessibilityService : AccessibilityService() {
 
     fun goBack(): Boolean = performGlobalAction(GLOBAL_ACTION_BACK)
 
+    fun swipeScreen(x1: Float, y1: Float, x2: Float, y2: Float, durationMs: Long = 350): Boolean {
+        if (android.os.Build.VERSION.SDK_INT < 24) return false
+        val path = Path().apply { moveTo(x1, y1); lineTo(x2, y2) }
+        val stroke = GestureDescription.StrokeDescription(path, 0, durationMs.coerceIn(80, 1200))
+        return dispatchGesture(GestureDescription.Builder().addStroke(stroke).build(), null, null)
+    }
+
+
     override fun onInterrupt() = Unit
     override fun onDestroy() {
         if (active === this) active = null
@@ -104,6 +114,7 @@ class VipAccessibilityService : AccessibilityService() {
         fun tapText(text: String): Boolean = active?.tapVisibleText(text) ?: false
         fun scrollPage(forward: Boolean): Boolean = active?.scroll(forward) ?: false
         fun back(): Boolean = active?.goBack() ?: false
+        fun swipe(x1: Float, y1: Float, x2: Float, y2: Float, durationMs: Long = 350): Boolean = active?.swipeScreen(x1, y1, x2, y2, durationMs) ?: false
         fun isActive(): Boolean = active != null
     }
 }
