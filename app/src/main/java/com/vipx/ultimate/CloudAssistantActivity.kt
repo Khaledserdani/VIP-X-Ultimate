@@ -141,6 +141,8 @@ private fun CloudAssistantScreen(context: Context, onBack: () -> Unit) {
                                     planSummary = result.optString("decision", "اكتمل تحليل الفريق")
                                     val reports = result.optJSONArray("team") ?: JSONArray()
                                     for (i in 0 until reports.length()) { val a = reports.getJSONObject(i); agentReports.add(AgentReport(a.optString("name"), a.optString("result"))) }
+                                    val executions = result.optJSONArray("execution") ?: JSONArray()
+                                    for (i in 0 until executions.length()) { agentReports.add(AgentReport("أداة نُفذت فعلياً", executions.getJSONObject(i).toString(2))) }
                                     val list = result.optJSONArray("actions") ?: JSONArray()
                                     for (i in 0 until list.length()) {
                                         val a = list.getJSONObject(i)
