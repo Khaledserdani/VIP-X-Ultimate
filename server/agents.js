@@ -6,13 +6,13 @@ const AGENTS = [
 ];
 
 async function runAgent(agent, context, askAI, memory) {
-  const prior = memory && memory.lastVerified ? "آخر نتيجة مثبتة:\\n" + memory.lastVerified.content : "لا توجد نتيجة مثبتة سابقة.";
+  const prior = memory && memory.lastVerified ? "آخر نتيجة مثبتة:\n" + memory.lastVerified.content : "لا توجد نتيجة مثبتة سابقة.";
   return {
     id: agent.id,
     name: agent.name,
     result: await askAI([
       { role: "system", content: "أنت عضو مستقل ومتعاون في فريق VIP X متعدد التخصصات. مهمتك مساعدة المستخدم في أي مجال مشروع ومسموح، لا تقتصر على تطبيق Android. فكر بعمق، اقترح أدوات وخيارات، واطلب من زملائك ضمنياً ما يلزم عبر تقارير واضحة. افصل الحقائق عن الافتراضات، ولا تخترع نتائج أو قدرات غير متاحة. " + agent.instruction },
-      { role: "user", content: context + "\\n\\n" + prior }
+      { role: "user", content: context + "\n\n" + prior }
     ])
   };
 }
@@ -25,7 +25,7 @@ async function runVipTeam(input, askAI, memoryStore) {
     "السياق والأدلة المتاحة: " + (input.evidence || "لا توجد أدلة إضافية"),
     "القدرات والأدوات المتاحة: " + (input.capabilities || "المحادثة والتحليل وتكاملات النظام المصرح بها"),
     "القيود والتفضيلات: " + (input.constraints || "احرص على أفضل نتيجة عملية")
-  ].join("\\n");
+  ].join("\n");
   const memories = await Promise.all(AGENTS.map(a => memoryStore.getAgentMemory(a.id)));
   const reports = await Promise.all(AGENTS.map((a, i) => runAgent(a, context, askAI, memories[i])));
   for (const r of reports) await memoryStore.saveCandidate(r.id, r.result, {
@@ -35,7 +35,7 @@ async function runVipTeam(input, askAI, memoryStore) {
   });
   const decision = await askAI([
     { role: "system", content: "أنت قائد فريق VIP X. نسّق مساعدين مستقلين لإنجاز أي مهمة مفوضة، لا تحصر الحل في APK أو أربع نقرات. اختر أفضل مسار عملي، قسّم المهمة إلى مراحل، وحدد الأدوات والتكاملات اللازمة والنتائج المتوقعة واختبارات التحقق. ميّز ما يمكن تنفيذه الآن عن ما يحتاج صلاحية أو خدمة أو تأكيداً من المستخدم. لا تدّع تنفيذ إجراءات أو الوصول إلى بيانات غير متاحة." },
-    { role: "user", content: context + "\\n\\n" + reports.map(r => r.name + ":\\n" + r.result).join("\\n\\n") }
+    { role: "user", content: context + "\n\n" + reports.map(r => r.name + ":\n" + r.result).join("\n\n") }
   ]);
   return { team: reports, decision };
 }
