@@ -91,7 +91,7 @@ private fun CloudAssistantScreen(context: Context, onBack: () -> Unit) {
             }
             Card(colors = CardDefaults.cardColors(containerColor = Color(0xFF173A3D)), shape = RoundedCornerShape(14.dp)) {
                 Column(Modifier.fillMaxWidth().padding(10.dp), verticalArrangement = Arrangement.spacedBy(7.dp)) {
-                    Text("تنفيذ داخل التطبيق المفتوح", color = CloudAccent, fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                    Text("أدوات التفاعل مع التطبيق (اختيارية)", color = CloudAccent, fontWeight = FontWeight.Bold, fontSize = 13.sp)
                     Text(if (VipAccessibilityService.isActive()) "خدمة التنفيذ متصلة" else "فعّل خدمة VIP X من إعدادات إمكانية الوصول أولاً", color = CloudMuted, fontSize = 10.sp)
                     Row(horizontalArrangement = Arrangement.spacedBy(6.dp), modifier = Modifier.fillMaxWidth()) {
                         OutlinedButton(onClick = { status = if (VipAccessibilityService.back()) "تم الرجوع داخل التطبيق" else "خدمة التنفيذ غير متصلة" }, modifier = Modifier.weight(1f)) { Text("رجوع") }
@@ -115,7 +115,7 @@ private fun CloudAssistantScreen(context: Context, onBack: () -> Unit) {
                         val screen = live.getString("visible_context", "").orEmpty()
                         val pkg = live.getString("active_package", "").orEmpty()
                         if (goal.isBlank()) status = "اكتب المهمة أولاً"
-                        else if (pkg.isBlank()) status = "اختر التطبيق أو افتحه أولاً لربط المهمة بسياقه"
+                        
                         else if (!endpoint.startsWith("https://") || accessToken.isBlank()) status = "أدخل رابط الخادم ورمز الربط الصحيح"
                         else {
                             busy = true; status = "المساعدون الأربعة يدرسون المهمة ويبنون خطة..."
@@ -129,7 +129,7 @@ private fun CloudAssistantScreen(context: Context, onBack: () -> Unit) {
                                             setRequestProperty("Authorization", "Bearer " + accessToken)
                                         }
                                         try {
-                                            val payload = JSONObject().put("task", goal).put("appName", pkg.substringAfterLast('.')).put("packageName", pkg).put("context", screen).put("capabilities", "Android UI context, authorized tap/scroll/back, chat, analysis and configured cloud tools")
+                                            val payload = JSONObject().put("task", goal).put("appName", if (pkg.isBlank()) "مهمة عامة" else pkg.substringAfterLast('.')).put("packageName", pkg).put("context", screen).put("capabilities", "Android UI context, authorized tap/scroll/back, chat, analysis and configured cloud tools")
                                             conn.outputStream.use { it.write(payload.toString().toByteArray(Charsets.UTF_8)) }
                                             val code = conn.responseCode
                                             val stream = if (code in 200..299) conn.inputStream else conn.errorStream
