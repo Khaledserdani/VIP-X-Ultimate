@@ -33,6 +33,7 @@ import org.json.JSONArray
 import org.json.JSONObject
 import java.net.HttpURLConnection
 import java.net.URL
+import java.io.File
 
 private val Navy = Color(0xFF071321)
 private val Panel = Color(0xFF12263B)
@@ -165,6 +166,84 @@ private fun VipBuilderScreen(loadApps:()->List<InstalledApp>){
                         Spacer(Modifier.width(8.dp));Text(if(busy)"جارٍ عمل الفريق..." else "شغّل فريق مساعدين VIP")
                     }
                 }
+            }
+            Button(
+                onClick = {
+                    val app = selected
+                    if (app == null) { status = "اختر تطبيقاً أولاً"; return@Button }
+                    if (token.isBlank()) { status = "أدخل رمز ربط الخادم أولاً"; return@Button }
+                    busy = true
+                    answer = ""
+                    status = "جارٍ استخراج APK المثبّت وفحصه..."
+                    scope.launch {
+                        try {
+                            val report = withContext(Dispatchers.IO) {
+                                val info = packageManager.getApplicationInfo(app.packageName, 0)
+                                val apk = File(info.sourceDir)
+                                if (!apk.isFile || !apk.canRead()) throw IllegalStateException("تعذر قراءة ملف APK لهذا التطبيق")
+                                val conn = (URL(endpoint.trimEnd('/') + "/api/apk/analyze").openConnection() as HttpURLConnection).apply {
+                                    requestMethod = "POST"
+                                    connectTimeout = 20000
+                                    readTimeout = 180000
+                                    doOutput = true
+                                    setFixedLengthStreamingMode(apk.length())
+                                    setRequestProperty("Content-Type", "application/vnd.android.package-archive")
+                                    setRequestProperty("Authorization", "Bearer " + token.trim())
+                                }
+                                val response = try {
+                                    conn.outputStream.use { out -> apk.inputStream().use { input -> input.copyTo(out, 64 * 1024) } }
+                                    val stream = if (conn.responseCode in 200..299) conn.inputStream else conn.errorStream
+                                    val body = stream.bufferedReader().use { it.readText() }
+                                    if (conn.responseCode !in 200..299) throw IllegalStateException(JSONObject(body).optString("error", "HTTP ${conn.responseCode}"))
+                                    JSONObject(body).getJSONObject("analysis")
+                                } finally { conn.disconnect() }
+                                val evidence = response.toString()
+                                val team = (URL(endpoint.trimEnd('/') + "/api/vip-team").openConnection() as HttpURLConnection).apply {
+                                    requestMethod = "POST"
+                                    connectTimeout = 20000
+                                    readTimeout = 180000
+                                    doOutput = true
+                                    setRequestProperty("Content-Type", "application/json; charset=utf-8")
+                                    setRequestProperty("Authorization", "Bearer " + token.trim())
+                                }
+                                try {
+                                    val payload = JSONObject().put("appName", app.name).put("packageName", app.packageName)
+                                        .put("goal", goal).put("evidence", evidence)
+                                    team.outputStream.use { it.write(payload.toString().toByteArray(Charsets.UTF_8)) }
+                                    val stream = if (team.responseCode in 200..299) team.inputStream else team.errorStream
+                                    val body = stream.bufferedReader().use { it.readText() }
+                                    if (team.responseCode !in 200..299) throw IllegalStateException(JSONObject(body).optString("error", "HTTP ${team.responseCode}"))
+                                    val result = JSONObject(body)
+                                    buildString {
+                                        append("نتيجة فحص APK الفعلي\\n")
+                                        append("الحزمة: ").append(response.optString("packageName", app.packageName)).append("\\n")
+                                        append("SHA-256: ").append(response.getJSONObject("file").optString("sha256")).append("\\n")
+                                        append("التوقيع: ").append(response.optString("signature")).append("\\n\\n")
+                                        val agents = result.optJSONArray("team") ?: JSONArray()
+                                        for (i in 0 until agents.length()) {
+                                            val a = agents.getJSONObject(i)
+                                            append("◆ ").append(a.optString("name")).append("\\n")
+                                            append(a.optString("result")).append("\\n\\n")
+                                        }
+                                        append("قرار الفريق\\n").append(result.optString("decision"))
+                                    }
+                                } finally { team.disconnect() }
+                            }
+                            answer = report
+                            status = "اكتمل فحص APK وتشغيل المساعدين على أدلة فعلية"
+                        } catch (e: Exception) {
+                            status = "تعذر الفحص: ${e.message ?: "تحقق من الخادم والتطبيق"}"
+                        } finally { busy = false }
+                    }
+                },
+                enabled = !busy,
+                modifier = Modifier.fillMaxWidth(),
+                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF146B62))
+            ) {
+                if (busy) CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp)
+                else Icon(Icons.Default.AutoAwesome, null)
+                Spacer(Modifier.width(8.dp))
+                Text("افحص APK الحقيقي وشغّل فريق VIP")
             }
             if(answer.isNotBlank()){
                 Card(Modifier.fillMaxWidth().heightIn(max=190.dp),colors=CardDefaults.cardColors(containerColor=Color(0xFF102F32))){
