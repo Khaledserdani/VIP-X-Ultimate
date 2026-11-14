@@ -61,7 +61,7 @@ async function analyzeApk(buffer) {
     } catch (e) { signature = "تعذر إثبات صلاحية التوقيع: " + String(e.stderr || e.message).slice(0, 500); }
     await execFileAsync("apktool", ["d", "-f", "-s", "-o", decoded, apk], { timeout: 120000, maxBuffer: 4 * 1024 * 1024 });
     const manifest = await fs.readFile(path.join(decoded, "AndroidManifest.xml"), "utf8");
-    const packageName = (manifest.match(/package="([^"]+)"/) || [])[1] || null;
+      const packageName = String(body.packageName || "").trim().slice(0, 200);
     const minSdk = (manifest.match(/android:minSdkVersion="([^"]+)"/) || [])[1] || null;
     const targetSdk = (manifest.match(/android:targetSdkVersion="([^"]+)"/) || [])[1] || null;
     const permissions = [...manifest.matchAll(/<uses-permission[^>]+android:name="([^"]+)"/g)].map(m => m[1]);
@@ -154,7 +154,7 @@ const server = http.createServer(async (req, res) => {
     let messages;
     if (url.pathname === "/api/vip-team") {
       const appName = String(body.appName || "").trim().slice(0, 100);
-    const packageName = (manifest.match(/package="([^"]+)"/) || [])[1] || null;
+      const packageName = String(body.packageName || "").trim().slice(0, 200);
       const goal = String(body.goal || "").trim().slice(0, 2000);
       const evidence = String(body.evidence || "").trim().slice(0, 12000);
       if (!appName || !packageName || !goal) return send(res, 400, { error: "بيانات التطبيق والهدف مطلوبة" });
@@ -162,7 +162,7 @@ const server = http.createServer(async (req, res) => {
       return send(res, 200, result);
     } else if (url.pathname === "/api/vip-plan") {
       const appName = String(body.appName || "").trim().slice(0, 100);
-    const packageName = (manifest.match(/package="([^"]+)"/) || [])[1] || null;
+      const packageName = String(body.packageName || "").trim().slice(0, 200);
       const goal = String(body.goal || "").trim().slice(0, 2000);
       if (!appName || !packageName || !goal) return send(res, 400, { error: "بيانات التطبيق والهدف مطلوبة" });
       messages = [
