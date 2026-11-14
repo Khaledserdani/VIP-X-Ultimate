@@ -37,6 +37,44 @@ import org.json.JSONObject
 import java.net.HttpURLConnection
 import java.net.URL
 import java.io.File
+import android.content.Context
+import android.security.keystore.KeyGenParameterSpec
+import android.security.keystore.KeyProperties
+import android.util.Base64
+import java.security.KeyStore
+import javax.crypto.Cipher
+import javax.crypto.KeyGenerator
+import javax.crypto.SecretKey
+import javax.crypto.spec.GCMParameterSpec
+
+private object SecureTokenStore {
+    private const val alias = "vipx_access_token_key"
+    private const val prefs = "vipx_secure_settings"
+    private const val field = "access_token"
+    private fun key(): SecretKey {
+        val store = KeyStore.getInstance("AndroidKeyStore").apply { load(null) }
+        (store.getKey(alias, null) as? SecretKey)?.let { return it }
+        val generator = KeyGenerator.getInstance(KeyProperties.KEY_ALGORITHM_AES, "AndroidKeyStore")
+        generator.init(KeyGenParameterSpec.Builder(alias, KeyProperties.PURPOSE_ENCRYPT or KeyProperties.PURPOSE_DECRYPT)
+            .setBlockModes(KeyProperties.BLOCK_MODE_GCM).setEncryptionPaddings(KeyProperties.ENCRYPTION_PADDING_NONE)
+            .setRandomizedEncryptionRequired(true).build())
+        return generator.generateKey()
+    }
+    fun save(context: Context, value: String) {
+        val cipher = Cipher.getInstance("AES/GCM/NoPadding")
+        cipher.init(Cipher.ENCRYPT_MODE, key())
+        val bytes = cipher.iv + cipher.doFinal(value.toByteArray(Charsets.UTF_8))
+        context.getSharedPreferences(prefs, Context.MODE_PRIVATE).edit()
+            .putString(field, Base64.encodeToString(bytes, Base64.NO_WRAP)).apply()
+    }
+    fun load(context: Context): String = try {
+        val stored = context.getSharedPreferences(prefs, Context.MODE_PRIVATE).getString(field, null) ?: return ""
+        val bytes = Base64.decode(stored, Base64.NO_WRAP)
+        val cipher = Cipher.getInstance("AES/GCM/NoPadding")
+        cipher.init(Cipher.DECRYPT_MODE, key(), GCMParameterSpec(128, bytes.copyOfRange(0, 12)))
+        String(cipher.doFinal(bytes.copyOfRange(12, bytes.size)), Charsets.UTF_8)
+    } catch (_: Exception) { "" }
+}
 
 private val Navy = Color(0xFF071321)
 private val Panel = Color(0xFF12263B)
@@ -80,7 +118,7 @@ private fun VipBuilderScreen(loadApps:()->List<InstalledApp>){
     var query by remember{mutableStateOf("")}
     var goal by remember{mutableStateOf("أنشئ تصوراً احترافياً لنسخة VIP متوافقة، بواجهة راقية وميزات عملية دون تعطيل التطبيق الأصلي.") }
     var endpoint by remember{mutableStateOf("https://vip-x-ultimate-api-production.up.railway.app")}
-    var token by remember{mutableStateOf("")}
+    var token by remember{mutableStateOf(SecureTokenStore.load(context))}
     var answer by remember{mutableStateOf("")}
     var memoryInfo by remember{mutableStateOf("")}
     var status by remember{mutableStateOf("اختر تطبيقاً من هاتفك للبدء")}
@@ -171,7 +209,7 @@ private fun VipBuilderScreen(loadApps:()->List<InstalledApp>){
                                             val body = healthConn.inputStream.bufferedReader().use { it.readText() }
                                             JSONObject(body)
                                         } finally { healthConn.disconnect() }
-                                        val authConn = (URL(endpoint.trimEnd('/') + "/api/agent-memory/structure").openConnection() as HttpURLConnection).apply {
+                                        val authConn = (URL(endpoint.trimEnd('/') + "/api/session").openConnection() as HttpURLConnection).apply {
                                             requestMethod = "GET"
                                             connectTimeout = 15000
                                             readTimeout = 20000
@@ -185,6 +223,8 @@ private fun VipBuilderScreen(loadApps:()->List<InstalledApp>){
                                                 .put("memoryConfigured", health.optBoolean("memoryConfigured"))
                                         } finally { authConn.disconnect() }
                                     }
+                                    if (!result.optBoolean("authenticated", false)) throw IllegalStateException("الخادم لم يؤكد المصادقة")
+                                    SecureTokenStore.save(context, token.trim())
                                     val ai = if (result.optBoolean("aiConfigured")) "الذكاء الاصطناعي مهيأ" else "مفتاح الذكاء الاصطناعي غير مهيأ"
                                     val db = if (result.optBoolean("memoryConfigured")) "الذاكرة الدائمة مهيأة" else "قاعدة الذاكرة غير مهيأة"
                                     status = "اتصال موثّق ناجح • $ai • $db"
