@@ -162,18 +162,28 @@ private fun VipBuilderScreen(loadApps:()->List<InstalledApp>){
                             scope.launch {
                                 try {
                                     val result = withContext(Dispatchers.IO) {
-                                        val conn = (URL(endpoint.trimEnd('/') + "/api/session").openConnection() as HttpURLConnection).apply {
+                                        val healthConn = (URL(endpoint.trimEnd('/') + "/health").openConnection() as HttpURLConnection).apply {
+                                            requestMethod = "GET"
+                                            connectTimeout = 15000
+                                            readTimeout = 20000
+                                        }
+                                        val health = try {
+                                            val body = healthConn.inputStream.bufferedReader().use { it.readText() }
+                                            JSONObject(body)
+                                        } finally { healthConn.disconnect() }
+                                        val authConn = (URL(endpoint.trimEnd('/') + "/api/agent-memory/structure").openConnection() as HttpURLConnection).apply {
                                             requestMethod = "GET"
                                             connectTimeout = 15000
                                             readTimeout = 20000
                                             setRequestProperty("Authorization", "Bearer " + token.trim())
                                         }
                                         try {
-                                            val stream = if (conn.responseCode in 200..299) conn.inputStream else conn.errorStream
+                                            val stream = if (authConn.responseCode in 200..299) authConn.inputStream else authConn.errorStream
                                             val body = stream.bufferedReader().use { it.readText() }
-                                            if (conn.responseCode !in 200..299) throw IllegalStateException(JSONObject(body).optString("error", "HTTP ${conn.responseCode}"))
-                                            JSONObject(body)
-                                        } finally { conn.disconnect() }
+                                            if (authConn.responseCode !in 200..299) throw IllegalStateException(JSONObject(body).optString("error", "HTTP ${authConn.responseCode}"))
+                                            JSONObject(body).put("aiConfigured", health.optBoolean("aiConfigured"))
+                                                .put("memoryConfigured", health.optBoolean("memoryConfigured"))
+                                        } finally { authConn.disconnect() }
                                     }
                                     val ai = if (result.optBoolean("aiConfigured")) "الذكاء الاصطناعي مهيأ" else "مفتاح الذكاء الاصطناعي غير مهيأ"
                                     val db = if (result.optBoolean("memoryConfigured")) "الذاكرة الدائمة مهيأة" else "قاعدة الذاكرة غير مهيأة"
