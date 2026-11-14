@@ -1,6 +1,9 @@
 package com.vipx.ultimate
 
 import android.content.pm.PackageManager
+import android.content.Intent
+import android.net.Uri
+import android.provider.Settings
 import android.os.Build
 import android.os.Bundle
 import androidx.activity.ComponentActivity
@@ -175,6 +178,31 @@ private fun VipBuilderScreen(loadApps:()->List<InstalledApp>){
                             }
                             if(selected?.packageName==app.packageName) Text("محدد",color=Mint,fontSize=11.sp)
                         }
+                    }
+                }
+            }
+            Card(colors=CardDefaults.cardColors(containerColor=Color(0xFF173A3D)),shape=RoundedCornerShape(18.dp)){
+                Column(Modifier.fillMaxWidth().padding(13.dp),verticalArrangement=Arrangement.spacedBy(8.dp)){
+                    Text("جلسة VIP X داخل التطبيقات",color=Mint,fontWeight=FontWeight.Bold)
+                    Text("فعّل صلاحية الظهور فوق التطبيقات وخدمة المساعدة من إعدادات Android. الخدمة تقرأ النص الظاهر فقط، وتتجاهل حقول كلمات المرور.",color=Soft,fontSize=11.sp)
+                    OutlinedButton(onClick={
+                        if(!Settings.canDrawOverlays(context)){
+                            context.startActivity(Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION, Uri.parse("package:"+context.packageName)))
+                        } else {
+                            context.startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS))
+                        }
+                    },modifier=Modifier.fillMaxWidth()){
+                        Text("إعداد صلاحيات جلسة VIP X")
+                    }
+                    Button(onClick={
+                        val app=selected
+                        if(app==null){status="اختر تطبيقاً أولاً"} else {
+                            val launch=context.packageManager.getLaunchIntentForPackage(app.packageName)
+                            if(launch==null) status="هذا التطبيق لا يوفّر واجهة تشغيل مباشرة"
+                            else runCatching{context.startActivity(launch)}.onFailure{status="تعذر فتح التطبيق: ${it.message}"}
+                        }
+                    },enabled=selected!=null,modifier=Modifier.fillMaxWidth()){
+                        Text("افتح التطبيق وابدأ جلسة المساعدة")
                     }
                 }
             }
