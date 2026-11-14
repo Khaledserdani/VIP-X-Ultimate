@@ -3,7 +3,6 @@ package com.vipx.ultimate
 import android.accessibilityservice.AccessibilityService
 import android.content.Intent
 import android.graphics.PixelFormat
-import android.os.Build
 import android.provider.Settings
 import android.view.Gravity
 import android.view.WindowManager
@@ -17,6 +16,7 @@ class VipAccessibilityService : AccessibilityService() {
 
     override fun onServiceConnected() {
         super.onServiceConnected()
+        active = this
         windowManager = getSystemService(WINDOW_SERVICE) as WindowManager
         showBubbleIfAllowed()
     }
@@ -29,18 +29,14 @@ class VipAccessibilityService : AccessibilityService() {
         getSharedPreferences("vipx_live_context", MODE_PRIVATE).edit()
             .putString("active_package", event.packageName?.toString().orEmpty())
             .putString("visible_context", visibleText.toString().take(3500))
-            .putLong("captured_at", System.currentTimeMillis())
-            .apply()
+            .putLong("captured_at", System.currentTimeMillis()).apply()
     }
 
     private fun collectVisibleText(node: AccessibilityNodeInfo?, out: StringBuilder, depth: Int) {
-        if (node == null || depth > 18 || out.length >= 3500) return
-        // Never collect password or editable credential fields.
-        if (node.isPassword || (node.isEditable && node.text.isNullOrBlank())) return
-        val value = node.text?.toString()?.trim().orEmpty()
-        if (value.isNotEmpty() && !node.isPassword) {
-            if (out.isNotEmpty()) out.append(" | ")
-            out.append(value.take(180))
+        if (node == null || depth > 18 || out.length >= 3500 || node.isPassword) return
+        if (!node.isEditable) {
+            val value = node.text?.toString()?.trim().orEmpty()
+            if (value.isNotEmpty()) { if (out.isNotEmpty()) out.append(" | "); out.append(value.take(180)) }
         }
         for (i in 0 until node.childCount) {
             if (out.length >= 3500) break
@@ -51,34 +47,63 @@ class VipAccessibilityService : AccessibilityService() {
     private fun showBubbleIfAllowed() {
         if (!Settings.canDrawOverlays(this) || bubble != null) return
         val view = TextView(this).apply {
-            text = "VIP X"
-            textSize = 14f
-            setTextColor(android.graphics.Color.WHITE)
-            setPadding(28, 18, 28, 18)
-            setBackgroundColor(android.graphics.Color.rgb(18, 91, 86))
-            elevation = 12f
+            text = "VIP X"; textSize = 14f
+            setTextColor(android.graphics.Color.WHITE); setPadding(28, 18, 28, 18)
+            setBackgroundColor(android.graphics.Color.rgb(18, 91, 86)); elevation = 12f
             setOnClickListener {
-                val intent = Intent(this@VipAccessibilityService, CloudAssistantActivity::class.java)
-                    .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                startActivity(intent)
+                startActivity(Intent(this@VipAccessibilityService, CloudAssistantActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
             }
         }
-        val type = WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
         val params = WindowManager.LayoutParams(
-            WindowManager.LayoutParams.WRAP_CONTENT,
-            WindowManager.LayoutParams.WRAP_CONTENT,
-            type,
+            WindowManager.LayoutParams.WRAP_CONTENT, WindowManager.LayoutParams.WRAP_CONTENT,
+            WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
             WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN,
             PixelFormat.TRANSLUCENT
         ).apply { gravity = Gravity.END or Gravity.CENTER_VERTICAL; x = 12; y = 0 }
         runCatching { windowManager?.addView(view, params); bubble = view }
     }
 
-    override fun onInterrupt() = Unit
+    private fun findNode(node: AccessibilityNodeInfo?, target: String, depth: Int = 0): AccessibilityNodeInfo? {
+        if (node == null || depth > 20 || node.isPassword) return null
+        if (!node.isEditable && node.text?.toString()?.trim()?.equals(target, ignoreCase = true) == true) return node
+        for (i in 0 until node.childCount) findNode(node.getChild(i), target, depth + 1)?.let { return it }
+        return null
+    }
 
+    fun tapVisibleText(target: String): Boolean {
+        if (target.isBlank()) return false
+        val node = findNode(rootInActiveWindow, target.trim()) ?: return false
+        val clickable = generateSequence(node) { it.parent }.firstOrNull { it.isClickable } ?: node
+        return clickable.performAction(AccessibilityNodeInfo.ACTION_CLICK)
+    }
+
+    fun scroll(forward: Boolean): Boolean {
+        val root = rootInActiveWindow ?: return false
+        val action = if (forward) AccessibilityNodeInfo.ACTION_SCROLL_FORWARD else AccessibilityNodeInfo.ACTION_SCROLL_BACKWARD
+        fun scan(n: AccessibilityNodeInfo?, depth: Int): AccessibilityNodeInfo? {
+            if (n == null || depth > 18) return null
+            if (n.isScrollable && n.performAction(action)) return n
+            for (i in 0 until n.childCount) scan(n.getChild(i), depth + 1)?.let { return it }
+            return null
+        }
+        return scan(root, 0) != null
+    }
+
+    fun goBack(): Boolean = performGlobalAction(GLOBAL_ACTION_BACK)
+
+    override fun onInterrupt() = Unit
     override fun onDestroy() {
+        if (active === this) active = null
         runCatching { bubble?.let { windowManager?.removeView(it) } }
         bubble = null
         super.onDestroy()
+    }
+
+    companion object {
+        @Volatile private var active: VipAccessibilityService? = null
+        fun tapText(text: String): Boolean = active?.tapVisibleText(text) ?: false
+        fun scrollPage(forward: Boolean): Boolean = active?.scroll(forward) ?: false
+        fun back(): Boolean = active?.goBack() ?: false
+        fun isActive(): Boolean = active != null
     }
 }
