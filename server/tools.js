@@ -83,4 +83,4 @@ async function executeMissionTools(goal,askAI) {
   const results=[];for(const c of (Array.isArray(plan.calls)?plan.calls.slice(0,3):[])){try{results.push(await executeToolCall(c));}catch(e){results.push({tool:c.name,error:e.message});}}
   return {tools:TOOL_REGISTRY,results};
 }
-module.exports={TOOL_REGISTRY,executeMissionTools,executeToolCall,calculate,webSearch,fetchText};
+module.exports={TOOL_REGISTRY,executeMissionTools,executeToolCall,calculate,webSearch,fetchText,safeUrl};
