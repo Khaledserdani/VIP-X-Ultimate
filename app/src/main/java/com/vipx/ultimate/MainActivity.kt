@@ -1,6 +1,5 @@
 package com.vipx.ultimate
 
-import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Bundle
@@ -135,7 +134,7 @@ private fun VipBuilderScreen(loadApps:()->List<InstalledApp>){
                 Column(Modifier.weight(1f)){
                     Text("VIP X ULTIMATE",color=Mint,fontSize=13.sp,fontWeight=FontWeight.ExtraBold,letterSpacing=1.8.sp)
                     Text("AI VIP Builder",color=Color.White,fontSize=27.sp,fontWeight=FontWeight.Bold)
-                    Text("حوّل اختيارك إلى خطة تطوير ذكية",color=Soft,fontSize=12.sp)
+                    Text("فحص APK الحقيقي • تحليل المساعدين • حماية التطبيق الأصلي",color=Soft,fontSize=12.sp)
                 }
                 Icon(Icons.Default.Android,null,tint=Mint,modifier=Modifier.size(34.dp))
             }
@@ -179,21 +178,9 @@ private fun VipBuilderScreen(loadApps:()->List<InstalledApp>){
                     }
                 }
             }
-            OutlinedButton(
-                onClick = {
-                    val app = selected
-                    if (app == null) { status = "اختر تطبيقاً أولاً"; return@OutlinedButton }
-                    val launchIntent = context.packageManager.getLaunchIntentForPackage(app.packageName)
-                    if (launchIntent == null) status = "هذا التطبيق لا يوفّر شاشة تشغيل مباشرة"
-                    else runCatching { context.startActivity(launchIntent); status = "تم فتح ${app.name}" }
-                        .onFailure { status = "تعذر فتح التطبيق: ${it.message}" }
-                },
-                modifier = Modifier.fillMaxWidth(),
-                enabled = selected != null
-            ) { Text("افتح التطبيق المحدد") }
             Card(colors=CardDefaults.cardColors(containerColor=Panel),shape=RoundedCornerShape(18.dp)){
                 Column(Modifier.padding(13.dp),verticalArrangement=Arrangement.spacedBy(8.dp)){
-                    Text("2 • الذكاء الاصطناعي",color=Color.White,fontWeight=FontWeight.Bold)
+                    Text("2 • ربط الخادم الآمن",color=Color.White,fontWeight=FontWeight.Bold)
                     OutlinedTextField(goal,{goal=it},Modifier.fillMaxWidth(),label={Text("ما الذي تريد تحسينه؟")},minLines=2,maxLines=3)
                     OutlinedTextField(token,{token=it},Modifier.fillMaxWidth(),singleLine=true,label={Text("رمز ربط خادم VIP X")},visualTransformation=PasswordVisualTransformation())
                     OutlinedButton(
@@ -241,52 +228,6 @@ private fun VipBuilderScreen(loadApps:()->List<InstalledApp>){
                         modifier = Modifier.fillMaxWidth()
                     ) { Text("اختبر الاتصال ورمز الربط") }
                     Text(status,color=Mint,fontSize=10.sp)
-                    Button(onClick={
-                        val app=selected
-                        if(app==null){status="اختر تطبيقاً أولاً";return@Button}
-                        if(token.isBlank()||!endpoint.startsWith("https://")){status="أدخل رمز الربط الصحيح";return@Button}
-                        busy=true;answer="";status="فريق المساعدين يعمل بالتوازي..."
-                        scope.launch{
-                            try{
-                                val result=withContext(Dispatchers.IO){
-                                    val conn=(URL(endpoint.trimEnd('/')+"/api/vip-team").openConnection() as HttpURLConnection).apply{
-                                        requestMethod="POST";connectTimeout=20000;readTimeout=90000;doOutput=true
-                                        setRequestProperty("Content-Type","application/json; charset=utf-8")
-                                        setRequestProperty("Authorization","Bearer "+token.trim())
-                                    }
-                                    try{
-                                        val body=JSONObject().put("appName",app.name).put("packageName",app.packageName).put("goal",goal).toString()
-                                        conn.outputStream.use{it.write(body.toByteArray(Charsets.UTF_8))}
-                                        val stream=if(conn.responseCode in 200..299)conn.inputStream else conn.errorStream
-                                        val response=stream.bufferedReader().use{it.readText()}
-                                        if(conn.responseCode !in 200..299)throw IllegalStateException(JSONObject(response).optString("error","HTTP ${conn.responseCode}"))
-                                        run {
-                                            val payload=JSONObject(response)
-                                            val team=payload.optJSONArray("team") ?: JSONArray()
-                                            buildString {
-                                                for(i in 0 until team.length()){
-                                                    val agent=team.getJSONObject(i)
-                                                    append("◆ ").append(agent.optString("name")).append("\n")
-                                                    append(agent.optString("result")).append("\n\n")
-                                                }
-                                                append("القرار الموحد للفريق\n")
-                                                append(payload.optString("decision","لم يصل القرار النهائي"))
-                                            }
-                                        }
-                                    }finally{conn.disconnect()}
-                                }
-                                answer=result
-                                status="اكتمل تحليل الذكاء الاصطناعي"
-                            }catch(e:Exception){status="لم يكتمل الاتصال: ${e.message?:"تحقق من الخادم والرمز"}"}
-                            finally{busy=false}
-                        }
-                    },enabled=!busy,modifier=Modifier.fillMaxWidth()){
-                        if(busy)CircularProgressIndicator(Modifier.size(18.dp),strokeWidth=2.dp)
-                        else Icon(Icons.Default.Android,null)
-                        Spacer(Modifier.width(8.dp));Text(if(busy)"جارٍ عمل الفريق..." else "شغّل فريق مساعدين VIP")
-                    }
-                }
-            }
             Button(
                 onClick = {
                     val app = selected
@@ -369,7 +310,7 @@ private fun VipBuilderScreen(loadApps:()->List<InstalledApp>){
                 if (busy) CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp)
                 else Icon(Icons.Default.AutoAwesome, null)
                 Spacer(Modifier.width(8.dp))
-                Text("افحص APK الحقيقي وشغّل فريق VIP")
+                Text("افحص APK وشغّل المساعدين الأربعة")
             }
             OutlinedButton(
                 onClick = {
@@ -421,7 +362,7 @@ private fun VipBuilderScreen(loadApps:()->List<InstalledApp>){
                     }
                 }
             }
-            Text("تنبيه تقني: التحليل يقترح تطويراً متوافقاً؛ لا يغيّر التطبيق الأصلي ولا ينتج APK معدّلاً تلقائياً بعد. البناء الفعلي يتطلب مصدر التطبيق أو قالباً متوافقاً ومحرك بناء.",color=Soft,fontSize=9.sp)
+            Text("وضع آمن: لا يفتح التطبيق المحدد ولا يغيّره أو يحذفه. يفحص APK ويحلله فقط؛ لا تُنشأ نسخة معدلة إلا من مصدر مصرح به وبعد نجاح البناء والاختبار. فشل الفحص لا يمس التطبيق الأصلي.",color=Soft,fontSize=9.sp)
         }
     }
 }
