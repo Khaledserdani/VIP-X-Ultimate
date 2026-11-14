@@ -21,6 +21,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalLayoutDirection
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
@@ -71,6 +72,7 @@ class MainActivity:ComponentActivity(){
 
 @Composable
 private fun VipBuilderScreen(loadApps:()->List<InstalledApp>){
+    val context = LocalContext.current
     val scope= rememberCoroutineScope()
     var apps by remember{mutableStateOf(emptyList<InstalledApp>())}
     var selected by remember{mutableStateOf<InstalledApp?>(null)}
@@ -178,7 +180,7 @@ private fun VipBuilderScreen(loadApps:()->List<InstalledApp>){
                     scope.launch {
                         try {
                             val report = withContext(Dispatchers.IO) {
-                                val info = packageManager.getApplicationInfo(app.packageName, 0)
+                                val info = context.packageManager.getApplicationInfo(app.packageName, 0)
                                 val apk = File(info.sourceDir)
                                 if (!apk.isFile || !apk.canRead()) throw IllegalStateException("تعذر قراءة ملف APK لهذا التطبيق")
                                 val conn = (URL(endpoint.trimEnd('/') + "/api/apk/analyze").openConnection() as HttpURLConnection).apply {
