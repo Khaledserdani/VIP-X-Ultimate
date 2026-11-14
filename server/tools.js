@@ -78,7 +78,7 @@ async function executeToolCall(call) {
   throw new Error("أداة غير مسموحة");
 }
 async function executeMissionTools(goal,askAI) {
-  const prompt=await askAI([{role:"system",content:"أخرج JSON فقط بالشكل {\\\"calls\\\":[{\\\"name\\\":\\\"web_search|web_fetch|calculator\\\",\\\"arguments\\\":{...}}]}. اختر فقط الأدوات اللازمة وبحد أقصى 3. web_search يحتاج query، web_fetch يحتاج url HTTPS عام، calculator يحتاج expression. لا تنفذ معاملات أو إرسال رسائل أو حذفاً أو شراء. إذا لا تحتاج أداة أعد calls فارغة."},{role:"user",content:String(goal).slice(0,3000)}]);
+  const prompt=await askAI([{role:"system",content:"أخرج JSON فقط ككائن يحوي مصفوفة calls. كل عنصر في المصفوفة يحوي name من web_search أو web_fetch أو calculator و arguments ككائن مناسب للأداة. اختر فقط الأدوات اللازمة وبحد أقصى 3. web_search يحتاج query، web_fetch يحتاج url HTTPS عام، calculator يحتاج expression. لا تنفذ معاملات أو إرسال رسائل أو حذفاً أو شراء. إذا لا تحتاج أداة أعد calls فارغة."},{role:"user",content:String(goal).slice(0,3000)}]);
   let plan;try{plan=JSON.parse(prompt.replace(/^\`\`\`(?:json)?\s*/i,"").replace(/\s*\`\`\`$/i,""));}catch{throw new Error("تعذر قراءة خطة الأدوات");}
   const results=[];for(const c of (Array.isArray(plan.calls)?plan.calls.slice(0,3):[])){try{results.push(await executeToolCall(c));}catch(e){results.push({tool:c.name,error:e.message});}}
   return {tools:TOOL_REGISTRY,results};
