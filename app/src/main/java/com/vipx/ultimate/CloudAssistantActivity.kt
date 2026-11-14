@@ -51,6 +51,7 @@ private fun CloudAssistantScreen(context: Context, onBack: () -> Unit) {
     var endpoint by remember { mutableStateOf(prefs.getString("endpoint", "https://vip-x-ultimate-api-production.up.railway.app") ?: "https://vip-x-ultimate-api-production.up.railway.app") }
     var accessToken by remember { mutableStateOf("") }
     var prompt by remember { mutableStateOf("") }
+    var actionText by remember { mutableStateOf("") }
     var busy by remember { mutableStateOf(false) }
     var status by remember { mutableStateOf("أدخل رابط الخادم السحابي ورمز الوصول") }
     val messages = remember { mutableStateListOf<ChatMessage>() }
@@ -80,6 +81,22 @@ private fun CloudAssistantScreen(context: Context, onBack: () -> Unit) {
                             Text(msg.text, color = Color.White, fontSize = 14.sp)
                         }
                     }
+                }
+            }
+            Card(colors = CardDefaults.cardColors(containerColor = Color(0xFF173A3D)), shape = RoundedCornerShape(14.dp)) {
+                Column(Modifier.fillMaxWidth().padding(10.dp), verticalArrangement = Arrangement.spacedBy(7.dp)) {
+                    Text("تنفيذ داخل التطبيق المفتوح", color = CloudAccent, fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                    Text(if (VipAccessibilityService.isActive()) "خدمة التنفيذ متصلة" else "فعّل خدمة VIP X من إعدادات إمكانية الوصول أولاً", color = CloudMuted, fontSize = 10.sp)
+                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp), modifier = Modifier.fillMaxWidth()) {
+                        OutlinedButton(onClick = { status = if (VipAccessibilityService.back()) "تم الرجوع داخل التطبيق" else "خدمة التنفيذ غير متصلة" }, modifier = Modifier.weight(1f)) { Text("رجوع") }
+                        OutlinedButton(onClick = { status = if (VipAccessibilityService.scrollPage(true)) "تم التمرير للأسفل" else "لم أجد مساحة قابلة للتمرير" }, modifier = Modifier.weight(1f)) { Text("أسفل") }
+                        OutlinedButton(onClick = { status = if (VipAccessibilityService.scrollPage(false)) "تم التمرير للأعلى" else "لم أجد مساحة قابلة للتمرير" }, modifier = Modifier.weight(1f)) { Text("أعلى") }
+                    }
+                    OutlinedTextField(actionText, { actionText = it }, Modifier.fillMaxWidth(), singleLine = true, label = { Text("النص المطابق للزر أو العنصر") })
+                    Button(onClick = {
+                        status = if (VipAccessibilityService.tapText(actionText)) "نُفذ النقر على: " + actionText
+                        else "لم أعثر على عنصر مطابق أو أن التطبيق منع النقر"
+                    }, enabled = actionText.isNotBlank(), modifier = Modifier.fillMaxWidth()) { Text("نفّذ النقر على العنصر") }
                 }
             }
             OutlinedTextField(prompt, { prompt = it }, Modifier.fillMaxWidth(), label = { Text("اكتب سؤالك") }, minLines = 2, maxLines = 4)
