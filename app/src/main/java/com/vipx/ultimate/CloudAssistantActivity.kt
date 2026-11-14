@@ -44,6 +44,7 @@ class CloudAssistantActivity : ComponentActivity() {
 }
 
 private data class ChatMessage(val role: String, val text: String)\nprivate data class InAppAction(val type: String, val target: String, val reason: String)
+private data class AgentReport(val name: String, val result: String)
 
 @Composable
 private fun CloudAssistantScreen(context: Context, onBack: () -> Unit) {
@@ -51,7 +52,8 @@ private fun CloudAssistantScreen(context: Context, onBack: () -> Unit) {
     var endpoint by remember { mutableStateOf(prefs.getString("endpoint", "https://vip-x-ultimate-api-production.up.railway.app") ?: "https://vip-x-ultimate-api-production.up.railway.app") }
     var accessToken by remember { mutableStateOf(SecureTokenStore.load(context)) }
     var prompt by remember { mutableStateOf("") }
-    var actionText by remember { mutableStateOf("") }\n    var task by remember { mutableStateOf("") }\n    var planSummary by remember { mutableStateOf("") }\n    val plannedActions = remember { mutableStateListOf<InAppAction>() }
+    var actionText by remember { mutableStateOf("") }\n    var task by remember { mutableStateOf("") }\n    var planSummary by remember { mutableStateOf("") }
+    val agentReports = remember { mutableStateListOf<AgentReport>() }\n    val plannedActions = remember { mutableStateListOf<InAppAction>() }
     var busy by remember { mutableStateOf(false) }
     var status by remember { mutableStateOf("أدخل رابط الخادم السحابي ورمز الوصول") }
     val messages = remember { mutableStateListOf<ChatMessage>() }
@@ -101,29 +103,29 @@ private fun CloudAssistantScreen(context: Context, onBack: () -> Unit) {
             }
             Card(colors = CardDefaults.cardColors(containerColor = Color(0xFF173A3D)), shape = RoundedCornerShape(14.dp)) {
                 Column(Modifier.fillMaxWidth().padding(10.dp), verticalArrangement = Arrangement.spacedBy(7.dp)) {
-                    Text("فريق VIP X • تخطيط وتنفيذ المهمة", color = CloudAccent, fontWeight = FontWeight.Bold)
-                    OutlinedTextField(task, { task = it }, Modifier.fillMaxWidth(), label = { Text("اكتب المهمة التي تريد إنجازها في التطبيق المفتوح") }, minLines = 2, maxLines = 3)
+                    Text("فريق VIP X • تنفيذ مهام متنوعة", color = CloudAccent, fontWeight = FontWeight.Bold)
+                    OutlinedTextField(task, { task = it }, Modifier.fillMaxWidth(), label = { Text("اكتب أي مهمة تريد من فريق VIP X إنجازها") }, minLines = 2, maxLines = 3)
                     Button(onClick = {
                         val goal = task.trim()
                         val live = context.getSharedPreferences("vipx_live_context", Context.MODE_PRIVATE)
                         val screen = live.getString("visible_context", "").orEmpty()
                         val pkg = live.getString("active_package", "").orEmpty()
                         if (goal.isBlank()) status = "اكتب المهمة أولاً"
-                        else if (pkg.isBlank() || screen.isBlank()) status = "افتح التطبيق المطلوب وانتظر ظهور محتوى الشاشة ثم أعد المحاولة"
+                        else if (pkg.isBlank()) status = "اختر التطبيق أو افتحه أولاً لربط المهمة بسياقه"
                         else if (!endpoint.startsWith("https://") || accessToken.isBlank()) status = "أدخل رابط الخادم ورمز الربط الصحيح"
                         else {
                             busy = true; status = "المساعدون الأربعة يدرسون المهمة ويبنون خطة..."
-                            plannedActions.clear(); planSummary = ""
+                            plannedActions.clear(); agentReports.clear(); planSummary = ""
                             scope.launch {
                                 try {
                                     val result = withContext(Dispatchers.IO) {
-                                        val conn = (URL(endpoint.trim().trimEnd('/') + "/api/in-app/plan").openConnection() as HttpURLConnection).apply {
+                                        val conn = (URL(endpoint.trim().trimEnd('/') + "/api/mission").openConnection() as HttpURLConnection).apply {
                                             requestMethod = "POST"; connectTimeout = 20000; readTimeout = 120000; doOutput = true
                                             setRequestProperty("Content-Type", "application/json; charset=utf-8")
                                             setRequestProperty("Authorization", "Bearer " + accessToken)
                                         }
                                         try {
-                                            val payload = JSONObject().put("task", goal).put("appName", pkg.substringAfterLast('.')).put("packageName", pkg).put("screenContext", screen)
+                                            val payload = JSONObject().put("task", goal).put("appName", pkg.substringAfterLast('.')).put("packageName", pkg).put("context", screen).put("capabilities", "Android UI context, authorized tap/scroll/back, chat, analysis and configured cloud tools")
                                             conn.outputStream.use { it.write(payload.toString().toByteArray(Charsets.UTF_8)) }
                                             val code = conn.responseCode
                                             val stream = if (code in 200..299) conn.inputStream else conn.errorStream
@@ -132,13 +134,15 @@ private fun CloudAssistantScreen(context: Context, onBack: () -> Unit) {
                                             JSONObject(body)
                                         } finally { conn.disconnect() }
                                     }
-                                    planSummary = result.optString("summary", "خطة الفريق جاهزة")
+                                    planSummary = result.optString("decision", "اكتمل تحليل الفريق")
+                                    val reports = result.optJSONArray("team") ?: JSONArray()
+                                    for (i in 0 until reports.length()) { val a = reports.getJSONObject(i); agentReports.add(AgentReport(a.optString("name"), a.optString("result"))) }
                                     val list = result.optJSONArray("actions") ?: JSONArray()
                                     for (i in 0 until list.length()) {
                                         val a = list.getJSONObject(i)
                                         plannedActions.add(InAppAction(a.optString("type"), a.optString("target"), a.optString("reason")))
                                     }
-                                    status = if (plannedActions.isEmpty()) "لم يجد الفريق إجراءً آمناً واضحاً على هذه الشاشة؛ اقرأ توضيح الخطة." else "الخطة جاهزة • وافق على كل خطوة لتنفيذها"
+                                    status = "اكتمل تنسيق المساعدين الأربعة • راجع قرار الفريق أدناه"
                                     messages.add(ChatMessage("assistant", "خطة الفريق: " + planSummary + "\\nعدد الإجراءات: " + plannedActions.size))
                                 } catch (e: Exception) { status = "فشل إعداد الخطة: " + (e.message ?: "خطأ غير معروف") }
                                 finally { busy = false }
@@ -146,6 +150,10 @@ private fun CloudAssistantScreen(context: Context, onBack: () -> Unit) {
                         }
                     }, enabled = !busy, modifier = Modifier.fillMaxWidth()) { Text(if (busy) "الفريق يعمل..." else "اطلب من الفريق إعداد خطة وتنفيذها") }
                     if (planSummary.isNotBlank()) Text(planSummary, color = Color.White, fontSize = 12.sp)
+                    agentReports.forEach { report ->
+                        Text(report.name, color = CloudAccent, fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                        Text(report.result, color = Color.White, fontSize = 11.sp)
+                    }
                     plannedActions.forEachIndexed { index, action ->
                         Column(Modifier.fillMaxWidth().padding(vertical = 3.dp)) {
                             Text("${index + 1}. " + when(action.type) {
