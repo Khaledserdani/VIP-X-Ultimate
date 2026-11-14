@@ -33,8 +33,14 @@ jobs:
         with:
           cache-read-only: false
 
-      - name: Check cloud tool JavaScript syntax
-        run: node --check server/index.js || true; node --check server/agents.js || true; node --check server/tools.js
+      - name: Check cloud API syntax
+        run: node --check server/index.js
+
+      - name: Check agent orchestration syntax
+        run: node --check server/agents.js
+
+      - name: Check executable tools syntax
+        run: node --check server/tools.js
 
       - name: Build debug APK
         run: gradle --no-daemon --stacktrace :app:assembleDebug
