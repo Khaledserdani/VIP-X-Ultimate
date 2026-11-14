@@ -33,6 +33,9 @@ jobs:
         with:
           cache-read-only: false
 
+      - name: Check cloud tool JavaScript syntax
+        run: node --check server/index.js && node --check server/agents.js && node --check server/tools.js
+
       - name: Build debug APK
         run: gradle --no-daemon --stacktrace :app:assembleDebug
 
