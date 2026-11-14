@@ -256,6 +256,8 @@ private fun VipBuilderScreen(loadApps:()->List<InstalledApp>){
                         modifier = Modifier.fillMaxWidth()
                     ) { Text("اختبر الاتصال ورمز الربط") }
                     Text(status,color=Mint,fontSize=10.sp)
+                }
+            }
             Button(
                 onClick = {
                     val app = selected
