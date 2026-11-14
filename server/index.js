@@ -119,12 +119,20 @@ const server = http.createServer(async (req, res) => {
     return send(res, 200, { status: "ok", service: "VIP X Ultimate Cloud", aiConfigured: Boolean(OPENAI_API_KEY), accessConfigured: Boolean(APP_ACCESS_TOKEN), memoryConfigured: Boolean(process.env.DATABASE_URL), agents: AGENTS.map(({id,name}) => ({id,name})) });
   }
 
-  if ((req.method !== "POST" && !(req.method === "GET" && url.pathname.startsWith("/api/agent-memory/"))) || (!["/api/chat", "/api/vip-plan", "/api/vip-team", "/api/apk/analyze"].includes(url.pathname) && !url.pathname.startsWith("/api/agent-memory/"))) {
+  if ((req.method !== "POST" && !(req.method === "GET" && (url.pathname === "/api/session" || url.pathname.startsWith("/api/agent-memory/")))) || (!["/api/chat", "/api/vip-plan", "/api/vip-team", "/api/apk/analyze"].includes(url.pathname) && url.pathname !== "/api/session" && !url.pathname.startsWith("/api/agent-memory/"))) {
     return send(res, 404, { error: "المسار غير موجود" });
   }
   if (!authorized(req)) return send(res, 401, { error: "رمز الوصول غير صحيح أو لم يُضبط على الخادم" });
 
   try {
+    if (req.method === "GET" && url.pathname === "/api/session") {
+      return send(res, 200, {
+        authenticated: true,
+        aiConfigured: Boolean(OPENAI_API_KEY),
+        memoryConfigured: Boolean(process.env.DATABASE_URL),
+        agents: AGENTS.map(({ id, name }) => ({ id, name }))
+      });
+    }
     if (url.pathname === "/api/apk/analyze") {
       const type = String(req.headers["content-type"] || "");
       if (!type.includes("application/vnd.android.package-archive") && !type.includes("application/octet-stream"))
