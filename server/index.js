@@ -50,7 +50,7 @@ async function analyzeApk(buffer) {
     await fs.writeFile(apk, buffer, { mode: 0o600 });
     const hash = crypto.createHash("sha256").update(buffer).digest("hex");
     const { stdout: listing } = await execFileAsync("unzip", ["-Z1", apk], { timeout: 30000, maxBuffer: 8 * 1024 * 1024 });
-    const entries = listing.split("\\n").filter(Boolean);
+    const entries = listing.split(/\r?\n/).filter(Boolean);
     const dexFiles = entries.filter(x => /^classes(\\d*)?\\.dex$/.test(x));
     const nativeLibs = entries.filter(x => /^lib\\/[^/]+\\//.test(x));
     const resources = entries.includes("resources.arsc");
