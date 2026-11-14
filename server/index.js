@@ -199,7 +199,7 @@ const server = http.createServer(async (req, res) => {
         apkAttached: false
       }, askAI, memoryStore);
       const structured = await askAI([
-        { role: "system", content: "حوّل تقارير فريق VIP X إلى خطة إجراءات JSON فقط دون Markdown. الشكل: {\\"summary\\":string,\\"actions\\":[{\\"type\\":string,\\"target\\":string,\\"reason\\":string}]}. الأنواع المسموحة حصراً: TAP_TEXT و SCROLL_FORWARD و SCROLL_BACK و BACK. حد أقصى 5 إجراءات. TAP_TEXT يحتاج نص زر ظاهر حرفياً في سياق الشاشة. لا تخترع أزراراً أو أسماء عناصر. إذا لم يوجد عنصر واضح أعد actions فارغة واطلب توضيحاً في summary. لا تنشئ إجراءات لكلمات المرور أو الدفع أو التحويلات المالية أو حذف الحسابات أو تغيير إعدادات الأمان أو تجاوز تسجيل الدخول والحماية. لا تضع نصوصاً داخل حقول الإدخال. لا تدّع تنفيذ أي خطوة." },
+        { role: "system", content: "حوّل تقارير فريق VIP X إلى خطة إجراءات JSON فقط دون Markdown. أعد كائناً يحتوي على summary كنص و actions كمصفوفة من إجراءات لها type و target و reason. الأنواع المسموحة حصراً: TAP_TEXT و SCROLL_FORWARD و SCROLL_BACK و BACK. حد أقصى 5 إجراءات. TAP_TEXT يحتاج نص زر ظاهر حرفياً في سياق الشاشة. لا تخترع أزراراً أو أسماء عناصر. إذا لم يوجد عنصر واضح أعد actions فارغة واطلب توضيحاً في summary. لا تنشئ إجراءات لكلمات المرور أو الدفع أو التحويلات المالية أو حذف الحسابات أو تغيير إعدادات الأمان أو تجاوز تسجيل الدخول والحماية. لا تضع نصوصاً داخل حقول الإدخال. لا تدّع تنفيذ أي خطوة." },
         { role: "user", content: "التطبيق: " + appName + "\nالحزمة: " + packageName + "\nمهمة المستخدم: " + task + "\nسياق الشاشة: " + screenContext + "\nتقارير الفريق: " + team.team.map(x => x.name + ": " + x.result).join("\n") + "\nقرار المنسق: " + team.decision }
       ]);
       let plan;
