@@ -81,6 +81,7 @@ private fun VipBuilderScreen(loadApps:()->List<InstalledApp>){
     var endpoint by remember{mutableStateOf("https://vip-x-ultimate-api-production.up.railway.app")}
     var token by remember{mutableStateOf("")}
     var answer by remember{mutableStateOf("")}
+    var memoryInfo by remember{mutableStateOf("")}
     var status by remember{mutableStateOf("اختر تطبيقاً من هاتفك للبدء")}
     var busy by remember{mutableStateOf(false)}
     LaunchedEffect(Unit){apps=withContext(Dispatchers.IO){loadApps()};status="تم العثور على ${apps.size} تطبيقاً"}
@@ -247,6 +248,48 @@ private fun VipBuilderScreen(loadApps:()->List<InstalledApp>){
                 Spacer(Modifier.width(8.dp))
                 Text("افحص APK الحقيقي وشغّل فريق VIP")
             }
+            OutlinedButton(
+                onClick = {
+                    if (token.isBlank()) { status = "أدخل رمز ربط الخادم أولاً"; return@OutlinedButton }
+                    busy = true
+                    scope.launch {
+                        try {
+                            val text = withContext(Dispatchers.IO) {
+                                val ids = listOf("structure", "security", "design", "engineering")
+                                buildString {
+                                    append("ذاكرة المساعدين والإصدارات\\n\\n")
+                                    for (id in ids) {
+                                        val conn = (URL(endpoint.trimEnd('/') + "/api/agent-memory/" + id).openConnection() as HttpURLConnection).apply {
+                                            requestMethod = "GET"
+                                            connectTimeout = 15000
+                                            readTimeout = 30000
+                                            setRequestProperty("Authorization", "Bearer " + token.trim())
+                                        }
+                                        try {
+                                            val stream = if (conn.responseCode in 200..299) conn.inputStream else conn.errorStream
+                                            val body = stream.bufferedReader().use { it.readText() }
+                                            if (conn.responseCode !in 200..299) throw IllegalStateException(JSONObject(body).optString("error", "HTTP ${conn.responseCode}"))
+                                            val mem = JSONObject(body)
+                                            append("• ").append(id).append("\\n")
+                                            val verified = mem.optJSONObject("lastVerified")
+                                            val candidate = mem.optJSONObject("latestCandidate")
+                                            append("آخر نتيجة مثبتة: ").append(verified?.optLong("versionId")?.toString() ?: "لا توجد").append("\\n")
+                                            append("آخر مرشح: ").append(candidate?.optLong("versionId")?.toString() ?: "لا يوجد").append("\\n\\n")
+                                        } finally { conn.disconnect() }
+                                    }
+                                }
+                            }
+                            memoryInfo = text
+                            answer = text
+                            status = "تم استرجاع ذاكرة المساعدين من قاعدة البيانات"
+                        } catch (e: Exception) {
+                            status = "تعذر قراءة الذاكرة: ${e.message ?: "تحقق من الخادم"}"
+                        } finally { busy = false }
+                    }
+                },
+                enabled = !busy,
+                modifier = Modifier.fillMaxWidth()
+            ) { Text("اعرض ذاكرة المساعدين وآخر النتائج المثبتة") }
             if(answer.isNotBlank()){
                 Card(Modifier.fillMaxWidth().heightIn(max=190.dp),colors=CardDefaults.cardColors(containerColor=Color(0xFF102F32))){
                     Column(Modifier.padding(12.dp)){
