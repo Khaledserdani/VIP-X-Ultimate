@@ -137,11 +137,55 @@ private fun VipBuilderScreen(loadApps:()->List<InstalledApp>){
                     }
                 }
             }
+            OutlinedButton(
+                onClick = {
+                    val app = selected
+                    if (app == null) { status = "اختر تطبيقاً أولاً"; return@OutlinedButton }
+                    val launchIntent = context.packageManager.getLaunchIntentForPackage(app.packageName)
+                    if (launchIntent == null) status = "هذا التطبيق لا يوفّر شاشة تشغيل مباشرة"
+                    else runCatching { context.startActivity(launchIntent); status = "تم فتح ${app.name}" }
+                        .onFailure { status = "تعذر فتح التطبيق: ${it.message}" }
+                },
+                modifier = Modifier.fillMaxWidth(),
+                enabled = selected != null
+            ) { Text("افتح التطبيق المحدد") }
             Card(colors=CardDefaults.cardColors(containerColor=Panel),shape=RoundedCornerShape(18.dp)){
                 Column(Modifier.padding(13.dp),verticalArrangement=Arrangement.spacedBy(8.dp)){
                     Text("2 • الذكاء الاصطناعي",color=Color.White,fontWeight=FontWeight.Bold)
                     OutlinedTextField(goal,{goal=it},Modifier.fillMaxWidth(),label={Text("ما الذي تريد تحسينه؟")},minLines=2,maxLines=3)
                     OutlinedTextField(token,{token=it},Modifier.fillMaxWidth(),singleLine=true,label={Text("رمز ربط خادم VIP X")},visualTransformation=PasswordVisualTransformation())
+                    OutlinedButton(
+                        onClick = {
+                            if (token.isBlank()) { status = "أدخل رمز الربط أولاً"; return@OutlinedButton }
+                            busy = true
+                            status = "جارٍ التحقق من رمز الربط والخادم..."
+                            scope.launch {
+                                try {
+                                    val result = withContext(Dispatchers.IO) {
+                                        val conn = (URL(endpoint.trimEnd('/') + "/api/session").openConnection() as HttpURLConnection).apply {
+                                            requestMethod = "GET"
+                                            connectTimeout = 15000
+                                            readTimeout = 20000
+                                            setRequestProperty("Authorization", "Bearer " + token.trim())
+                                        }
+                                        try {
+                                            val stream = if (conn.responseCode in 200..299) conn.inputStream else conn.errorStream
+                                            val body = stream.bufferedReader().use { it.readText() }
+                                            if (conn.responseCode !in 200..299) throw IllegalStateException(JSONObject(body).optString("error", "HTTP ${conn.responseCode}"))
+                                            JSONObject(body)
+                                        } finally { conn.disconnect() }
+                                    }
+                                    val ai = if (result.optBoolean("aiConfigured")) "الذكاء الاصطناعي مهيأ" else "مفتاح الذكاء الاصطناعي غير مهيأ"
+                                    val db = if (result.optBoolean("memoryConfigured")) "الذاكرة الدائمة مهيأة" else "قاعدة الذاكرة غير مهيأة"
+                                    status = "اتصال موثّق ناجح • $ai • $db"
+                                } catch (e: Exception) {
+                                    status = "فشل التحقق: ${e.message ?: "رمز غير صحيح أو الخادم غير متاح"}"
+                                } finally { busy = false }
+                            }
+                        },
+                        enabled = !busy,
+                        modifier = Modifier.fillMaxWidth()
+                    ) { Text("اختبر الاتصال ورمز الربط") }
                     Text(status,color=Mint,fontSize=10.sp)
                     Button(onClick={
                         val app=selected
