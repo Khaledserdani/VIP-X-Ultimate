@@ -67,13 +67,17 @@ private object SecureTokenStore {
         context.getSharedPreferences(prefs, Context.MODE_PRIVATE).edit()
             .putString(field, Base64.encodeToString(bytes, Base64.NO_WRAP)).apply()
     }
-    fun load(context: Context): String = try {
-        val stored = context.getSharedPreferences(prefs, Context.MODE_PRIVATE).getString(field, null) ?: return ""
-        val bytes = Base64.decode(stored, Base64.NO_WRAP)
-        val cipher = Cipher.getInstance("AES/GCM/NoPadding")
-        cipher.init(Cipher.DECRYPT_MODE, key(), GCMParameterSpec(128, bytes.copyOfRange(0, 12)))
-        String(cipher.doFinal(bytes.copyOfRange(12, bytes.size)), Charsets.UTF_8)
-    } catch (_: Exception) { "" }
+    fun load(context: Context): String {
+        return try {
+            val stored = context.getSharedPreferences(prefs, Context.MODE_PRIVATE).getString(field, null)
+            if (stored.isNullOrBlank()) "" else {
+                val bytes = Base64.decode(stored, Base64.NO_WRAP)
+                val cipher = Cipher.getInstance("AES/GCM/NoPadding")
+                cipher.init(Cipher.DECRYPT_MODE, key(), GCMParameterSpec(128, bytes.copyOfRange(0, 12)))
+                String(cipher.doFinal(bytes.copyOfRange(12, bytes.size)), Charsets.UTF_8)
+            }
+        } catch (_: Exception) { "" }
+    }
 }
 
 private val Navy = Color(0xFF071321)
