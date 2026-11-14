@@ -43,7 +43,7 @@ class CloudAssistantActivity : ComponentActivity() {
     }
 }
 
-private data class ChatMessage(val role: String, val text: String)\
+private data class ChatMessage(val role: String, val text: String)
 private data class InAppAction(val type: String, val target: String, val reason: String)
 private data class AgentReport(val name: String, val result: String)
 
@@ -54,7 +54,8 @@ private fun CloudAssistantScreen(context: Context, onBack: () -> Unit) {
     var accessToken by remember { mutableStateOf(SecureTokenStore.load(context)) }
     var prompt by remember { mutableStateOf("") }
     var actionText by remember { mutableStateOf("") }
-    var task by remember { mutableStateOf("") }\n    var planSummary by remember { mutableStateOf("") }
+    var task by remember { mutableStateOf("") }
+    var planSummary by remember { mutableStateOf("") }
     val agentReports = remember { mutableStateListOf<AgentReport>() }
     val plannedActions = remember { mutableStateListOf<InAppAction>() }
     var busy by remember { mutableStateOf(false) }
