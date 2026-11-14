@@ -158,7 +158,7 @@ const server = http.createServer(async (req, res) => {
       const goal = String(body.goal || "").trim().slice(0, 2000);
       const evidence = String(body.evidence || "").trim().slice(0, 12000);
       if (!appName || !packageName || !goal) return send(res, 400, { error: "بيانات التطبيق والهدف مطلوبة" });
-      const result = await runVipTeam({ appName, packageName, goal, evidence, apkAttached: false }, askAI, memoryStore);
+      const result = await runVipTeam({ appName, packageName, goal, evidence, apkAttached: Boolean(evidence) }, askAI, memoryStore);
       return send(res, 200, result);
     } else if (url.pathname === "/api/vip-plan") {
       const appName = String(body.appName || "").trim().slice(0, 100);
