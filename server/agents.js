@@ -1,29 +1,41 @@
 const AGENTS = [
-  { id: "structure", name: "مساعد تحليل البنية", instruction: "حلل البنية والأدلة المتاحة فقط. لا تدّع فحص APK أو المصدر إن لم يصلك." },
-  { id: "security", name: "مساعد الأمن والتوافق", instruction: "راجع الصلاحيات والتوقيع والتبعيات والتوافق والاختبارات. لا تقترح تجاوز DRM أو المصادقة أو الاشتراكات." },
-  { id: "design", name: "مساعد تصميم VIP", instruction: "صمم تجربة VIP ذات قيمة فعلية وواجهة راقية، وميّز بين تعديل داخلي وتطبيق مرافق." },
-  { id: "engineering", name: "مساعد التنفيذ والبناء", instruction: "حوّل الهدف إلى خطوات تنفيذ وملفات وأدوات وبناء وتوقيع واختبارات قبول." }
+  { id: "structure", name: "مساعد الفهم والتحليل", instruction: "افهم أي مهمة يطلبها المستخدم، حلل التطبيق أو المحتوى أو المشكلة، استخرج المتطلبات والحقائق والقيود، واقترح أفضل مسار. لا تفترض أن المهمة محصورة في APK أو النقر." },
+  { id: "security", name: "مساعد الأمن والجودة", instruction: "راجع السلامة والخصوصية والصلاحيات والموثوقية والمخاطر لكل نوع مهمة. اقترح بديلاً عملياً عند وجود مانع، ولا تتجاوز حماية النظام أو خصوصية الغير." },
+  { id: "design", name: "مساعد الحلول والتجربة", instruction: "ابحث عن أفضل تجربة وحل للمستخدم. اقترح تحسينات عملية وطرقاً بديلة وأدوات مناسبة بحسب المهمة، وليس فقط تعديلات الواجهة." },
+  { id: "engineering", name: "مساعد التنفيذ والتكامل", instruction: "حوّل الهدف إلى خطة قابلة للتنفيذ باستخدام قدرات Android والتكاملات وواجهات APIs والملفات والشبكة المتاحة. حدد المتطلبات والنتائج واختبارات النجاح، ولا تدّع تنفيذ شيء لم يحدث." }
 ];
+
 async function runAgent(agent, context, askAI, memory) {
-  const prior = memory && memory.lastVerified ? "آخر نتيجة مثبتة:\n" + memory.lastVerified.content : "لا توجد نتيجة مثبتة سابقة.";
-  return { id: agent.id, name: agent.name, result: await askAI([
-    { role: "system", content: "أنت عضو متخصص في فريق VIP X. أجب بالعربية بدقة ولا تخترع نتائج فحص. قارن المقترحات بآخر نتيجة مثبتة ولا تستبدلها دون أدلة واختبارات. " + agent.instruction },
-    { role: "user", content: context + "\n\n" + prior }
-  ]) };
+  const prior = memory && memory.lastVerified ? "آخر نتيجة مثبتة:\\n" + memory.lastVerified.content : "لا توجد نتيجة مثبتة سابقة.";
+  return {
+    id: agent.id,
+    name: agent.name,
+    result: await askAI([
+      { role: "system", content: "أنت عضو مستقل ومتعاون في فريق VIP X متعدد التخصصات. مهمتك مساعدة المستخدم في أي مجال مشروع ومسموح، لا تقتصر على تطبيق Android. فكر بعمق، اقترح أدوات وخيارات، واطلب من زملائك ضمنياً ما يلزم عبر تقارير واضحة. افصل الحقائق عن الافتراضات، ولا تخترع نتائج أو قدرات غير متاحة. " + agent.instruction },
+      { role: "user", content: context + "\\n\\n" + prior }
+    ])
+  };
 }
+
 async function runVipTeam(input, askAI, memoryStore) {
   const context = [
-    "التطبيق: " + input.appName, "الحزمة: " + input.packageName, "الهدف: " + input.goal,
-    "هل وصل APK فعلي؟ " + (input.apkAttached ? "نعم" : "لا"),
-    "أدلة الفحص: " + (input.evidence || "لا توجد"),
-    "المطلوب: أفضل مسار عملي لتجربة VIP أو تعديل مصرح به مع إبقاء التطبيق الأصلي سليماً."
-  ].join("\n");
+    "المهمة: " + input.goal,
+    "التطبيق أو المجال: " + (input.appName || "غير محدد"),
+    "معرّف الحزمة إن وجد: " + (input.packageName || "غير متوفر"),
+    "السياق والأدلة المتاحة: " + (input.evidence || "لا توجد أدلة إضافية"),
+    "القدرات والأدوات المتاحة: " + (input.capabilities || "المحادثة والتحليل وتكاملات النظام المصرح بها"),
+    "القيود والتفضيلات: " + (input.constraints || "احرص على أفضل نتيجة عملية")
+  ].join("\\n");
   const memories = await Promise.all(AGENTS.map(a => memoryStore.getAgentMemory(a.id)));
-  const reports = await Promise.all(AGENTS.map((a,i) => runAgent(a, context, askAI, memories[i])));
-  for (const r of reports) await memoryStore.saveCandidate(r.id, r.result, { appName: input.appName, packageName: input.packageName, source: "vip-team" });
+  const reports = await Promise.all(AGENTS.map((a, i) => runAgent(a, context, askAI, memories[i])));
+  for (const r of reports) await memoryStore.saveCandidate(r.id, r.result, {
+    appName: input.appName || "general",
+    packageName: input.packageName || "general",
+    source: "vip-team"
+  });
   const decision = await askAI([
-    { role: "system", content: "أنت منسق فريق VIP X. ادمج التقارير وافصل الحقائق عن الافتراضات واختر مساراً هندسياً واحداً مع خطوات واختبارات. لا تدّع إنشاء APK لم يتم بناؤه، ولا تعتمد ذاكرة جديدة كحقيقة مثبتة." },
-    { role: "user", content: context + "\n\n" + reports.map(r => r.name + ":\n" + r.result).join("\n\n") }
+    { role: "system", content: "أنت قائد فريق VIP X. نسّق مساعدين مستقلين لإنجاز أي مهمة مفوضة، لا تحصر الحل في APK أو أربع نقرات. اختر أفضل مسار عملي، قسّم المهمة إلى مراحل، وحدد الأدوات والتكاملات اللازمة والنتائج المتوقعة واختبارات التحقق. ميّز ما يمكن تنفيذه الآن عن ما يحتاج صلاحية أو خدمة أو تأكيداً من المستخدم. لا تدّع تنفيذ إجراءات أو الوصول إلى بيانات غير متاحة." },
+    { role: "user", content: context + "\\n\\n" + reports.map(r => r.name + ":\\n" + r.result).join("\\n\\n") }
   ]);
   return { team: reports, decision };
 }
