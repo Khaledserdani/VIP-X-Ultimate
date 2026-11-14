@@ -43,7 +43,7 @@ class CloudAssistantActivity : ComponentActivity() {
     }
 }
 
-private data class ChatMessage(val role: String, val text: String)
+private data class ChatMessage(val role: String, val text: String)\nprivate data class InAppAction(val type: String, val target: String, val reason: String)
 
 @Composable
 private fun CloudAssistantScreen(context: Context, onBack: () -> Unit) {
@@ -51,7 +51,7 @@ private fun CloudAssistantScreen(context: Context, onBack: () -> Unit) {
     var endpoint by remember { mutableStateOf(prefs.getString("endpoint", "https://vip-x-ultimate-api-production.up.railway.app") ?: "https://vip-x-ultimate-api-production.up.railway.app") }
     var accessToken by remember { mutableStateOf(SecureTokenStore.load(context)) }
     var prompt by remember { mutableStateOf("") }
-    var actionText by remember { mutableStateOf("") }
+    var actionText by remember { mutableStateOf("") }\n    var task by remember { mutableStateOf("") }\n    var planSummary by remember { mutableStateOf("") }\n    val plannedActions = remember { mutableStateListOf<InAppAction>() }
     var busy by remember { mutableStateOf(false) }
     var status by remember { mutableStateOf("أدخل رابط الخادم السحابي ورمز الوصول") }
     val messages = remember { mutableStateListOf<ChatMessage>() }
@@ -97,6 +97,79 @@ private fun CloudAssistantScreen(context: Context, onBack: () -> Unit) {
                         status = if (VipAccessibilityService.tapText(actionText)) "نُفذ النقر على: " + actionText
                         else "لم أعثر على عنصر مطابق أو أن التطبيق منع النقر"
                     }, enabled = actionText.isNotBlank(), modifier = Modifier.fillMaxWidth()) { Text("نفّذ النقر على العنصر") }
+                }
+            }
+            Card(colors = CardDefaults.cardColors(containerColor = Color(0xFF173A3D)), shape = RoundedCornerShape(14.dp)) {
+                Column(Modifier.fillMaxWidth().padding(10.dp), verticalArrangement = Arrangement.spacedBy(7.dp)) {
+                    Text("فريق VIP X • تخطيط وتنفيذ المهمة", color = CloudAccent, fontWeight = FontWeight.Bold)
+                    OutlinedTextField(task, { task = it }, Modifier.fillMaxWidth(), label = { Text("اكتب المهمة التي تريد إنجازها في التطبيق المفتوح") }, minLines = 2, maxLines = 3)
+                    Button(onClick = {
+                        val goal = task.trim()
+                        val live = context.getSharedPreferences("vipx_live_context", Context.MODE_PRIVATE)
+                        val screen = live.getString("visible_context", "").orEmpty()
+                        val pkg = live.getString("active_package", "").orEmpty()
+                        if (goal.isBlank()) status = "اكتب المهمة أولاً"
+                        else if (pkg.isBlank() || screen.isBlank()) status = "افتح التطبيق المطلوب وانتظر ظهور محتوى الشاشة ثم أعد المحاولة"
+                        else if (!endpoint.startsWith("https://") || accessToken.isBlank()) status = "أدخل رابط الخادم ورمز الربط الصحيح"
+                        else {
+                            busy = true; status = "المساعدون الأربعة يدرسون المهمة ويبنون خطة..."
+                            plannedActions.clear(); planSummary = ""
+                            scope.launch {
+                                try {
+                                    val result = withContext(Dispatchers.IO) {
+                                        val conn = (URL(endpoint.trim().trimEnd('/') + "/api/in-app/plan").openConnection() as HttpURLConnection).apply {
+                                            requestMethod = "POST"; connectTimeout = 20000; readTimeout = 120000; doOutput = true
+                                            setRequestProperty("Content-Type", "application/json; charset=utf-8")
+                                            setRequestProperty("Authorization", "Bearer " + accessToken)
+                                        }
+                                        try {
+                                            val payload = JSONObject().put("task", goal).put("appName", pkg.substringAfterLast('.')).put("packageName", pkg).put("screenContext", screen)
+                                            conn.outputStream.use { it.write(payload.toString().toByteArray(Charsets.UTF_8)) }
+                                            val code = conn.responseCode
+                                            val stream = if (code in 200..299) conn.inputStream else conn.errorStream
+                                            val body = stream.bufferedReader().use { it.readText() }
+                                            if (code !in 200..299) throw IllegalStateException("HTTP " + code + ": " + body)
+                                            JSONObject(body)
+                                        } finally { conn.disconnect() }
+                                    }
+                                    planSummary = result.optString("summary", "خطة الفريق جاهزة")
+                                    val list = result.optJSONArray("actions") ?: JSONArray()
+                                    for (i in 0 until list.length()) {
+                                        val a = list.getJSONObject(i)
+                                        plannedActions.add(InAppAction(a.optString("type"), a.optString("target"), a.optString("reason")))
+                                    }
+                                    status = if (plannedActions.isEmpty()) "لم يجد الفريق إجراءً آمناً واضحاً على هذه الشاشة؛ اقرأ توضيح الخطة." else "الخطة جاهزة • وافق على كل خطوة لتنفيذها"
+                                    messages.add(ChatMessage("assistant", "خطة الفريق: " + planSummary + "\\nعدد الإجراءات: " + plannedActions.size))
+                                } catch (e: Exception) { status = "فشل إعداد الخطة: " + (e.message ?: "خطأ غير معروف") }
+                                finally { busy = false }
+                            }
+                        }
+                    }, enabled = !busy, modifier = Modifier.fillMaxWidth()) { Text(if (busy) "الفريق يعمل..." else "اطلب من الفريق إعداد خطة وتنفيذها") }
+                    if (planSummary.isNotBlank()) Text(planSummary, color = Color.White, fontSize = 12.sp)
+                    plannedActions.forEachIndexed { index, action ->
+                        Column(Modifier.fillMaxWidth().padding(vertical = 3.dp)) {
+                            Text("${index + 1}. " + when(action.type) {
+                                "TAP_TEXT" -> "انقر على: " + action.target
+                                "SCROLL_FORWARD" -> "مرّر للأسفل"
+                                "SCROLL_BACK" -> "مرّر للأعلى"
+                                "BACK" -> "ارجع خطوة"
+                                else -> "إجراء غير معروف"
+                            }, color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                            if (action.reason.isNotBlank()) Text(action.reason, color = CloudMuted, fontSize = 10.sp)
+                            Button(onClick = {
+                                val ok = when(action.type) {
+                                    "TAP_TEXT" -> VipAccessibilityService.tapText(action.target)
+                                    "SCROLL_FORWARD" -> VipAccessibilityService.scrollPage(true)
+                                    "SCROLL_BACK" -> VipAccessibilityService.scrollPage(false)
+                                    "BACK" -> VipAccessibilityService.back()
+                                    else -> false
+                                }
+                                status = if (ok) "تم تنفيذ الخطوة ${index + 1}" else "تعذر تنفيذ الخطوة ${index + 1}: العنصر غير ظاهر أو الخدمة غير متصلة"
+                                if (ok) plannedActions.removeAt(index)
+                            }, enabled = !busy, modifier = Modifier.fillMaxWidth()) { Text("وافق ونفّذ هذه الخطوة") }
+                        }
+                        Divider(color = CloudMuted.copy(alpha = 0.25f))
+                    }
                 }
             }
             OutlinedTextField(prompt, { prompt = it }, Modifier.fillMaxWidth(), label = { Text("اكتب سؤالك") }, minLines = 2, maxLines = 4)
