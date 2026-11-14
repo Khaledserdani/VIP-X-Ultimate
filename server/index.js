@@ -189,7 +189,7 @@ const server = http.createServer(async (req, res) => {
       const actions = (Array.isArray(localPlan.actions) ? localPlan.actions : []).slice(0, 5).filter(a => {
         if (!a || !allowedLocal.has(a.type)) return false;
         const target = String(a.target || "").trim();
-        if (a.type === "OPEN_URL") return /^https:\\/\\//i.test(target);
+        if (a.type === "OPEN_URL") return /^https:\/\//i.test(target);
         if (a.type === "SHARE_TEXT") return target.length > 0 && target.length <= 4000;
         if (a.type === "TAP_TEXT") return target.length > 0 && String(body.context || "").includes(target);
         return true;
