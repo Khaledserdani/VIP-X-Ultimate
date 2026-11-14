@@ -28,6 +28,9 @@ jobs:
       - name: Configure Gradle
         uses: gradle/actions/setup-gradle@v4
 
+      - name: Check cloud tool JavaScript syntax
+        run: node --check server/index.js && node --check server/agents.js && node --check server/tools.js
+
       - name: Build signed release APK
         run: gradle --no-daemon --stacktrace :app:assembleRelease
 
