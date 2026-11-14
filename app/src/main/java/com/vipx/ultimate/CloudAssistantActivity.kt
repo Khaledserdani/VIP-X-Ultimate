@@ -1,5 +1,7 @@
 package com.vipx.ultimate
 import android.content.Context
+import android.content.Intent
+import android.net.Uri
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -163,6 +165,8 @@ private fun CloudAssistantScreen(context: Context, onBack: () -> Unit) {
                     plannedActions.forEachIndexed { index, action ->
                         Column(Modifier.fillMaxWidth().padding(vertical = 3.dp)) {
                             Text("${index + 1}. " + when(action.type) {
+                                "OPEN_URL" -> "افتح الرابط في المتصفح: " + action.target
+                                "SHARE_TEXT" -> "اعرض مشاركة النص: " + action.target.take(90)
                                 "TAP_TEXT" -> "انقر على: " + action.target
                                 "SCROLL_FORWARD" -> "مرّر للأسفل"
                                 "SCROLL_BACK" -> "مرّر للأعلى"
@@ -172,6 +176,8 @@ private fun CloudAssistantScreen(context: Context, onBack: () -> Unit) {
                             if (action.reason.isNotBlank()) Text(action.reason, color = CloudMuted, fontSize = 10.sp)
                             Button(onClick = {
                                 val ok = when(action.type) {
+                                    "OPEN_URL" -> runCatching { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(action.target))); true }.getOrDefault(false)
+                                    "SHARE_TEXT" -> runCatching { context.startActivity(Intent.createChooser(Intent(Intent.ACTION_SEND).setType("text/plain").putExtra(Intent.EXTRA_TEXT, action.target), "مشاركة عبر")); true }.getOrDefault(false)
                                     "TAP_TEXT" -> VipAccessibilityService.tapText(action.target)
                                     "SCROLL_FORWARD" -> VipAccessibilityService.scrollPage(true)
                                     "SCROLL_BACK" -> VipAccessibilityService.scrollPage(false)
