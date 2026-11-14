@@ -160,6 +160,30 @@ const server = http.createServer(async (req, res) => {
     }
     const body = await readBody(req);
     let messages;
+    if (url.pathname === "/api/in-app/plan") {
+      const task = String(body.task || "").trim().slice(0, 1500);
+      const appName = String(body.appName || "التطبيق المفتوح").trim().slice(0, 100);
+      const packageName = String(body.packageName || "").trim().slice(0, 200);
+      const screenContext = String(body.screenContext || "").trim().slice(0, 3500);
+      if (!task || !packageName) return send(res, 400, { error: "المهمة ومعرّف التطبيق مطلوبان" });
+      const team = await runVipTeam({
+        appName, packageName, goal: task,
+        evidence: "سياق الواجهة الظاهر بموافقة المستخدم:\\n" + screenContext,
+        apkAttached: false
+      }, askAI, memoryStore);
+      const structured = await askAI([
+        { role: "system", content: "حوّل تقارير فريق VIP X إلى خطة إجراءات JSON فقط دون Markdown. الشكل: {\\"summary\\":string,\\"actions\\":[{\\"type\\":string,\\"target\\":string,\\"reason\\":string}]}. الأنواع المسموحة حصراً: TAP_TEXT و SCROLL_FORWARD و SCROLL_BACK و BACK. حد أقصى 5 إجراءات. TAP_TEXT يحتاج نص زر ظاهر حرفياً في سياق الشاشة. لا تخترع أزراراً أو أسماء عناصر. إذا لم يوجد عنصر واضح أعد actions فارغة واطلب توضيحاً في summary. لا تنشئ إجراءات لكلمات المرور أو الدفع أو التحويلات المالية أو حذف الحسابات أو تغيير إعدادات الأمان أو تجاوز تسجيل الدخول والحماية. لا تضع نصوصاً داخل حقول الإدخال. لا تدّع تنفيذ أي خطوة." },
+        { role: "user", content: "التطبيق: " + appName + "\\nالحزمة: " + packageName + "\\nمهمة المستخدم: " + task + "\\nسياق الشاشة: " + screenContext + "\\nتقارير الفريق: " + team.team.map(x => x.name + ": " + x.result).join("\\n") + "\\nقرار المنسق: " + team.decision }
+      ]);
+      let plan;
+      try { plan = JSON.parse(structured.replace(/^```(?:json)?\\s*/i, "").replace(/\\s*```$/i, "")); }
+      catch { throw new Error("لم ينتج الفريق خطة إجراءات بصيغة صحيحة؛ لم ينفذ أي إجراء"); }
+      const allowed = new Set(["TAP_TEXT", "SCROLL_FORWARD", "SCROLL_BACK", "BACK"]);
+      const actions = Array.isArray(plan.actions) ? plan.actions.slice(0, 5).filter(a =>
+        a && allowed.has(a.type) && (a.type !== "TAP_TEXT" || (typeof a.target === "string" && a.target.trim().length > 0))
+      ).map(a => ({ type: a.type, target: String(a.target || "").slice(0, 120), reason: String(a.reason || "").slice(0, 240) })) : [];
+      return send(res, 200, { summary: String(plan.summary || "خطة الفريق جاهزة"), actions, team: team.team.map(a => ({ id: a.id, name: a.name, result: a.result })) });
+    }
     if (url.pathname === "/api/vip-team") {
       const appName = String(body.appName || "").trim().slice(0, 100);
       const packageName = String(body.packageName || "").trim().slice(0, 200);
