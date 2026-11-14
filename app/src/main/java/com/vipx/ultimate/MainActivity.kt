@@ -218,23 +218,23 @@ private fun VipBuilderScreen(loadApps:()->List<InstalledApp>){
                                     if (team.responseCode !in 200..299) throw IllegalStateException(JSONObject(body).optString("error", "HTTP ${team.responseCode}"))
                                     val result = JSONObject(body)
                                     buildString {
-                                        append("نتيجة فحص APK الفعلي\\n")
-                                        append("الحزمة: ").append(response.optString("packageName", app.packageName)).append("\\n")
-                                        append("SHA-256: ").append(response.getJSONObject("file").optString("sha256")).append("\\n")
-                                        append("التوقيع: ").append(response.optString("signature")).append("\\n")
-                                        append("إصدار Android الأدنى: ").append(response.optString("minSdk", "غير معروف")).append("\\n")
-                                        append("Android المستهدف: ").append(response.optString("targetSdk", "غير معروف")).append("\\n")
+                                        append("نتيجة فحص APK الفعلي\n")
+                                        append("الحزمة: ").append(response.optString("packageName", app.packageName)).append("\n")
+                                        append("SHA-256: ").append(response.getJSONObject("file").optString("sha256")).append("\n")
+                                        append("التوقيع: ").append(response.optString("signature")).append("\n")
+                                        append("إصدار Android الأدنى: ").append(response.optString("minSdk", "غير معروف")).append("\n")
+                                        append("Android المستهدف: ").append(response.optString("targetSdk", "غير معروف")).append("\n")
                                         val structure = response.optJSONObject("structure") ?: JSONObject()
-                                        append("ملفات DEX: ").append(structure.optJSONArray("dexFiles")?.length() ?: 0).append("\\n")
-                                        append("المكتبات الأصلية: ").append(structure.optJSONArray("nativeLibraries")?.length() ?: 0).append("\\n")
-                                        append("الصلاحيات المكتشفة: ").append(response.optJSONArray("permissions")?.length() ?: 0).append("\\n\\n")
+                                        append("ملفات DEX: ").append(structure.optJSONArray("dexFiles")?.length() ?: 0).append("\n")
+                                        append("المكتبات الأصلية: ").append(structure.optJSONArray("nativeLibraries")?.length() ?: 0).append("\n")
+                                        append("الصلاحيات المكتشفة: ").append(response.optJSONArray("permissions")?.length() ?: 0).append("\n\n")
                                         val agents = result.optJSONArray("team") ?: JSONArray()
                                         for (i in 0 until agents.length()) {
                                             val a = agents.getJSONObject(i)
-                                            append("◆ ").append(a.optString("name")).append("\\n")
-                                            append(a.optString("result")).append("\\n\\n")
+                                            append("◆ ").append(a.optString("name")).append("\n")
+                                            append(a.optString("result")).append("\n\n")
                                         }
-                                        append("قرار الفريق\\n").append(result.optString("decision"))
+                                        append("قرار الفريق\n").append(result.optString("decision"))
                                     }
                                 } finally { team.disconnect() }
                             }
@@ -263,7 +263,7 @@ private fun VipBuilderScreen(loadApps:()->List<InstalledApp>){
                             val text = withContext(Dispatchers.IO) {
                                 val ids = listOf("structure", "security", "design", "engineering")
                                 buildString {
-                                    append("ذاكرة المساعدين والإصدارات\\n\\n")
+                                    append("ذاكرة المساعدين والإصدارات\n\n")
                                     for (id in ids) {
                                         val conn = (URL(endpoint.trimEnd('/') + "/api/agent-memory/" + id).openConnection() as HttpURLConnection).apply {
                                             requestMethod = "GET"
@@ -276,11 +276,11 @@ private fun VipBuilderScreen(loadApps:()->List<InstalledApp>){
                                             val body = stream.bufferedReader().use { it.readText() }
                                             if (conn.responseCode !in 200..299) throw IllegalStateException(JSONObject(body).optString("error", "HTTP ${conn.responseCode}"))
                                             val mem = JSONObject(body)
-                                            append("• ").append(id).append("\\n")
+                                            append("• ").append(id).append("\n")
                                             val verified = mem.optJSONObject("lastVerified")
                                             val candidate = mem.optJSONObject("latestCandidate")
-                                            append("آخر نتيجة مثبتة: ").append(verified?.optLong("versionId")?.toString() ?: "لا توجد").append("\\n")
-                                            append("آخر مرشح: ").append(candidate?.optLong("versionId")?.toString() ?: "لا يوجد").append("\\n\\n")
+                                            append("آخر نتيجة مثبتة: ").append(verified?.optLong("versionId")?.toString() ?: "لا توجد").append("\n")
+                                            append("آخر مرشح: ").append(candidate?.optLong("versionId")?.toString() ?: "لا يوجد").append("\n\n")
                                         } finally { conn.disconnect() }
                                     }
                                 }
