@@ -176,15 +176,15 @@ const server = http.createServer(async (req, res) => {
       const finalDecision = execution.results.length
         ? await askAI([
             { role: "system", content: "أنت قائد VIP X. استعمل نتائج الأدوات المنفذة فعلياً للإجابة على المهمة. اذكر ما تم تنفيذه وما لم يتم، استشهد بعناوين وروابط نتائج البحث عند وجودها، ولا تخترع نتائج أو إجراءات." },
-            { role: "user", content: "المهمة: " + goal + "\\nقرار الفريق: " + result.decision + "\\nنتائج التنفيذ الفعلية: " + JSON.stringify(execution.results).slice(0, 18000) }
+            { role: "user", content: "المهمة: " + goal + "\nقرار الفريق: " + result.decision + "\nنتائج التنفيذ الفعلية: " + JSON.stringify(execution.results).slice(0, 18000) }
           ])
         : result.decision;
       const actionText = await askAI([
         { role: "system", content: "أخرج JSON فقط ككائن يحوي summary و actions. كل إجراء له type و target و reason. الأنواع المسموحة: OPEN_URL و SHARE_TEXT و TAP_TEXT و SCROLL_FORWARD و SCROLL_BACK و BACK. بحد أقصى 5 إجراءات. OPEN_URL يجب أن يكون رابط HTTPS عام واضح ومذكور في نتائج الأدوات أو طلب المستخدم. SHARE_TEXT يفتح قائمة مشاركة Android ولا يرسل وحده. TAP_TEXT لا تستخدمه إلا إذا كان نص العنصر موجوداً حرفياً في سياق الشاشة. لا تنفذ دفعاً أو شراءً أو حذفاً أو مراسلة تلقائية أو تسجيل دخول. إذا لم يوجد إجراء محلي مناسب أعد مصفوفة فارغة." },
-        { role: "user", content: "المهمة: " + goal + "\\nالسياق الظاهر: " + String(body.context || "").slice(0, 8000) + "\\nالقرار: " + finalDecision + "\\nنتائج الأدوات: " + JSON.stringify(execution.results).slice(0, 12000) }
+        { role: "user", content: "المهمة: " + goal + "\nالسياق الظاهر: " + String(body.context || "").slice(0, 8000) + "\nالقرار: " + finalDecision + "\nنتائج الأدوات: " + JSON.stringify(execution.results).slice(0, 12000) }
       ]);
       let localPlan = {};
-      try { localPlan = JSON.parse(actionText.replace(/^\`\`\`(?:json)?\\s*/i, "").replace(/\\s*\`\`\`$/i, "")); } catch {}
+      try { localPlan = JSON.parse(actionText.replace(/^\`\`\`(?:json)?\s*/i, "").replace(/\s*\`\`\`$/i, "")); } catch {}
       const allowedLocal = new Set(["OPEN_URL", "SHARE_TEXT", "TAP_TEXT", "SCROLL_FORWARD", "SCROLL_BACK", "BACK"]);
       const actions = (Array.isArray(localPlan.actions) ? localPlan.actions : []).slice(0, 5).filter(a => {
         if (!a || !allowedLocal.has(a.type)) return false;
