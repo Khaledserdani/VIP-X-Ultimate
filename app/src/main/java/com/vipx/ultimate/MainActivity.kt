@@ -49,7 +49,7 @@ import javax.crypto.KeyGenerator
 import javax.crypto.SecretKey
 import javax.crypto.spec.GCMParameterSpec
 
-private object SecureTokenStore {
+internal object SecureTokenStore {
     private const val alias = "vipx_access_token_key"
     private const val prefs = "vipx_secure_settings"
     private const val field = "access_token"
@@ -392,7 +392,7 @@ private fun VipBuilderScreen(loadApps:()->List<InstalledApp>){
                     }
                 }
             }
-            Text("وضع آمن: لا يفتح التطبيق المحدد ولا يغيّره أو يحذفه. يفحص APK ويحلله فقط؛ لا تُنشأ نسخة معدلة إلا من مصدر مصرح به وبعد نجاح البناء والاختبار. فشل الفحص لا يمس التطبيق الأصلي.",color=Soft,fontSize=9.sp)
+            Text("يعمل VIP X كمساعد داخل التطبيق المحدد: قراءة سياق الشاشة، النقر على عنصر ظاهر، التمرير والرجوع. لا يحذف التطبيق الأصلي ولا يتجاوز كلمات المرور أو الدفع أو الحماية.",color=Soft,fontSize=9.sp)
         }
     }
 }
