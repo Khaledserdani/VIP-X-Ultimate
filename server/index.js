@@ -61,7 +61,7 @@ async function analyzeApk(buffer) {
     } catch (e) { signature = "تعذر إثبات صلاحية التوقيع: " + String(e.stderr || e.message).slice(0, 500); }
     await execFileAsync("apktool", ["d", "-f", "-s", "-o", decoded, apk], { timeout: 120000, maxBuffer: 4 * 1024 * 1024 });
     const manifest = await fs.readFile(path.join(decoded, "AndroidManifest.xml"), "utf8");
-      const packageName = String(body.packageName || "").trim().slice(0, 200);
+    const packageName = (manifest.match(/package="([^"]+)"/) || [])[1] || null;
     const minSdk = (manifest.match(/android:minSdkVersion="([^"]+)"/) || [])[1] || null;
     const targetSdk = (manifest.match(/android:targetSdkVersion="([^"]+)"/) || [])[1] || null;
     const permissions = [...manifest.matchAll(/<uses-permission[^>]+android:name="([^"]+)"/g)].map(m => m[1]);
