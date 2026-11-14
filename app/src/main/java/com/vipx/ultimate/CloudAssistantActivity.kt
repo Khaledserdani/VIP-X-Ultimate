@@ -94,7 +94,19 @@ private fun CloudAssistantScreen(context: Context, onBack: () -> Unit) {
                         status = "جارٍ الاتصال بالخادم..."
                         prefs.edit().putString("endpoint", endpoint.trim().trimEnd('/')).apply()
                         val history = JSONArray()
-                        messages.takeLast(20).forEach { item -> history.put(JSONObject().put("role", item.role).put("content", item.text)) }
+                        val recentMessages = messages.takeLast(20)
+                        val liveContext = context.getSharedPreferences("vipx_live_context", Context.MODE_PRIVATE)
+                            .getString("visible_context", "").orEmpty()
+                        val activePackage = liveContext.let {
+                            context.getSharedPreferences("vipx_live_context", Context.MODE_PRIVATE)
+                                .getString("active_package", "").orEmpty()
+                        }
+                        recentMessages.forEachIndexed { index, item ->
+                            val content = if (index == recentMessages.lastIndex && item.role == "user" && liveContext.isNotBlank())
+                                item.text + "\\n\\n[سياق الشاشة الظاهر من جلسة VIP X للتطبيق " + activePackage + "]\\n" + liveContext
+                            else item.text
+                            history.put(JSONObject().put("role", item.role).put("content", content))
+                        }
                         scope.launch {
                             try {
                                 val answer = withContext(Dispatchers.IO) {
