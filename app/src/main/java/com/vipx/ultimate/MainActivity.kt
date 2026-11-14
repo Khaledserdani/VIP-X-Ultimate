@@ -58,14 +58,13 @@ class MainActivity:ComponentActivity(){
 
     @Suppress("DEPRECATION")
     private fun installedApps():List<InstalledApp>{
-        val intent=Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LAUNCHER)
         val list=if(Build.VERSION.SDK_INT>=33)
-            packageManager.queryIntentActivities(intent,PackageManager.ResolveInfoFlags.of(0))
-        else packageManager.queryIntentActivities(intent,0)
-        return list.mapNotNull{r->
-            val ai=r.activityInfo?.applicationInfo?:return@mapNotNull null
+            packageManager.getInstalledApplications(PackageManager.ApplicationInfoFlags.of(0))
+        else packageManager.getInstalledApplications(0)
+        return list.mapNotNull{ai->
             if(ai.packageName==packageName)return@mapNotNull null
-            InstalledApp(packageManager.getApplicationLabel(ai).toString(),ai.packageName)
+            val label=runCatching{packageManager.getApplicationLabel(ai).toString()}.getOrDefault(ai.packageName)
+            InstalledApp(label,ai.packageName)
         }.distinctBy{it.packageName}.sortedBy{it.name.lowercase()}
     }
 }
@@ -100,10 +99,28 @@ private fun VipBuilderScreen(loadApps:()->List<InstalledApp>){
                 Column(Modifier.fillMaxWidth().padding(13.dp),verticalArrangement=Arrangement.spacedBy(8.dp)){
                     Text("1 • اختر التطبيق المثبّت",color=Color.White,fontWeight=FontWeight.Bold)
                     OutlinedTextField(query,{query=it},Modifier.fillMaxWidth(),singleLine=true,label={Text("ابحث في تطبيقاتك")},leadingIcon={Icon(Icons.Default.Search,null)})
-                    Text("المحدد: ${selected?.name?:"لم تختر تطبيقاً بعد"}",color=Mint,fontSize=12.sp)
+                    Row(Modifier.fillMaxWidth(),verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.SpaceBetween){
+                        Text("المحدد: ${selected?.name?:"لم تختر تطبيقاً بعد"}",color=Mint,fontSize=12.sp)
+                        TextButton(onClick={
+                            scope.launch{
+                                status="جارٍ تحديث قائمة التطبيقات..."
+                                apps=withContext(Dispatchers.IO){loadApps()}
+                                status="تم العثور على ${apps.size} تطبيقاً"
+                            }
+                        }){Text("تحديث القائمة")}
+                    }
                 }
             }
             LazyColumn(Modifier.weight(1f),verticalArrangement=Arrangement.spacedBy(6.dp)){
+                if(visible.isEmpty()){
+                    item{
+                        Text(
+                            if(query.isBlank()) "لم تظهر تطبيقات في القائمة. اضغط «تحديث القائمة» أو تحقق من صلاحية عرض التطبيقات."
+                            else "لا توجد تطبيقات تطابق بحثك.",
+                            color=Soft,fontSize=13.sp,modifier=Modifier.fillMaxWidth().padding(18.dp)
+                        )
+                    }
+                }
                 items(visible,key={it.packageName}){app->
                     Card(Modifier.fillMaxWidth().clickable{selected=app;answer="";status="تم اختيار ${app.name}"},colors=CardDefaults.cardColors(containerColor=if(selected?.packageName==app.packageName) Color(0xFF17463F) else Panel),shape=RoundedCornerShape(12.dp)){
                         Row(Modifier.padding(12.dp),verticalAlignment=Alignment.CenterVertically){
