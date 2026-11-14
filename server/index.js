@@ -1,5 +1,11 @@
 const http = require("node:http");
 const crypto = require("node:crypto");
+const fs = require("node:fs/promises");
+const os = require("node:os");
+const path = require("node:path");
+const { execFile } = require("node:child_process");
+const { promisify } = require("node:util");
+const execFileAsync = promisify(execFile);
 const { runVipTeam, AGENTS } = require("./agents");
 const memoryStore = require("./memory");
 
@@ -23,6 +29,62 @@ function authorized(req) {
   const supplied = auth.startsWith("Bearer ") ? auth.slice(7) : "";
   if (!APP_ACCESS_TOKEN || supplied.length !== APP_ACCESS_TOKEN.length) return false;
   return crypto.timingSafeEqual(Buffer.from(supplied), Buffer.from(APP_ACCESS_TOKEN));
+}
+
+async function readRaw(req, limit = 120 * 1024 * 1024) {
+  const chunks = []; let size = 0;
+  for await (const chunk of req) {
+    size += chunk.length;
+    if (size > limit) throw new Error("حجم ملف APK يتجاوز الحد المسموح (120 ميغابايت)");
+    chunks.push(chunk);
+  }
+  if (!size) throw new Error("ملف APK فارغ");
+  return Buffer.concat(chunks, size);
+}
+
+async function analyzeApk(buffer) {
+  const work = await fs.mkdtemp(path.join(os.tmpdir(), "vipx-apk-"));
+  const apk = path.join(work, "input.apk");
+  const decoded = path.join(work, "decoded");
+  try {
+    await fs.writeFile(apk, buffer, { mode: 0o600 });
+    const hash = crypto.createHash("sha256").update(buffer).digest("hex");
+    const { stdout: listing } = await execFileAsync("unzip", ["-Z1", apk], { timeout: 30000, maxBuffer: 8 * 1024 * 1024 });
+    const entries = listing.split("\\n").filter(Boolean);
+    const dexFiles = entries.filter(x => /^classes(\\d*)?\\.dex$/.test(x));
+    const nativeLibs = entries.filter(x => /^lib\\/[^/]+\\//.test(x));
+    const resources = entries.includes("resources.arsc");
+    let signature = "لم يتم التحقق من التوقيع";
+    try {
+      const sig = await execFileAsync("apksigner", ["verify", "--verbose", apk], { timeout: 30000, maxBuffer: 1024 * 1024 });
+      signature = "توقيع APK صالح: " + (sig.stdout || sig.stderr || "تم التحقق");
+    } catch (e) { signature = "تعذر إثبات صلاحية التوقيع: " + String(e.stderr || e.message).slice(0, 500); }
+    await execFileAsync("apktool", ["d", "-f", "-s", "-o", decoded, apk], { timeout: 120000, maxBuffer: 4 * 1024 * 1024 });
+    const manifest = await fs.readFile(path.join(decoded, "AndroidManifest.xml"), "utf8");
+    const packageName = (manifest.match(/\\bpackage="([^"]+)"/) || [])[1] || null;
+    const minSdk = (manifest.match(/android:minSdkVersion="([^"]+)"/) || [])[1] || null;
+    const targetSdk = (manifest.match(/android:targetSdkVersion="([^"]+)"/) || [])[1] || null;
+    const permissions = [...manifest.matchAll(/<uses-permission[^>]+android:name="([^"]+)"/g)].map(m => m[1]);
+    const activities = [...manifest.matchAll(/<activity(?:-alias)?\\b[^>]*android:name="([^"]+)"/g)].map(m => m[1]);
+    const findings = [];
+    if (permissions.some(p => /READ_SMS|RECEIVE_SMS|SEND_SMS|READ_CALL_LOG|WRITE_CALL_LOG|RECORD_AUDIO|CAMERA|ACCESS_FINE_LOCATION/.test(p)))
+      findings.push("يطلب التطبيق صلاحيات حساسة؛ راجع ضرورة كل صلاحية قبل أي إعادة بناء.");
+    if (!dexFiles.length) findings.push("لم يتم العثور على ملفات DEX قياسية؛ قد يكون APK غير مكتمل أو يستخدم بنية غير معتادة.");
+    if (!packageName) findings.push("تعذر استخراج معرّف الحزمة من AndroidManifest.xml.");
+    return {
+      analysisVersion: "1.0", file: { sizeBytes: buffer.length, sha256: hash },
+      packageName, minSdk, targetSdk, signature,
+      structure: { dexFiles, nativeLibraries: nativeLibs, hasResourcesTable: resources, totalEntries: entries.length },
+      permissions, activities,
+      rebuildAssessment: {
+        decodedSuccessfully: true,
+        canAttemptRebuild: Boolean(packageName && dexFiles.length),
+        separateInstallRequiresNewPackageId: true,
+        caveats: ["إعادة التوقيع بمفتاح جديد قد تعطل تسجيل الدخول أو خدمات المطور أو فحوص سلامة التطبيق.", "المكتبات الأصلية والاعتماد على توقيع المطور قد تمنع عمل النسخة المعدلة.", "لا تُجرى تعديلات أو تجاوزات على DRM أو الاشتراكات أو المصادقة."]
+      },
+      findings
+    };
+  } finally { await fs.rm(work, { recursive: true, force: true }); }
 }
 
 async function readBody(req) {
@@ -63,6 +125,14 @@ const server = http.createServer(async (req, res) => {
   if (!authorized(req)) return send(res, 401, { error: "رمز الوصول غير صحيح أو لم يُضبط على الخادم" });
 
   try {
+    if (url.pathname === "/api/apk/analyze") {
+      const type = String(req.headers["content-type"] || "");
+      if (!type.includes("application/vnd.android.package-archive") && !type.includes("application/octet-stream"))
+        return send(res, 415, { error: "أرسل ملف APK بنوع application/vnd.android.package-archive" });
+      const apkBuffer = await readRaw(req);
+      const analysis = await analyzeApk(apkBuffer);
+      return send(res, 200, { analysis });
+    }
     if (url.pathname.startsWith("/api/agent-memory/")) {
       if (!process.env.DATABASE_URL) return send(res, 503, { error: "قاعدة الذاكرة الدائمة غير مهيأة" });
       const parts = url.pathname.split("/").filter(Boolean);
