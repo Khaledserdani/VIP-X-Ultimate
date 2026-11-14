@@ -51,8 +51,8 @@ async function analyzeApk(buffer) {
     const hash = crypto.createHash("sha256").update(buffer).digest("hex");
     const { stdout: listing } = await execFileAsync("unzip", ["-Z1", apk], { timeout: 30000, maxBuffer: 8 * 1024 * 1024 });
     const entries = listing.split(/\r?\n/).filter(Boolean);
-    const dexFiles = entries.filter(x => /^classes(\\d*)?\\.dex$/.test(x));
-    const nativeLibs = entries.filter(x => /^lib\\/[^/]+\\//.test(x));
+    const dexFiles = entries.filter(x => x === "classes.dex" || (x.startsWith("classes") && x.endsWith(".dex")));
+    const nativeLibs = entries.filter(x => x.startsWith("lib/") && x.split("/").length >= 3);
     const resources = entries.includes("resources.arsc");
     let signature = "لم يتم التحقق من التوقيع";
     try {
@@ -61,11 +61,11 @@ async function analyzeApk(buffer) {
     } catch (e) { signature = "تعذر إثبات صلاحية التوقيع: " + String(e.stderr || e.message).slice(0, 500); }
     await execFileAsync("apktool", ["d", "-f", "-s", "-o", decoded, apk], { timeout: 120000, maxBuffer: 4 * 1024 * 1024 });
     const manifest = await fs.readFile(path.join(decoded, "AndroidManifest.xml"), "utf8");
-    const packageName = (manifest.match(/\\bpackage="([^"]+)"/) || [])[1] || null;
+    const packageName = (manifest.match(/package="([^"]+)"/) || [])[1] || null;
     const minSdk = (manifest.match(/android:minSdkVersion="([^"]+)"/) || [])[1] || null;
     const targetSdk = (manifest.match(/android:targetSdkVersion="([^"]+)"/) || [])[1] || null;
     const permissions = [...manifest.matchAll(/<uses-permission[^>]+android:name="([^"]+)"/g)].map(m => m[1]);
-    const activities = [...manifest.matchAll(/<activity(?:-alias)?\\b[^>]*android:name="([^"]+)"/g)].map(m => m[1]);
+    const activities = [...manifest.matchAll(/<activity[^>]*android:name="([^"]+)"/g)].map(m => m[1]);
     const findings = [];
     if (permissions.some(p => /READ_SMS|RECEIVE_SMS|SEND_SMS|READ_CALL_LOG|WRITE_CALL_LOG|RECORD_AUDIO|CAMERA|ACCESS_FINE_LOCATION/.test(p)))
       findings.push("يطلب التطبيق صلاحيات حساسة؛ راجع ضرورة كل صلاحية قبل أي إعادة بناء.");
@@ -154,7 +154,7 @@ const server = http.createServer(async (req, res) => {
     let messages;
     if (url.pathname === "/api/vip-team") {
       const appName = String(body.appName || "").trim().slice(0, 100);
-      const packageName = String(body.packageName || "").trim().slice(0, 180);
+    const packageName = (manifest.match(/package="([^"]+)"/) || [])[1] || null;
       const goal = String(body.goal || "").trim().slice(0, 2000);
       const evidence = String(body.evidence || "").trim().slice(0, 12000);
       if (!appName || !packageName || !goal) return send(res, 400, { error: "بيانات التطبيق والهدف مطلوبة" });
@@ -162,7 +162,7 @@ const server = http.createServer(async (req, res) => {
       return send(res, 200, result);
     } else if (url.pathname === "/api/vip-plan") {
       const appName = String(body.appName || "").trim().slice(0, 100);
-      const packageName = String(body.packageName || "").trim().slice(0, 180);
+    const packageName = (manifest.match(/package="([^"]+)"/) || [])[1] || null;
       const goal = String(body.goal || "").trim().slice(0, 2000);
       if (!appName || !packageName || !goal) return send(res, 400, { error: "بيانات التطبيق والهدف مطلوبة" });
       messages = [
