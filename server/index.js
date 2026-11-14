@@ -119,7 +119,7 @@ const server = http.createServer(async (req, res) => {
     return send(res, 200, { status: "ok", service: "VIP X Ultimate Cloud", aiConfigured: Boolean(OPENAI_API_KEY), accessConfigured: Boolean(APP_ACCESS_TOKEN), memoryConfigured: Boolean(process.env.DATABASE_URL), agents: AGENTS.map(({id,name}) => ({id,name})) });
   }
 
-  if ((req.method !== "POST" && !(req.method === "GET" && (url.pathname === "/api/session" || url.pathname.startsWith("/api/agent-memory/")))) || (!["/api/chat", "/api/vip-plan", "/api/vip-team", "/api/apk/analyze", "/api/in-app/plan"].includes(url.pathname) && url.pathname !== "/api/session" && !url.pathname.startsWith("/api/agent-memory/"))) {
+  if ((req.method !== "POST" && !(req.method === "GET" && (url.pathname === "/api/session" || url.pathname.startsWith("/api/agent-memory/")))) || (!["/api/chat", "/api/vip-plan", "/api/vip-team", "/api/apk/analyze", "/api/in-app/plan", "/api/mission"].includes(url.pathname) && url.pathname !== "/api/session" && !url.pathname.startsWith("/api/agent-memory/"))) {
     return send(res, 404, { error: "المسار غير موجود" });
   }
   if (!authorized(req)) return send(res, 401, { error: "رمز الوصول غير صحيح أو لم يُضبط على الخادم" });
@@ -160,6 +160,23 @@ const server = http.createServer(async (req, res) => {
     }
     const body = await readBody(req);
     let messages;
+    if (url.pathname === "/api/mission") {
+      const goal = String(body.task || body.goal || "").trim().slice(0, 3000);
+      if (!goal) return send(res, 400, { error: "اكتب المهمة المطلوبة أولاً" });
+      const result = await runVipTeam({
+        goal,
+        appName: String(body.appName || "").slice(0, 120),
+        packageName: String(body.packageName || "").slice(0, 220),
+        evidence: String(body.context || body.screenContext || "").slice(0, 12000),
+        capabilities: String(body.capabilities || "Android companion, chat, analysis, accessible UI actions when explicitly authorized, connected APIs"),
+        constraints: String(body.constraints || "أفضل نتيجة عملية مع حماية بيانات المستخدم")
+      }, askAI, memoryStore);
+      return send(res, 200, {
+        mission: goal,
+        decision: result.decision,
+        team: result.team.map(a => ({ id: a.id, name: a.name, result: a.result }))
+      });
+    }
     if (url.pathname === "/api/in-app/plan") {
       const task = String(body.task || "").trim().slice(0, 1500);
       const appName = String(body.appName || "التطبيق المفتوح").trim().slice(0, 100);
