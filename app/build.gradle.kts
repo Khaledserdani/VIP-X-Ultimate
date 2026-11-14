@@ -10,8 +10,8 @@ android {
         applicationId = "com.vipx.ultimate"
         minSdk = 26
         targetSdk = 35
-        versionCode = 8
-        versionName = "2.3.1"
+        versionCode = 9
+        versionName = "2.3.2"
     }
     signingConfigs {
         create("release") {
