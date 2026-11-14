@@ -5,6 +5,8 @@ import android.net.Uri
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -57,6 +59,8 @@ private fun CloudAssistantScreen(context: Context, onBack: () -> Unit) {
     var prompt by remember { mutableStateOf("") }
     var actionText by remember { mutableStateOf("") }
     var task by remember { mutableStateOf("") }
+    var attachedFileName by remember { mutableStateOf("") }
+    var attachedFileText by remember { mutableStateOf("") }
     var planSummary by remember { mutableStateOf("") }
     val agentReports = remember { mutableStateListOf<AgentReport>() }
     val plannedActions = remember { mutableStateListOf<InAppAction>() }
@@ -64,6 +68,20 @@ private fun CloudAssistantScreen(context: Context, onBack: () -> Unit) {
     var status by remember { mutableStateOf("أدخل رابط الخادم السحابي ورمز الوصول") }
     val messages = remember { mutableStateListOf<ChatMessage>() }
     val scope = rememberCoroutineScope()
+    val filePicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+        if (uri != null) scope.launch {
+            try {
+                val content = withContext(Dispatchers.IO) {
+                    val bytes = context.contentResolver.openInputStream(uri)?.use { it.readBytes() } ?: throw IllegalStateException("تعذر فتح الملف")
+                    if (bytes.size > 1_000_000) throw IllegalStateException("الملف أكبر من حد القراءة 1 ميغابايت")
+                    String(bytes, Charsets.UTF_8)
+                }
+                attachedFileName = uri.lastPathSegment?.substringAfterLast("/") ?: "ملف مرفق"
+                attachedFileText = content
+                status = "تمت قراءة الملف محلياً: " + attachedFileName
+            } catch (e: Exception) { status = "تعذر قراءة الملف: " + (e.message ?: "خطأ") }
+        }
+    }
     Surface(Modifier.fillMaxSize(), color = CloudNavy) {
         Column(Modifier.fillMaxSize().padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -111,6 +129,10 @@ private fun CloudAssistantScreen(context: Context, onBack: () -> Unit) {
                 Column(Modifier.fillMaxWidth().padding(10.dp), verticalArrangement = Arrangement.spacedBy(7.dp)) {
                     Text("فريق VIP X • تنفيذ مهام متنوعة", color = CloudAccent, fontWeight = FontWeight.Bold)
                     OutlinedTextField(task, { task = it }, Modifier.fillMaxWidth(), label = { Text("اكتب أي مهمة تريد من فريق VIP X إنجازها") }, minLines = 2, maxLines = 3)
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        OutlinedButton(onClick = { filePicker.launch(arrayOf("text/*", "application/json", "application/xml")) }) { Text("إرفاق ملف نصي") }
+                        if (attachedFileName.isNotBlank()) Text("مرفق: " + attachedFileName, color = CloudMuted, fontSize = 10.sp)
+                    }
                     Button(onClick = {
                         val goal = task.trim()
                         val live = context.getSharedPreferences("vipx_live_context", Context.MODE_PRIVATE)
@@ -131,7 +153,7 @@ private fun CloudAssistantScreen(context: Context, onBack: () -> Unit) {
                                             setRequestProperty("Authorization", "Bearer " + accessToken)
                                         }
                                         try {
-                                            val payload = JSONObject().put("task", goal).put("appName", if (pkg.isBlank()) "مهمة عامة" else pkg.substringAfterLast('.')).put("packageName", pkg).put("context", screen).put("capabilities", "Android UI context, authorized tap/scroll/back, chat, analysis and configured cloud tools")
+                                            val payload = JSONObject().put("task", goal).put("appName", if (pkg.isBlank()) "مهمة عامة" else pkg.substringAfterLast('.')).put("packageName", pkg).put("context", screen + if (attachedFileText.isNotBlank()) "\\n\\nمحتوى الملف " + attachedFileName + ":\\n" + attachedFileText else "").put("capabilities", "Android UI context, authorized tap/scroll/back, chat, analysis and configured cloud tools")
                                             conn.outputStream.use { it.write(payload.toString().toByteArray(Charsets.UTF_8)) }
                                             val code = conn.responseCode
                                             val stream = if (code in 200..299) conn.inputStream else conn.errorStream
