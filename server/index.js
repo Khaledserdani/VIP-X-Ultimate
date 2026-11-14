@@ -7,6 +7,7 @@ const { execFile } = require("node:child_process");
 const { promisify } = require("node:util");
 const execFileAsync = promisify(execFile);
 const { runVipTeam, AGENTS } = require("./agents");
+const { executeMissionTools, TOOL_REGISTRY } = require("./tools");
 const memoryStore = require("./memory");
 
 const PORT = Number(process.env.PORT || 3000);
@@ -168,13 +169,22 @@ const server = http.createServer(async (req, res) => {
         appName: String(body.appName || "").slice(0, 120),
         packageName: String(body.packageName || "").slice(0, 220),
         evidence: String(body.context || body.screenContext || "").slice(0, 12000),
-        capabilities: String(body.capabilities || "Android companion, chat, analysis, accessible UI actions when explicitly authorized, connected APIs"),
+        capabilities: String(body.capabilities || "Android companion, direct web search, public webpage reading, safe calculator, APK analysis, persistent memory, authorized Android intents and UI actions"),
         constraints: String(body.constraints || "أفضل نتيجة عملية مع حماية بيانات المستخدم")
       }, askAI, memoryStore);
+      const execution = await executeMissionTools(goal, askAI);
+      const finalDecision = execution.results.length
+        ? await askAI([
+            { role: "system", content: "أنت قائد VIP X. استعمل نتائج الأدوات المنفذة فعلياً للإجابة على المهمة. اذكر ما تم تنفيذه وما لم يتم، استشهد بعناوين وروابط نتائج البحث عند وجودها، ولا تخترع نتائج أو إجراءات." },
+            { role: "user", content: "المهمة: " + goal + "\\nقرار الفريق: " + result.decision + "\\nنتائج التنفيذ الفعلية: " + JSON.stringify(execution.results).slice(0, 18000) }
+          ])
+        : result.decision;
       return send(res, 200, {
         mission: goal,
-        decision: result.decision,
-        team: result.team.map(a => ({ id: a.id, name: a.name, result: a.result }))
+        decision: finalDecision,
+        team: result.team.map(a => ({ id: a.id, name: a.name, result: a.result })),
+        execution: execution.results,
+        availableTools: TOOL_REGISTRY.map(({id,name,description}) => ({id,name,description}))
       });
     }
     if (url.pathname === "/api/in-app/plan") {
