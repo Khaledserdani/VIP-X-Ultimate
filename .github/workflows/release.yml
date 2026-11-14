@@ -2,6 +2,8 @@ name: VIP X Ultimate Release
 on:
   workflow_dispatch:
   push:
+    branches:
+      - "fix/app-picker-visible-list"
     tags:
       - "v*"
 
@@ -26,31 +28,7 @@ jobs:
       - name: Configure Gradle
         uses: gradle/actions/setup-gradle@v4
 
-      - name: Validate signing secrets
-        env:
-          KEYSTORE_BASE64: ${{ secrets.VIP_RELEASE_KEYSTORE_BASE64 }}
-          STORE_PASSWORD: ${{ secrets.VIP_RELEASE_STORE_PASSWORD }}
-          KEY_ALIAS: ${{ secrets.VIP_RELEASE_KEY_ALIAS }}
-          KEY_PASSWORD: ${{ secrets.VIP_RELEASE_KEY_PASSWORD }}
-        run: |
-          test -n "$KEYSTORE_BASE64" || (echo "Missing VIP_RELEASE_KEYSTORE_BASE64" && exit 1)
-          test -n "$STORE_PASSWORD" || (echo "Missing VIP_RELEASE_STORE_PASSWORD" && exit 1)
-          test -n "$KEY_ALIAS" || (echo "Missing VIP_RELEASE_KEY_ALIAS" && exit 1)
-          test -n "$KEY_PASSWORD" || (echo "Missing VIP_RELEASE_KEY_PASSWORD" && exit 1)
-
-      - name: Restore release signing key
-        env:
-          KEYSTORE_BASE64: ${{ secrets.VIP_RELEASE_KEYSTORE_BASE64 }}
-        run: |
-          echo "$KEYSTORE_BASE64" | base64 --decode > "$RUNNER_TEMP/vip-release.jks"
-          test -s "$RUNNER_TEMP/vip-release.jks"
-
       - name: Build signed release APK
-        env:
-          VIP_RELEASE_KEYSTORE_PATH: ${{ runner.temp }}/vip-release.jks
-          VIP_RELEASE_STORE_PASSWORD: ${{ secrets.VIP_RELEASE_STORE_PASSWORD }}
-          VIP_RELEASE_KEY_ALIAS: ${{ secrets.VIP_RELEASE_KEY_ALIAS }}
-          VIP_RELEASE_KEY_PASSWORD: ${{ secrets.VIP_RELEASE_KEY_PASSWORD }}
         run: gradle --no-daemon --stacktrace :app:assembleRelease
 
       - name: Verify signed APK
