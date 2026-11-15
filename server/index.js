@@ -137,7 +137,7 @@ async function askAI(messages) {
 
 function isNoOpGoal(goal) {
   const value = String(goal || "").trim().toLowerCase().replace(/[ًٌٍَُِّْـ]/g, "");
-  return /^(لا\s*(?:تنجز|تفعل|تعمل|تنفذ|تقم\s+ب|تسوي)\s*(?:اي\s*)?شي(?:ء|ئا)?[.!؟\s]*|لا\s*شي(?:ء|ئا)?[.!؟\s]*|توقف(?:\s+فقط)?[.!؟\s]*|do\s+nothing[.!\s]*)$/.test(value);
+  return /^(لا\s*(?:تنجز|تفعل|تعمل|تنفذ|تقم\s+ب|تسوي)\s*(?:اي\s*)?(?:شي(?:ء|ئا)?|شئ)[.!؟\s]*|لا\s*(?:شي(?:ء|ئا)?|شئ)[.!؟\s]*|توقف(?:\s+فقط)?[.!؟\s]*|do\s+nothing[.!\s]*)$/.test(value);
 }
 
 const server = http.createServer(async (req, res) => {
