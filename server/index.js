@@ -7,7 +7,7 @@ const { execFile } = require("node:child_process");
 const { promisify } = require("node:util");
 const execFileAsync = promisify(execFile);
 const { runVipTeam, AGENTS } = require("./agents");
-const { executeMissionTools, TOOL_REGISTRY } = require("./tools");
+const { executeToolCall, TOOL_REGISTRY } = require("./tools");
 const memoryStore = require("./memory");
 
 const PORT = Number(process.env.PORT || 3000);
@@ -98,18 +98,46 @@ async function readBody(req) {
 }
 
 async function askAI(messages) {
-  if (!OPENAI_API_KEY) throw new Error("مفتاح الذكاء الاصطناعي غير مضبوط على الخادم");
-  const upstream = await fetch("https://api.openai.com/v1/chat/completions", {
-    method: "POST",
-    headers: { "Authorization": "Bearer " + OPENAI_API_KEY, "Content-Type": "application/json" },
-    body: JSON.stringify({ model: AI_MODEL, messages, temperature: 0.45 }),
-    signal: AbortSignal.timeout(80000)
-  });
+  if (!OPENAI_API_KEY) {
+    const error = new Error("مفتاح الذكاء الاصطناعي غير مضبوط على الخادم");
+    error.status = 503;
+    throw error;
+  }
+  let upstream;
+  try {
+    upstream = await fetch("https://api.openai.com/v1/chat/completions", {
+      method: "POST",
+      headers: { "Authorization": "Bearer " + OPENAI_API_KEY, "Content-Type": "application/json" },
+      body: JSON.stringify({ model: AI_MODEL, messages, temperature: 0.35 }),
+      signal: AbortSignal.timeout(80000)
+    });
+  } catch (cause) {
+    const error = new Error("تعذر الاتصال بمزود الذكاء الاصطناعي؛ حاول لاحقاً");
+    error.status = cause && cause.name === "TimeoutError" ? 504 : 502;
+    throw error;
+  }
   const data = await upstream.json().catch(() => ({}));
-  if (!upstream.ok) throw new Error("تعذر إكمال طلب الذكاء الاصطناعي (مزود الخدمة: " + upstream.status + ")");
+  if (!upstream.ok) {
+    const error = new Error(upstream.status === 429
+      ? "وصل مزود الذكاء الاصطناعي إلى حد الاستخدام أو الحصة المتاحة. انتظر قليلاً أو تحقق من رصيد وحدود API."
+      : "رفض مزود الذكاء الاصطناعي الطلب (HTTP " + upstream.status + ")");
+    error.status = upstream.status === 429 ? 429 : (upstream.status >= 500 ? 502 : upstream.status);
+    const retryAfter = Number(upstream.headers.get("retry-after") || 0);
+    if (retryAfter > 0) error.retryAfter = retryAfter;
+    throw error;
+  }
   const reply = data.choices?.[0]?.message?.content;
-  if (!reply) throw new Error("لم تصل إجابة من الذكاء الاصطناعي");
+  if (!reply) {
+    const error = new Error("لم تصل إجابة من الذكاء الاصطناعي");
+    error.status = 502;
+    throw error;
+  }
   return reply;
+}
+
+function isNoOpGoal(goal) {
+  const value = String(goal || "").trim().toLowerCase().replace(/[ًٌٍَُِّْـ]/g, "");
+  return /^(لا\s*(?:تنجز|تفعل|تعمل|تنفذ|تقم\s+ب|تسوي)\s*(?:اي\s*)?شي(?:ء|ئا)?[.!؟\s]*|لا\s*شي(?:ء|ئا)?[.!؟\s]*|توقف(?:\s+فقط)?[.!؟\s]*|do\s+nothing[.!\s]*)$/.test(value);
 }
 
 const server = http.createServer(async (req, res) => {
@@ -164,41 +192,70 @@ const server = http.createServer(async (req, res) => {
     if (url.pathname === "/api/mission") {
       const goal = String(body.task || body.goal || "").trim().slice(0, 3000);
       if (!goal) return send(res, 400, { error: "اكتب المهمة المطلوبة أولاً" });
-      const result = await runVipTeam({
-        goal,
-        appName: String(body.appName || "").slice(0, 120),
-        packageName: String(body.packageName || "").slice(0, 220),
-        evidence: String(body.context || body.screenContext || "").slice(0, 12000),
-        capabilities: String(body.capabilities || "Android companion, direct web search, public webpage reading, safe calculator, APK analysis, persistent memory, authorized Android intents and UI actions"),
-        constraints: String(body.constraints || "أفضل نتيجة عملية مع حماية بيانات المستخدم")
-      }, askAI, memoryStore);
-      const execution = await executeMissionTools(goal, askAI);
-      const finalDecision = execution.results.length
-        ? await askAI([
-            { role: "system", content: "أنت قائد VIP X. استعمل نتائج الأدوات المنفذة فعلياً للإجابة على المهمة. اذكر ما تم تنفيذه وما لم يتم، استشهد بعناوين وروابط نتائج البحث عند وجودها، ولا تخترع نتائج أو إجراءات." },
-            { role: "user", content: "المهمة: " + goal + "\nقرار الفريق: " + result.decision + "\nنتائج التنفيذ الفعلية: " + JSON.stringify(execution.results).slice(0, 18000) }
-          ])
-        : result.decision;
-      const actionText = await askAI([
-        { role: "system", content: "أخرج JSON فقط ككائن يحوي summary و actions. كل إجراء له type و target و reason. الأنواع المسموحة: OPEN_URL و SHARE_TEXT و TAP_TEXT و SCROLL_FORWARD و SCROLL_BACK و BACK. بحد أقصى 5 إجراءات. OPEN_URL يجب أن يكون رابط HTTPS عام واضح ومذكور في نتائج الأدوات أو طلب المستخدم. SHARE_TEXT يفتح قائمة مشاركة Android ولا يرسل وحده. TAP_TEXT لا تستخدمه إلا إذا كان نص العنصر موجوداً حرفياً في سياق الشاشة. لا تنفذ دفعاً أو شراءً أو حذفاً أو مراسلة تلقائية أو تسجيل دخول. إذا لم يوجد إجراء محلي مناسب أعد مصفوفة فارغة." },
-        { role: "user", content: "المهمة: " + goal + "\nالسياق الظاهر: " + String(body.context || "").slice(0, 8000) + "\nالقرار: " + finalDecision + "\nنتائج الأدوات: " + JSON.stringify(execution.results).slice(0, 12000) }
+      // A direct no-op is a valid user instruction; never send it to the AI provider.
+      if (isNoOpGoal(goal)) {
+        return send(res, 200, {
+          mission: goal,
+          decision: "تم احترام طلبك. لن أنفّذ أي إجراء.",
+          team: [],
+          execution: [],
+          availableTools: TOOL_REGISTRY.map(({id,name,description}) => ({id,name,description})),
+          actions: []
+        });
+      }
+
+      const context = [
+        "المهمة: " + goal,
+        "التطبيق أو المجال: " + String(body.appName || "غير محدد").slice(0, 120),
+        "معرّف الحزمة: " + String(body.packageName || "غير متوفر").slice(0, 220),
+        "السياق والأدلة: " + String(body.context || body.screenContext || "لا توجد أدلة إضافية").slice(0, 10000),
+        "القدرات: " + String(body.capabilities || "بحث ويب وقراءة صفحات عامة وحساب آمن وتحليل APK وأوامر Android المصرح بها"),
+        "القيود: " + String(body.constraints || "احمِ بيانات المستخدم ولا تدّع تنفيذ ما لم يحدث")
+      ].join("\n");
+      const rawPlan = await askAI([
+        { role: "system", content: "أنت قائد VIP X ومساعد عملي متعدد المجالات. حلل الطلب مباشرة ولا تستدع فريقاً افتراضياً لكل مهمة. أخرج JSON فقط: decision نص عربي واضح، toolCalls مصفوفة حتى 3 عناصر، actions مصفوفة حتى 5 عناصر. أدوات toolCalls المسموحة: web_search مع {query}، web_fetch مع {url}، calculator مع {expression}. إجراءات actions المسموحة: OPEN_URL و SHARE_TEXT و TAP_TEXT و SCROLL_FORWARD و SCROLL_BACK و BACK. لا تخترع نتائج أو قدرات، ولا تدّع تنفيذ إجراء لم يحدث. لا تنشئ إجراءات محلية إلا عند وجود سبب واضح؛ TAP_TEXT يتطلب نصاً حرفياً موجوداً في سياق الشاشة. OPEN_URL يتطلب رابط HTTPS معروفاً في الطلب أو أدلة المستخدم. لا شراء أو دفع أو حذف أو مراسلة تلقائية أو تسجيل دخول. إذا لم تحتج أدوات فأعد toolCalls فارغة." },
+        { role: "user", content: context }
       ]);
-      let localPlan = {};
-      try { localPlan = JSON.parse(actionText.replace(/^\`\`\`(?:json)?\s*/i, "").replace(/\s*\`\`\`$/i, "")); } catch {}
+      let plan = {};
+      try { plan = JSON.parse(rawPlan.replace(/^\`\`\`(?:json)?\s*/i, "").replace(/\s*\`\`\`$/i, "")); }
+      catch {
+        return send(res, 200, { mission: goal, decision: rawPlan, team: [], execution: [], availableTools: TOOL_REGISTRY, actions: [] });
+      }
+
+      const executionResults = [];
+      const calls = Array.isArray(plan.toolCalls) ? plan.toolCalls.slice(0, 3) : [];
+      for (const call of calls) {
+        try {
+          executionResults.push(await executeToolCall({ name: call.name, arguments: call.arguments || {} }));
+        } catch (error) {
+          executionResults.push({ tool: call.name || "unknown", error: error.message || "تعذر تنفيذ الأداة" });
+        }
+      }
+
+      let decision = String(plan.decision || "تم تحليل طلبك.");
+      if (executionResults.some(item => item.output)) {
+        decision = await askAI([
+          { role: "system", content: "أجب بالعربية اعتماداً على نتائج الأدوات الفعلية فقط. وضّح ما تم وما لم يتم، وضع روابط المصادر عند توفرها. لا تخترع نتائج." },
+          { role: "user", content: "المهمة: " + goal + "\nالخطة الأولية: " + decision + "\nنتائج الأدوات: " + JSON.stringify(executionResults).slice(0, 16000) }
+        ]);
+      }
+
       const allowedLocal = new Set(["OPEN_URL", "SHARE_TEXT", "TAP_TEXT", "SCROLL_FORWARD", "SCROLL_BACK", "BACK"]);
-      const actions = (Array.isArray(localPlan.actions) ? localPlan.actions : []).slice(0, 5).filter(a => {
+      const actions = (Array.isArray(plan.actions) ? plan.actions : []).slice(0, 5).filter(a => {
         if (!a || !allowedLocal.has(a.type)) return false;
         const target = String(a.target || "").trim();
-        if (a.type === "OPEN_URL") return /^https:\/\//i.test(target);
+        if (a.type === "OPEN_URL") return /^https:\/\//i.test(target) &&
+          (String(body.context || "").includes(target) || String(body.screenContext || "").includes(target) || goal.includes(target));
         if (a.type === "SHARE_TEXT") return target.length > 0 && target.length <= 4000;
-        if (a.type === "TAP_TEXT") return target.length > 0 && String(body.context || "").includes(target);
+        if (a.type === "TAP_TEXT") return target.length > 0 && String(body.context || body.screenContext || "").includes(target);
         return true;
       }).map(a => ({ type: a.type, target: String(a.target || "").slice(0, 4000), reason: String(a.reason || "").slice(0, 240) }));
+
       return send(res, 200, {
         mission: goal,
-        decision: finalDecision,
-        team: result.team.map(a => ({ id: a.id, name: a.name, result: a.result })),
-        execution: execution.results,
+        decision,
+        team: [],
+        execution: executionResults,
         availableTools: TOOL_REGISTRY.map(({id,name,description}) => ({id,name,description})),
         actions
       });
@@ -258,8 +315,9 @@ const server = http.createServer(async (req, res) => {
     return send(res, 200, { reply });
   } catch (error) {
     const message = error.message || "حدث خطأ داخلي أثناء المعالجة";
-    const status = message.includes("كبير") ? 413 : 502;
-    return send(res, status, { error: message });
+    const status = message.includes("كبير") ? 413 : (Number.isInteger(error.status) ? error.status : 502);
+    if (status === 429 && error.retryAfter) res.setHeader("retry-after", String(error.retryAfter));
+    return send(res, status, { error: message, retryAfterSeconds: error.retryAfter || null });
   }
 });
 
