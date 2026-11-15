@@ -142,7 +142,7 @@ private fun CloudAssistantScreen(context: Context, onBack: () -> Unit) {
                         
                         else if (!endpoint.startsWith("https://") || accessToken.isBlank()) status = "أدخل رابط الخادم ورمز الربط الصحيح"
                         else {
-                            busy = true; status = "المساعدون الأربعة يدرسون المهمة ويبنون خطة..."
+                            busy = true; status = "VIP X يحلل المهمة ويحدد ما يلزم..."
                             plannedActions.clear(); agentReports.clear(); planSummary = ""
                             scope.launch {
                                 try {
@@ -158,7 +158,7 @@ private fun CloudAssistantScreen(context: Context, onBack: () -> Unit) {
                                             val code = conn.responseCode
                                             val stream = if (code in 200..299) conn.inputStream else conn.errorStream
                                             val body = stream.bufferedReader().use { it.readText() }
-                                            if (code !in 200..299) throw IllegalStateException("HTTP " + code + ": " + body)
+                                            if (code !in 200..299) {\n                                                val detail = runCatching { JSONObject(body).optString("error").takeIf { it.isNotBlank() } }.getOrNull()\n                                                throw IllegalStateException(detail ?: ("HTTP " + code))\n                                            }
                                             JSONObject(body)
                                         } finally { conn.disconnect() }
                                     }
@@ -172,13 +172,13 @@ private fun CloudAssistantScreen(context: Context, onBack: () -> Unit) {
                                         val a = list.getJSONObject(i)
                                         plannedActions.add(InAppAction(a.optString("type"), a.optString("target"), a.optString("reason")))
                                     }
-                                    status = "اكتمل تنسيق المساعدين الأربعة • راجع قرار الفريق أدناه"
+                                    status = "اكتمل تحليل المهمة • راجع النتيجة أدناه"
                                     messages.add(ChatMessage("assistant", "خطة الفريق: " + planSummary + "\\nعدد الإجراءات: " + plannedActions.size))
                                 } catch (e: Exception) { status = "فشل إعداد الخطة: " + (e.message ?: "خطأ غير معروف") }
                                 finally { busy = false }
                             }
                         }
-                    }, enabled = !busy, modifier = Modifier.fillMaxWidth()) { Text(if (busy) "الفريق يعمل..." else "اطلب من الفريق إعداد خطة وتنفيذها") }
+                    }, enabled = !busy, modifier = Modifier.fillMaxWidth()) { Text(if (busy) "الفريق يعمل..." else "حلّل المهمة مع VIP X") }
                     if (planSummary.isNotBlank()) Text(planSummary, color = Color.White, fontSize = 12.sp)
                     agentReports.forEach { report ->
                         Text(report.name, color = CloudAccent, fontWeight = FontWeight.Bold, fontSize = 12.sp)
