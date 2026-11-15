@@ -158,7 +158,10 @@ private fun CloudAssistantScreen(context: Context, onBack: () -> Unit) {
                                             val code = conn.responseCode
                                             val stream = if (code in 200..299) conn.inputStream else conn.errorStream
                                             val body = stream.bufferedReader().use { it.readText() }
-                                            if (code !in 200..299) {\n                                                val detail = runCatching { JSONObject(body).optString("error").takeIf { it.isNotBlank() } }.getOrNull()\n                                                throw IllegalStateException(detail ?: ("HTTP " + code))\n                                            }
+                                            if (code !in 200..299) {
+                                                val detail = runCatching { JSONObject(body).optString("error").takeIf { it.isNotBlank() } }.getOrNull()
+                                                throw IllegalStateException(detail ?: ("HTTP " + code))
+                                            }
                                             JSONObject(body)
                                         } finally { conn.disconnect() }
                                     }
