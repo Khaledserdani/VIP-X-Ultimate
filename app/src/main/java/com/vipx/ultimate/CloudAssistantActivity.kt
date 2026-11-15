@@ -8,8 +8,8 @@ import androidx.activity.compose.setContent
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
@@ -83,7 +83,7 @@ private fun CloudAssistantScreen(context: Context, onBack: () -> Unit) {
         }
     }
     Surface(Modifier.fillMaxSize(), color = CloudNavy) {
-        Column(Modifier.fillMaxSize().padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        Column(Modifier.fillMaxSize().navigationBarsPadding().imePadding().verticalScroll(rememberScrollState()).padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 IconButton(onClick = onBack) { Icon(Icons.Default.ArrowBack, "رجوع", tint = CloudAccent) }
                 Column(Modifier.weight(1f)) {
@@ -99,8 +99,8 @@ private fun CloudAssistantScreen(context: Context, onBack: () -> Unit) {
                     Text(status, color = CloudAccent, fontSize = 11.sp)
                 }
             }
-            LazyColumn(Modifier.weight(1f).fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                items(messages) { msg ->
+            Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                messages.takeLast(20).forEach { msg ->
                     Card(Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = if (msg.role == "user") Color(0xFF173A4A) else CloudPanel)) {
                         Column(Modifier.padding(12.dp)) {
                             Text(if (msg.role == "user") "أنت" else "المساعد السحابي", color = CloudAccent, fontSize = 10.sp, fontWeight = FontWeight.Bold)
