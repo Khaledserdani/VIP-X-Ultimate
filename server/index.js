@@ -12,8 +12,7 @@ const memoryStore = require("./memory");
 
 const PORT = Number(process.env.PORT || 3000);
 const APP_ACCESS_TOKEN = process.env.APP_ACCESS_TOKEN || "";
-const OPENAI_API_KEY = process.env.OPENAI_API_KEY || "";
-const AI_MODEL = process.env.AI_MODEL || "gpt-4o-mini";
+const { askAI, providerConfigured, selectedProvider } = require("./provider");
 
 function send(res, status, body) {
   res.writeHead(status, {
@@ -97,44 +96,6 @@ async function readBody(req) {
   return JSON.parse(raw || "{}");
 }
 
-async function askAI(messages) {
-  if (!OPENAI_API_KEY) {
-    const error = new Error("مفتاح الذكاء الاصطناعي غير مضبوط على الخادم");
-    error.status = 503;
-    throw error;
-  }
-  let upstream;
-  try {
-    upstream = await fetch("https://api.openai.com/v1/chat/completions", {
-      method: "POST",
-      headers: { "Authorization": "Bearer " + OPENAI_API_KEY, "Content-Type": "application/json" },
-      body: JSON.stringify({ model: AI_MODEL, messages, temperature: 0.35 }),
-      signal: AbortSignal.timeout(80000)
-    });
-  } catch (cause) {
-    const error = new Error("تعذر الاتصال بمزود الذكاء الاصطناعي؛ حاول لاحقاً");
-    error.status = cause && cause.name === "TimeoutError" ? 504 : 502;
-    throw error;
-  }
-  const data = await upstream.json().catch(() => ({}));
-  if (!upstream.ok) {
-    const error = new Error(upstream.status === 429
-      ? "وصل مزود الذكاء الاصطناعي إلى حد الاستخدام أو الحصة المتاحة. انتظر قليلاً أو تحقق من رصيد وحدود API."
-      : "رفض مزود الذكاء الاصطناعي الطلب (HTTP " + upstream.status + ")");
-    error.status = upstream.status === 429 ? 429 : (upstream.status >= 500 ? 502 : upstream.status);
-    const retryAfter = Number(upstream.headers.get("retry-after") || 0);
-    if (retryAfter > 0) error.retryAfter = retryAfter;
-    throw error;
-  }
-  const reply = data.choices?.[0]?.message?.content;
-  if (!reply) {
-    const error = new Error("لم تصل إجابة من الذكاء الاصطناعي");
-    error.status = 502;
-    throw error;
-  }
-  return reply;
-}
-
 function isNoOpGoal(goal) {
   const value = String(goal || "").trim().toLowerCase().replace(/[ًٌٍَُِّْـ]/g, "");
   return /^(لا\s*(?:تنجز|تفعل|تعمل|تنفذ|تقم\s+ب|تسوي)\s*(?:اي\s*)?(?:شي(?:ء|ئا)?|شئ)[.!؟\s]*|لا\s*(?:شي(?:ء|ئا)?|شئ)[.!؟\s]*|توقف(?:\s+فقط)?[.!؟\s]*|do\s+nothing[.!\s]*)$/.test(value);
@@ -145,7 +106,7 @@ const server = http.createServer(async (req, res) => {
   const url = new URL(req.url, "http://localhost");
 
   if (req.method === "GET" && url.pathname === "/health") {
-    return send(res, 200, { status: "ok", service: "VIP X Ultimate Cloud", aiConfigured: Boolean(OPENAI_API_KEY), accessConfigured: Boolean(APP_ACCESS_TOKEN), memoryConfigured: Boolean(process.env.DATABASE_URL), agents: AGENTS.map(({id,name}) => ({id,name})) });
+    return send(res, 200, { status: "ok", service: "VIP X Ultimate Cloud", aiConfigured: providerConfigured(), aiProvider: selectedProvider(), accessConfigured: Boolean(APP_ACCESS_TOKEN), memoryConfigured: Boolean(process.env.DATABASE_URL), agents: AGENTS.map(({id,name}) => ({id,name})) });
   }
 
   if ((req.method !== "POST" && !(req.method === "GET" && (url.pathname === "/api/session" || url.pathname.startsWith("/api/agent-memory/")))) || (!["/api/chat", "/api/vip-plan", "/api/vip-team", "/api/apk/analyze", "/api/in-app/plan", "/api/mission"].includes(url.pathname) && url.pathname !== "/api/session" && !url.pathname.startsWith("/api/agent-memory/"))) {
@@ -157,7 +118,7 @@ const server = http.createServer(async (req, res) => {
     if (req.method === "GET" && url.pathname === "/api/session") {
       return send(res, 200, {
         authenticated: true,
-        aiConfigured: Boolean(OPENAI_API_KEY),
+        aiConfigured: providerConfigured(),
         memoryConfigured: Boolean(process.env.DATABASE_URL),
         agents: AGENTS.map(({ id, name }) => ({ id, name }))
       });
