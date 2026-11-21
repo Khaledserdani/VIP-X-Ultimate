@@ -10,6 +10,9 @@ test("calculator handles precedence and parentheses", () => {
 test("calculator handles unary minus and division", () => {
   assert.equal(calculate("-8 / 2").result, -4);
   assert.equal(calculate("10 % 4").result, 2);
+  assert.equal(calculate("-2^2").result, -4);
+  assert.equal(calculate("(-2)^2").result, 4);
+  assert.equal(calculate("2^-2").result, 0.25);
 });
 test("calculator rejects code and malformed expressions", () => {
   assert.throws(() => calculate("process.exit()"));
