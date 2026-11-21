@@ -196,7 +196,7 @@ const server = http.createServer(async (req, res) => {
           : "تعذر الاتصال بمزود الذكاء الاصطناعي المجاني. لم تُنفّذ أي إجراءات.";
         return send(res, 200, {
           mission: goal,
-          decision: fallback + (teamResult.decision ? "\\n" + teamResult.decision : ""),
+          decision: fallback + (teamResult.decision ? "\n" + teamResult.decision : ""),
           team: teamResult.team,
           memoryStatus: teamResult.memoryStatus,
           execution: [],
