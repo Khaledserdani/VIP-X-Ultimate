@@ -77,7 +77,8 @@ test("authentication/configuration errors do not trigger pointless provider fail
 });
 
 test("paid providers are never selectable, even if legacy paid flags are enabled", () => {
-  assert.deepEqual(configuredProviders().map(p => p.id), ["gemini", "groq"]);\n  assert.equal(configuredProviders().some(p => p.freeTier === false), false);
+  assert.deepEqual(configuredProviders().map(p => p.id), ["gemini", "groq"]);
+  assert.equal(configuredProviders().some(p => p.freeTier === false), false);
   assert.equal(canFallback({ status: 429 }), true);
   assert.equal(canFallback({ status: 401 }), false);
 });
