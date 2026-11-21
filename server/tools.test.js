@@ -22,6 +22,14 @@ test("URL validator blocks private and non-HTTPS targets", async () => {
   await assert.rejects(() => safeUrl("https://127.0.0.1"));
   await assert.rejects(() => safeUrl("https://localhost"));
 });
+test("URL validator blocks private, loopback, and mapped IPv6 targets", async () => {
+  await assert.rejects(() => safeUrl("https://[::1]"));
+  await assert.rejects(() => safeUrl("https://[fc00::1]"));
+  await assert.rejects(() => safeUrl("https://[fe80::1]"));
+  await assert.rejects(() => safeUrl("https://[::ffff:127.0.0.1]"));
+  await assert.rejects(() => safeUrl("https://[::ffff:7f00:1]"));
+  await assert.rejects(() => safeUrl("https://[2001:db8::1]"));
+});
 test("web reader retrieves a public HTTPS page", async () => {
   const page = await fetchText("https://example.com");
   assert.match(page.text, /Example Domain/i);
