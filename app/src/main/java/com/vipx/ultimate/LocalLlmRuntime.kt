@@ -134,7 +134,7 @@ internal object LocalLlmRuntime {
     suspend fun generate(prompt: String): String = withContext(Dispatchers.IO) {
         synchronized(lock) {
             val active = conversation ?: error("المساعد المحلي غير جاهز؛ حمّل النموذج وفعّله أولاً")
-            active.sendMessage(prompt).text.trim().ifBlank { "لم ينتج النموذج إجابة نصية." }
+            active.sendMessage(prompt).toString().trim().ifBlank { "لم ينتج النموذج إجابة نصية." }
         }
     }
 
