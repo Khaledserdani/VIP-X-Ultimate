@@ -129,7 +129,53 @@ private fun VipBuilderScreen(loadApps:()->List<InstalledApp>){
     var memoryInfo by remember{mutableStateOf("")}
     var status by remember{mutableStateOf("اختر تطبيقاً من هاتفك للبدء")}
     var busy by remember{mutableStateOf(false)}
-    LaunchedEffect(Unit){apps=withContext(Dispatchers.IO){loadApps()};status="تم العثور على ${apps.size} تطبيقاً"}
+    var showModelPrompt by remember { mutableStateOf(false) }
+    var modelDownloading by remember { mutableStateOf(false) }
+    var modelProgress by remember { mutableIntStateOf(0) }
+    var modelReady by remember { mutableStateOf(LocalLlmRuntime.isReady()) }
+    var modelStatus by remember { mutableStateOf("") }
+
+    fun startLocalModelSetup() {
+        if (modelDownloading || modelReady) return
+        context.getSharedPreferences("vipx_model_setup", Context.MODE_PRIVATE)
+            .edit().putBoolean("first_prompt_shown", true).apply()
+        showModelPrompt = false
+        modelDownloading = true
+        modelStatus = "جارٍ تجهيز الذكاء المحلي..."
+        scope.launch {
+            try {
+                if (!LocalLlmRuntime.isModelDownloaded(context)) {
+                    LocalLlmRuntime.downloadModel(context) { modelProgress = it }
+                }
+                modelStatus = "تم التحقق من النموذج؛ جارٍ تشغيله لأول مرة..."
+                LocalLlmRuntime.initialize(context)
+                modelReady = true
+                modelStatus = "الذكاء المحلي جاهز ويعمل دون إنترنت"
+            } catch (error: Exception) {
+                modelStatus = "تعذر تجهيز الذكاء المحلي: " + (error.message ?: "خطأ غير معروف")
+            } finally {
+                modelDownloading = false
+            }
+        }
+    }
+
+    LaunchedEffect(Unit) {
+        apps = withContext(Dispatchers.IO) { loadApps() }
+        status = "تم العثور على ${apps.size} تطبيقاً"
+        if (LocalLlmRuntime.isModelDownloaded(context)) {
+            modelStatus = "النموذج موجود؛ جارٍ تهيئته..."
+            try {
+                LocalLlmRuntime.initialize(context)
+                modelReady = true
+                modelStatus = "الذكاء المحلي جاهز ويعمل دون إنترنت"
+            } catch (error: Exception) {
+                modelStatus = "تعذر تهيئة النموذج المحلي: " + (error.message ?: "خطأ")
+            }
+        } else if (!context.getSharedPreferences("vipx_model_setup", Context.MODE_PRIVATE)
+                .getBoolean("first_prompt_shown", false)) {
+            showModelPrompt = true
+        }
+    }
     val visible=remember(apps,query){apps.filter{it.name.contains(query,true)||it.packageName.contains(query,true)}}
     Surface(Modifier.fillMaxSize(),color=Navy){
         Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp),verticalArrangement=Arrangement.spacedBy(11.dp)){
@@ -156,6 +202,44 @@ private fun VipBuilderScreen(loadApps:()->List<InstalledApp>){
                         }){Text("تحديث القائمة")}
                     }
                 }
+            }
+            Card(colors=CardDefaults.cardColors(containerColor=Panel),shape=RoundedCornerShape(16.dp)){
+                Column(Modifier.fillMaxWidth().padding(12.dp),verticalArrangement=Arrangement.spacedBy(7.dp)){
+                    Text("الذكاء الاصطناعي المحلي",color=Mint,fontWeight=FontWeight.Bold)
+                    Text(
+                        when {
+                            modelReady -> "جاهز • يعمل على الهاتف دون إنترنت"
+                            modelDownloading -> "تنزيل وتجهيز النموذج: $modelProgress%"
+                            LocalLlmRuntime.isModelDownloaded(context) -> "النموذج محفوظ • جارٍ تهيئته عند فتح التطبيق"
+                            else -> "نموذج Qwen3 مجاني بحجم يقارب 614 ميغابايت. يُنزّل مرة واحدة بعد موافقتك."
+                        },
+                        color=Soft,fontSize=11.sp
+                    )
+                    if(modelDownloading) LinearProgressIndicator(progress={modelProgress/100f},modifier=Modifier.fillMaxWidth())
+                    if(!modelReady && !modelDownloading) {
+                        Button(onClick={startLocalModelSetup()},modifier=Modifier.fillMaxWidth()) {
+                            Text(if(LocalLlmRuntime.isModelDownloaded(context)) "تشغيل الذكاء المحلي" else "تنزيل وتشغيل الذكاء المحلي")
+                        }
+                    }
+                    if(modelStatus.isNotBlank()) Text(modelStatus,color=if(modelReady) Mint else Soft,fontSize=10.sp)
+                }
+            }
+            if(showModelPrompt) {
+                AlertDialog(
+                    onDismissRequest={
+                        context.getSharedPreferences("vipx_model_setup", Context.MODE_PRIVATE)
+                            .edit().putBoolean("first_prompt_shown", true).apply()
+                        showModelPrompt=false
+                    },
+                    title={Text("جهّز ذكاء VIP X المحلي")},
+                    text={Text("يمكن تنزيل نموذج Qwen3 المجاني مرة واحدة (حوالي 614 ميغابايت). بعد التحقق وتشغيله سيعمل داخل هاتفك دون إنترنت أو رمز API. ابدأ الآن إذا كنت تستخدم Wi-Fi وتتوفر مساحة فارغة كافية، أو اختر لاحقاً.")},
+                    confirmButton={TextButton(onClick={::startLocalModelSetup}){Text("تنزيل الآن")}},
+                    dismissButton={TextButton(onClick={
+                        context.getSharedPreferences("vipx_model_setup", Context.MODE_PRIVATE)
+                            .edit().putBoolean("first_prompt_shown", true).apply()
+                        showModelPrompt=false
+                    }){Text("لاحقاً")}}
+                )
             }
             LazyColumn(Modifier.fillMaxWidth().heightIn(min=90.dp,max=220.dp),verticalArrangement=Arrangement.spacedBy(6.dp)){
                 if(visible.isEmpty()){
