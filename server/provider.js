@@ -1,8 +1,8 @@
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY || "";
 const GROQ_API_KEY = process.env.GROQ_API_KEY || "";
 const AI_PROVIDER = String(process.env.AI_PROVIDER || "auto").toLowerCase();
-const GEMINI_MODEL = process.env.GEMINI_MODEL || "gemini-3.1-flash-lite";
-const GROQ_MODEL = process.env.GROQ_MODEL || "llama-3.3-70b-versatile";
+const GEMINI_MODEL = "gemini-3.1-flash-lite";
+const GROQ_MODEL = "llama-3.3-70b-versatile";
 
 function providerError(message, status, retryAfter) {
   const error = new Error(message);
