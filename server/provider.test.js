@@ -6,8 +6,8 @@ process.env.ALLOW_PAID_AI = "true"; // legacy paid flag must be ignored
 process.env.GEMINI_API_KEY = "test-gemini-key";
 process.env.GROQ_API_KEY = "test-groq-key";
 process.env.OPENAI_API_KEY = "test-openai-key";
-process.env.GEMINI_MODEL = "gemini-3.1-flash-lite";
-process.env.GROQ_MODEL = "llama-3.3-70b-versatile";
+process.env.GEMINI_MODEL = "paid-model-must-be-ignored";
+process.env.GROQ_MODEL = "paid-model-must-be-ignored";
 
 const { askAI, normalizeGeminiMessages, providerConfigured, selectedProvider, configuredProviders, canFallback } = require("./provider");
 
