@@ -58,6 +58,7 @@ test("temporary Gemini quota failure falls back to configured free Groq", async 
     }
     assert.match(String(url), /api\.groq\.com\/openai\/v1\/chat\/completions/);
     assert.equal(options.headers.Authorization, "Bearer test-groq-key");
+    assert.equal(JSON.parse(options.body).model, "llama-3.3-70b-versatile");
     return new Response(JSON.stringify({ choices: [{ message: { content: "Groq fallback reply" } }] }), { status: 200 });
   };
   try {
