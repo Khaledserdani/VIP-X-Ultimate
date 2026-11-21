@@ -30,6 +30,11 @@ test("URL validator blocks private, loopback, and mapped IPv6 targets", async ()
   await assert.rejects(() => safeUrl("https://[::ffff:7f00:1]"));
   await assert.rejects(() => safeUrl("https://[2001:db8::1]"));
 });
+test("URL validator rejects documentation, benchmarking, and reserved IPv4 ranges", async () => {
+  for (const ip of ["192.0.2.1", "198.18.0.1", "198.51.100.7", "203.0.113.9", "192.88.99.1"]) {
+    await assert.rejects(() => safeUrl("https://" + ip));
+  }
+});
 test("web reader retrieves a public HTTPS page", async () => {
   const page = await fetchText("https://example.com");
   assert.match(page.text, /Example Domain/i);
