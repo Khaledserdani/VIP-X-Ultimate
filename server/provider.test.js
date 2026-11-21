@@ -2,7 +2,7 @@ const test = require("node:test");
 const assert = require("node:assert/strict");
 
 process.env.AI_PROVIDER = "auto";
-process.env.ALLOW_PAID_AI = "false";
+process.env.ALLOW_PAID_AI = "true"; // legacy paid flag must be ignored
 process.env.GEMINI_API_KEY = "test-gemini-key";
 process.env.GROQ_API_KEY = "test-groq-key";
 process.env.OPENAI_API_KEY = "test-openai-key";
@@ -11,7 +11,7 @@ process.env.GROQ_MODEL = "llama-3.3-70b-versatile";
 
 const { askAI, normalizeGeminiMessages, providerConfigured, selectedProvider, configuredProviders, canFallback } = require("./provider");
 
-test("free providers are selected first and paid OpenAI is excluded by default", () => {
+test("only free providers are selectable even when legacy paid flags are present", () => {
   assert.equal(providerConfigured(), true);
   assert.equal(selectedProvider(), "gemini");
   assert.deepEqual(configuredProviders().map(p => p.id), ["gemini", "groq"]);
@@ -76,8 +76,8 @@ test("authentication/configuration errors do not trigger pointless provider fail
   } finally { global.fetch = originalFetch; }
 });
 
-test("paid provider failover is not allowed for ordinary quota errors unless explicitly enabled", () => {
-  assert.equal(configuredProviders().some(p => p.id === "openai"), false);
+test("paid providers are never selectable, even if legacy paid flags are enabled", () => {
+  assert.deepEqual(configuredProviders().map(p => p.id), ["gemini", "groq"]);\n  assert.equal(configuredProviders().some(p => p.freeTier === false), false);
   assert.equal(canFallback({ status: 429 }), true);
   assert.equal(canFallback({ status: 401 }), false);
 });
