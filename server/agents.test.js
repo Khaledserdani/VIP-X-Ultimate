@@ -29,3 +29,17 @@ test("four-agent team records candidate memories when storage is available", asy
   assert.equal(saved.length, 4);
   assert.equal(result.memoryStatus, "saved");
 });
+
+test("one unavailable agent does not discard the other agent reports", async () => {
+  let calls = 0;
+  const askAI = async () => {
+    calls += 1;
+    if (calls === 1) throw new Error("temporary quota failure");
+    return "نتيجة متاحة";
+  };
+  const memory = { getAgentMemory: async () => null };
+  const result = await runVipTeam({ goal: "مهمة جزئية" }, askAI, memory);
+  assert.equal(result.team.length, 4);
+  assert.equal(result.team.filter(item => item.status === "failed").length, 1);
+  assert.equal(result.team.filter(item => item.result === "نتيجة متاحة").length, 3);
+});
