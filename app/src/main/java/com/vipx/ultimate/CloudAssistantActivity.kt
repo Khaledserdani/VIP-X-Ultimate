@@ -217,7 +217,7 @@ private fun CloudAssistantScreen(context: Context, onBack: () -> Unit) {
                                             setRequestProperty("Authorization", "Bearer " + accessToken)
                                         }
                                         try {
-                                            val payload = JSONObject().put("task", goal).put("appName", if (pkg.isBlank()) "مهمة عامة" else pkg.substringAfterLast('.')).put("packageName", pkg).put("context", screen + if (attachedFileText.isNotBlank()) "\n\nمحتوى الملف " + attachedFileName + ":\n" + attachedFileText else "").put("capabilities", "Android UI context, authorized tap/scroll/back, chat, analysis and configured cloud tools")
+                                            val payload = JSONObject().put("task", goal).put("appName", if (pkg.isBlank()) "مهمة عامة" else pkg.substringAfterLast('.')).put("packageName", pkg).put("context", screen + if (attachedFileText.isNotBlank()) "\n\nمحتوى الملف " + attachedFileName + ":\n" + attachedFileText else "").put("capabilities", "Android UI context, authorized tap/scroll/back, chat, analysis and configured cloud tools").put("useTeam", true)
                                             conn.outputStream.use { it.write(payload.toString().toByteArray(Charsets.UTF_8)) }
                                             val code = conn.responseCode
                                             val stream = if (code in 200..299) conn.inputStream else conn.errorStream
