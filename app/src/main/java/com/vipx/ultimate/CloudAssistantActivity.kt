@@ -123,6 +123,7 @@ private fun CloudAssistantScreen(context: Context, onBack: () -> Unit) {
     var prompt by remember { mutableStateOf("") }
     var actionText by remember { mutableStateOf("") }
     var task by remember { mutableStateOf("") }
+    var includeScreenContext by remember { mutableStateOf(false) }
     var attachedFileName by remember { mutableStateOf("") }
     var attachedFileText by remember { mutableStateOf("") }
     var planSummary by remember { mutableStateOf("") }
@@ -193,6 +194,13 @@ private fun CloudAssistantScreen(context: Context, onBack: () -> Unit) {
                 Column(Modifier.fillMaxWidth().padding(10.dp), verticalArrangement = Arrangement.spacedBy(7.dp)) {
                     Text("فريق VIP X • تنفيذ مهام متنوعة", color = CloudAccent, fontWeight = FontWeight.Bold)
                     OutlinedTextField(task, { task = it }, Modifier.fillMaxWidth(), label = { Text("اكتب أي مهمة تريد من فريق VIP X إنجازها") }, minLines = 2, maxLines = 3)
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Checkbox(checked = includeScreenContext, onCheckedChange = { includeScreenContext = it })
+                        Column(Modifier.weight(1f)) {
+                            Text("إرفاق نص الشاشة الحالية إلى الخادم", color = Color.White, fontSize = 12.sp)
+                            Text("مغلق افتراضياً. لا يُرسل إلا عند تفعيله؛ وتُستبعد حقول كلمات المرور.", color = CloudMuted, fontSize = 10.sp)
+                        }
+                    }
                     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         OutlinedButton(onClick = { filePicker.launch(arrayOf("text/*", "application/json", "application/xml")) }) { Text("إرفاق ملف نصي") }
                         if (attachedFileName.isNotBlank()) Text("مرفق: " + attachedFileName, color = CloudMuted, fontSize = 10.sp)
@@ -217,7 +225,7 @@ private fun CloudAssistantScreen(context: Context, onBack: () -> Unit) {
                                             setRequestProperty("Authorization", "Bearer " + accessToken)
                                         }
                                         try {
-                                            val payload = JSONObject().put("task", goal).put("appName", if (pkg.isBlank()) "مهمة عامة" else pkg.substringAfterLast('.')).put("packageName", pkg).put("context", screen + if (attachedFileText.isNotBlank()) "\n\nمحتوى الملف " + attachedFileName + ":\n" + attachedFileText else "").put("capabilities", "Android UI context, authorized tap/scroll/back, chat, analysis and configured cloud tools").put("useTeam", true)
+                                            val payload = JSONObject().put("task", goal).put("appName", if (pkg.isBlank()) "مهمة عامة" else pkg.substringAfterLast('.')).put("packageName", pkg).put("context", (if (includeScreenContext) screen else "") + if (attachedFileText.isNotBlank()) "\n\nمحتوى الملف " + attachedFileName + ":\n" + attachedFileText else "").put("capabilities", "Android UI context, authorized tap/scroll/back, chat, analysis and configured cloud tools").put("useTeam", true)
                                             conn.outputStream.use { it.write(payload.toString().toByteArray(Charsets.UTF_8)) }
                                             val code = conn.responseCode
                                             val stream = if (code in 200..299) conn.inputStream else conn.errorStream
