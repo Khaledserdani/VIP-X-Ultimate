@@ -184,10 +184,27 @@ const server = http.createServer(async (req, res) => {
           }, askAI, memoryStore)
         : { team: [], decision: "", memoryStatus: "not_requested" };
       const teamEvidence = teamResult.team.map(item => item.name + ": " + item.result).join("\n\n");
-      const rawPlan = await askAI([
-        { role: "system", content: "أنت قائد VIP X ومساعد عملي متعدد المجالات. حلل الطلب مباشرة ولا تستدع فريقاً افتراضياً لكل مهمة. أخرج JSON فقط: decision نص عربي واضح، toolCalls مصفوفة حتى 3 عناصر، actions مصفوفة حتى 5 عناصر. أدوات toolCalls المسموحة: web_search مع {query}، web_fetch مع {url}، calculator مع {expression}. إجراءات actions المسموحة: OPEN_URL و SHARE_TEXT و TAP_TEXT و SCROLL_FORWARD و SCROLL_BACK و BACK. لا تخترع نتائج أو قدرات، ولا تدّع تنفيذ إجراء لم يحدث. لا تنشئ إجراءات محلية إلا عند وجود سبب واضح؛ TAP_TEXT يتطلب نصاً حرفياً موجوداً في سياق الشاشة. OPEN_URL يتطلب رابط HTTPS معروفاً في الطلب أو أدلة المستخدم. لا شراء أو دفع أو حذف أو مراسلة تلقائية أو تسجيل دخول. إذا لم تحتج أدوات فأعد toolCalls فارغة." },
-        { role: "user", content: context + (teamEvidence ? "\n\nتقارير فريق VIP X المستقل:\n" + teamEvidence + "\n\nتوجيه منسق الفريق:\n" + teamResult.decision : "") }
-      ]);
+      let rawPlan;
+      try {
+        rawPlan = await askAI([
+          { role: "system", content: "أنت قائد VIP X ومساعد عملي متعدد المجالات. حلل الطلب مباشرة ولا تستدع فريقاً افتراضياً لكل مهمة. أخرج JSON فقط: decision نص عربي واضح، toolCalls مصفوفة حتى 3 عناصر، actions مصفوفة حتى 5 عناصر. أدوات toolCalls المسموحة: web_search مع {query}، web_fetch مع {url}، calculator مع {expression}. إجراءات actions المسموحة: OPEN_URL و SHARE_TEXT و TAP_TEXT و SCROLL_FORWARD و SCROLL_BACK و BACK. لا تخترع نتائج أو قدرات، ولا تدّع تنفيذ إجراء لم يحدث. لا تنشئ إجراءات محلية إلا عند وجود سبب واضح؛ TAP_TEXT يتطلب نصاً حرفياً موجوداً في سياق الشاشة. OPEN_URL يتطلب رابط HTTPS معروفاً في الطلب أو أدلة المستخدم. لا شراء أو دفع أو حذف أو مراسلة تلقائية أو تسجيل دخول. إذا لم تحتج أدوات فأعد toolCalls فارغة." },
+          { role: "user", content: context + (teamEvidence ? "\n\nتقارير فريق VIP X المستقل:\n" + teamEvidence + "\n\nتوجيه منسق الفريق:\n" + teamResult.decision : "") }
+        ]);
+      } catch (error) {
+        const fallback = teamEvidence
+          ? "تعذر إعداد خطة إضافية بسبب حصة أو اتصال المزود. احتفظت بتقارير الفريق أدناه؛ لم تُنفّذ إجراءات داخل التطبيقات."
+          : "تعذر الاتصال بمزود الذكاء الاصطناعي المجاني. لم تُنفّذ أي إجراءات.";
+        return send(res, 200, {
+          mission: goal,
+          decision: fallback + (teamResult.decision ? "\\n" + teamResult.decision : ""),
+          team: teamResult.team,
+          memoryStatus: teamResult.memoryStatus,
+          execution: [],
+          availableTools: TOOL_REGISTRY.map(({id,name,description}) => ({id,name,description})),
+          actions: [],
+          warning: "provider_unavailable"
+        });
+      }
       let plan = {};
       try { plan = JSON.parse(rawPlan.replace(/^\`\`\`(?:json)?\s*/i, "").replace(/\s*\`\`\`$/i, "")); }
       catch {
