@@ -198,7 +198,7 @@ private fun CloudAssistantScreen(context: Context, onBack: () -> Unit) {
                         Checkbox(checked = includeScreenContext, onCheckedChange = { includeScreenContext = it })
                         Column(Modifier.weight(1f)) {
                             Text("إرفاق نص الشاشة الحالية إلى الخادم", color = Color.White, fontSize = 12.sp)
-                            Text("مغلق افتراضياً. لا يُرسل إلا عند تفعيله؛ وتُستبعد حقول كلمات المرور.", color = CloudMuted, fontSize = 10.sp)
+                            Text("ينطبق على مهام الفريق والمحادثة السحابية. مغلق افتراضياً؛ لا يُرسل سياق الشاشة إلا عند تفعيله، وتُستبعد حقول كلمات المرور.", color = CloudMuted, fontSize = 10.sp)
                         }
                     }
                     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -385,7 +385,7 @@ private fun CloudAssistantScreen(context: Context, onBack: () -> Unit) {
                                 .getString("active_package", "").orEmpty()
                         }
                         recentMessages.forEachIndexed { index, item ->
-                            val content = if (index == recentMessages.lastIndex && item.role == "user" && liveContext.isNotBlank())
+                            val content = if (includeScreenContext && index == recentMessages.lastIndex && item.role == "user" && liveContext.isNotBlank())
                                 item.text + "\\n\\n[سياق الشاشة الظاهر من جلسة VIP X للتطبيق " + activePackage + "]\\n" + liveContext
                             else item.text
                             history.put(JSONObject().put("role", item.role).put("content", content))
