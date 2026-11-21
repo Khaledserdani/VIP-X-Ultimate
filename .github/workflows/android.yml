@@ -3,7 +3,7 @@ on:
   push:
     branches: [ "main", "final/vipx-ultimate-rebuild", "fix/app-picker-visible-list", "fix/vipx-free-ai-provider", "work/vipx-production-hardening", "work/vipx-offline-core" ]
   pull_request:
-    branches: [ "main" ]
+    branches: [ "main", "work/vipx-production-hardening" ]
   workflow_dispatch:
 
 concurrency:
