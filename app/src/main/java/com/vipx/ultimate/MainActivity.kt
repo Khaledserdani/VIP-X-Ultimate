@@ -214,7 +214,7 @@ private fun VipBuilderScreen(loadApps:()->List<InstalledApp>){
             }
             Card(colors=CardDefaults.cardColors(containerColor=Panel),shape=RoundedCornerShape(18.dp)){
                 Column(Modifier.padding(13.dp),verticalArrangement=Arrangement.spacedBy(8.dp)){
-                    Text("2 • ربط الخادم الآمن",color=Color.White,fontWeight=FontWeight.Bold)
+                    Text("3 • خدمات الخادم الاختيارية",color=Color.White,fontWeight=FontWeight.Bold)
                     OutlinedTextField(goal,{goal=it},Modifier.fillMaxWidth(),label={Text("ما الذي تريد تحسينه؟")},minLines=2,maxLines=3)
                     OutlinedTextField(token,{token=it},Modifier.fillMaxWidth(),singleLine=true,label={Text("رمز ربط خادم VIP X")},visualTransformation=PasswordVisualTransformation())
                     OutlinedButton(
@@ -346,7 +346,7 @@ private fun VipBuilderScreen(loadApps:()->List<InstalledApp>){
                 if (busy) CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp)
                 else Icon(Icons.Default.AutoAwesome, null)
                 Spacer(Modifier.width(8.dp))
-                Text("افحص APK وشغّل المساعدين الأربعة")
+                Text("افحص عبر الخادم الاختياري وشغّل فريق AI")
             }
             OutlinedButton(
                 onClick = {
@@ -389,7 +389,7 @@ private fun VipBuilderScreen(loadApps:()->List<InstalledApp>){
                 },
                 enabled = !busy,
                 modifier = Modifier.fillMaxWidth()
-            ) { Text("اعرض ذاكرة المساعدين وآخر النتائج المثبتة") }
+            ) { Text("اعرض ذاكرة الفريق السحابية (اختياري)") }
             if(answer.isNotBlank()){
                 Card(Modifier.fillMaxWidth().heightIn(max=190.dp),colors=CardDefaults.cardColors(containerColor=Color(0xFF102F32))){
                     Column(Modifier.padding(12.dp)){
