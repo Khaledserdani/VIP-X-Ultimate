@@ -69,7 +69,7 @@ object LocalApkAnalyzer {
 
         val apkFiles = buildList {
             add(baseApk)
-            appInfo.splitSourceDirs?.map(::File)?.filter { it.isFile && it.canRead() }?.let(::addAll)
+            appInfo.splitSourceDirs?.map(::File)?.filter { it.isFile && it.canRead() }?.let { addAll(it) }
         }
         val entries = apkFiles.flatMap { file ->
             ZipFile(file).use { zip ->
