@@ -391,6 +391,35 @@ private fun CloudAssistantScreen(context: Context, onBack: () -> Unit) {
             }, enabled = !busy, modifier = Modifier.fillMaxWidth()) {
                 Icon(Icons.Default.Send, null); Spacer(Modifier.width(8.dp)); Text(if (busy) "جارٍ الإرسال..." else "إرسال إلى الذكاء السحابي")
             }
+            OutlinedButton(
+                onClick = {
+                    val question = prompt.trim()
+                    if (question.isNotEmpty() && !busy) {
+                        prompt = ""
+                        messages.add(ChatMessage("user", question))
+                        busy = true
+                        status = "جارٍ تشغيل الذكاء المحلي..."
+                        scope.launch {
+                            try {
+                                val live = context.getSharedPreferences("vipx_live_context", Context.MODE_PRIVATE)
+                                val visibleContext = live.getString("visible_context", "").orEmpty()
+                                val packageName = live.getString("active_package", "").orEmpty()
+                                val localPrompt = question + if (visibleContext.isNotBlank())
+                                    "\\n\\nالسياق الظاهر محلياً من التطبيق $packageName:\\n$visibleContext"
+                                else ""
+                                val answer = runLocalAssistant(context, localPrompt)
+                                messages.add(ChatMessage("assistant", answer))
+                                status = "اكتمل الرد محلياً • دون اتصال سحابي"
+                            } catch (error: Exception) {
+                                status = error.message ?: "تعذر تشغيل الذكاء المحلي"
+                            } finally { busy = false }
+                        }
+                    }
+                },
+                enabled = !busy,
+                modifier = Modifier.fillMaxWidth()
+            ) { Text("إرسال إلى الذكاء المحلي دون إنترنت") }
+
         }
     }
 }
