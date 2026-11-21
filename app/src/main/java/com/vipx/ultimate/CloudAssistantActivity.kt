@@ -53,8 +53,7 @@ private data class AgentReport(val name: String, val result: String)
 
 @Composable
 private fun CloudAssistantScreen(context: Context, onBack: () -> Unit) {
-    val prefs = remember { context.getSharedPreferences("vipx_cloud", Context.MODE_PRIVATE) }
-    var endpoint by remember { mutableStateOf(prefs.getString("endpoint", "https://vip-x-ultimate-api-production.up.railway.app") ?: "https://vip-x-ultimate-api-production.up.railway.app") }
+    var endpoint by remember { mutableStateOf("") }
     var accessToken by remember { mutableStateOf(SecureTokenStore.load(context)) }
     var prompt by remember { mutableStateOf("") }
     var actionText by remember { mutableStateOf("") }
@@ -93,9 +92,9 @@ private fun CloudAssistantScreen(context: Context, onBack: () -> Unit) {
             }
             Card(colors = CardDefaults.cardColors(containerColor = CloudPanel), shape = RoundedCornerShape(16.dp)) {
                 Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    OutlinedTextField(endpoint, { endpoint = it }, Modifier.fillMaxWidth(), singleLine = true, label = { Text("رابط الخادم HTTPS") }, placeholder = { Text("https://vip-x-ultimate-api-production.up.railway.app") })
+                    OutlinedTextField(endpoint, { endpoint = it }, Modifier.fillMaxWidth(), singleLine = true, label = { Text("رابط خادم اختياري") }, placeholder = { Text("https://your-server.example") })
                     OutlinedTextField(accessToken, { accessToken = it }, Modifier.fillMaxWidth(), singleLine = true, label = { Text("رمز الوصول") }, visualTransformation = PasswordVisualTransformation(), keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password))
-                    Text("يُحفظ رمز الوصول مشفراً في Android Keystore بعد التحقق منه من الشاشة الرئيسية.", color = CloudMuted, fontSize = 10.sp)
+                    Text("هذه خدمة خارجية اختيارية وقد تكون محدودة الحصة أو مدفوعة. لا تستخدمها قبل التحقق من شروط المزود والاستضافة. المختبر المحلي لا يحتاج إلى خادم أو رمز.", color = CloudMuted, fontSize = 10.sp)
                     Text(status, color = CloudAccent, fontSize = 11.sp)
                 }
             }
@@ -227,7 +226,6 @@ private fun CloudAssistantScreen(context: Context, onBack: () -> Unit) {
                         messages.add(ChatMessage("user", question))
                         busy = true
                         status = "جارٍ الاتصال بالخادم..."
-                        prefs.edit().putString("endpoint", endpoint.trim().trimEnd('/')).apply()
                         val history = JSONArray()
                         val recentMessages = messages.takeLast(20)
                         val liveContext = context.getSharedPreferences("vipx_live_context", Context.MODE_PRIVATE)
