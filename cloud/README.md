@@ -1,19 +1,29 @@
-# VIP X Ultimate Cloud AI Gateway
+# VIP X Ultimate — بوابة الذكاء عبر الإنترنت (مجانية فقط)
 
-This Worker is the secure server-side bridge used by the Android app. The provider key is stored as a Cloudflare secret and is never embedded in the APK.
+هذه البوابة تستخدم Google Gemini Developer API على نموذج محدد من فئة الاستخدام المجاني. لا يوجد OpenAI أو مزوّد مدفوع أو تحويل تلقائي إلى خدمة مدفوعة داخل هذا العامل.
 
-## Required Worker secrets
-- `OPENAI_API_KEY`: API key from your AI provider.
-- `APP_ACCESS_TOKEN`: a long random private token used by the app.
-- Optional variable `AI_MODEL`: defaults to `gpt-4o-mini`.
+## ما الذي يبقى مجانياً؟
+- نموذج العامل مثبت على `gemini-4-hydrogen`، المدرج ضمن الفئة المجانية في صفحة الأسعار الرسمية وقت تحديث هذا الملف.
+- لا يُستخدم البحث المؤسس (Grounding) أو أي أداة قد تضيف رسوماً.
+- عند بلوغ الحصة المجانية، يعيد العامل رسالة واضحة ويتوقف؛ لا يحاول الاتصال بمزوّد مدفوع.
+- المختبر والتحليل المحليان في التطبيق يظلان متاحين دون إنترنت أو مفتاح API.
 
-## Deploy
-1. Create a Cloudflare Worker and paste `worker.js`.
-2. Add the two secrets above in Worker Settings → Variables and Secrets.
-3. Deploy and copy the HTTPS Worker URL.
-4. Open VIP X Ultimate → الذكاء السحابي, enter the Worker URL and APP_ACCESS_TOKEN.
+## الإعداد المطلوب مرة واحدة
+1. أنشئ مفتاحاً من Google AI Studio عبر https://aistudio.google.com/api-keys واختر الاستخدام المجاني فقط.
+2. أنشئ Cloudflare Worker على الخطة المجانية، ثم انشر محتوى `worker.js`.
+3. أضف السرّين التاليين في Worker Settings → Variables and Secrets:
+   - `GEMINI_API_KEY`: مفتاح Google AI Studio.
+   - `APP_ACCESS_TOKEN`: رمز عشوائي طويل خاص بالتطبيق.
+4. انسخ رابط Worker HTTPS، ثم أدخله مع رمز الوصول في شاشة الذكاء السحابي داخل التطبيق.
 
-The app saves only the Worker URL. The access token remains in memory and is not written to app storage. Rotate it if exposed.
+لا تضع مفتاح Gemini داخل APK أو في مستودع GitHub. لا تفعّل خطة مدفوعة أو فوترة لدى أي مزوّد. إذا طلبت لوحة المزود تفعيل الدفع، لا تكمل؛ اترك الميزة السحابية معطلة واستخدم المختبر المحلي.
 
-## Important
-A real cloud service requires an active provider account, billing/credits, and deployment of this Worker. This repository cannot deploy into your Cloudflare account without authorization. This gateway is an OpenAI-compatible example; it does not unlock subscriptions or bypass another app's access controls.
+## حدود مهمة لفترة التجربة
+الخطة المجانية لها حدود طلبات ونماذج وقد تتغير أو تنفد قبل مرور شهر. لا يمكن ضمان توافر الذكاء السحابي طوال 30 يوماً أو منع المزود من تغيير حصصه. عند انتهاء الحصة يتوقف الاتصال السحابي دون تكلفة إضافية أو تحويل مدفوع، ويظل التطبيق المحلي عاملاً.
+
+ملاحظة خصوصية: توضح Google أن بيانات الاستخدام في المستوى المجاني قد تُستخدم لتحسين منتجاتها؛ لا ترسل كلمات مرور أو بيانات شخصية أو ملفات سرية عبر هذه البوابة. راجع الشروط الحالية قبل الاستخدام.
+
+## مصادر الأسعار
+- https://ai.google.dev/gemini-api/docs/pricing
+
+هذه البوابة لا تفتح اشتراكات تطبيقات أخرى ولا تتجاوز أنظمة الوصول الخاصة بها.
