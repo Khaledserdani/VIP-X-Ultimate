@@ -292,6 +292,39 @@ private fun CloudAssistantScreen(context: Context, onBack: () -> Unit) {
                             }
                         }
                     }, enabled = !busy, modifier = Modifier.fillMaxWidth()) { Text(if (busy) "الفريق يعمل..." else "حلّل المهمة مع VIP X") }
+                    OutlinedButton(
+                        enabled = !busy && task.isNotBlank(),
+                        modifier = Modifier.fillMaxWidth(),
+                        onClick = {
+                            val localGoal = task.trim()
+                            val live = context.getSharedPreferences("vipx_live_context", Context.MODE_PRIVATE)
+                            val localScreen = live.getString("visible_context", "").orEmpty()
+                            val localPackage = live.getString("active_package", "").orEmpty()
+                            busy = true
+                            status = "جارٍ تحليل المهمة محلياً..."
+                            agentReports.clear()
+                            plannedActions.clear()
+                            scope.launch {
+                                try {
+                                    val localPrompt = """
+                                        حلّل المهمة التالية كمساعد محلي دون إنترنت أو أدوات خارجية.
+                                        أعطني خطة واضحة بالعربية: الهدف، المعلومات الناقصة، خطوات آمنة، وما يحتاج موافقة المستخدم.
+                                        لا تدّع تنفيذ أي إجراء ولا تخترع حالة غير موجودة.
+                                        المهمة: $localGoal
+                                        التطبيق: $localPackage
+                                        سياق الشاشة: $localScreen
+                                        محتوى الملف: $attachedFileText
+                                    """.trimIndent()
+                                    val result = runLocalAssistant(context, localPrompt)
+                                    planSummary = "تحليل محلي مكتمل"
+                                    agentReports.add(AgentReport("مخطط VIP X المحلي", result))
+                                    status = "اكتمل التحليل محلياً • لا اتصال بخادم"
+                                } catch (error: Exception) {
+                                    status = error.message ?: "تعذر التحليل المحلي"
+                                } finally { busy = false }
+                            }
+                        }
+                    ) { Text("حلّل المهمة محلياً دون إنترنت") }
                     if (planSummary.isNotBlank()) Text(planSummary, color = Color.White, fontSize = 12.sp)
                     agentReports.forEach { report ->
                         Text(report.name, color = CloudAccent, fontWeight = FontWeight.Bold, fontSize = 12.sp)
