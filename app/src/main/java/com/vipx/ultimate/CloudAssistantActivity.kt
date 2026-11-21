@@ -273,7 +273,7 @@ private fun CloudAssistantScreen(context: Context, onBack: () -> Unit) {
                                             val target = item.optString("target").take(500)
                                             val valid = when (type) {
                                                 "TAP_TEXT" -> target.isNotBlank() && screen.contains(target, ignoreCase = true)
-                                                "OPEN_URL" -> target.startsWith("https://") || target.startsWith("http://")
+                                                "OPEN_URL" -> target.startsWith("https://", ignoreCase = true)
                                                 "SHARE_TEXT" -> target.isNotBlank()
                                                 "SCROLL_FORWARD", "SCROLL_BACK", "BACK" -> true
                                                 else -> false
