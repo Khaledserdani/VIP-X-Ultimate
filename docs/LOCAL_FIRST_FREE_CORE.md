@@ -12,9 +12,7 @@ The core Android app must remain usable without a paid host, provider key, subsc
 - The offline analysis path does not open a network connection and does not upload APK files or screen contents.
 
 ## Honest capability boundary
-The four local analyzers are deterministic rule-based analysis, not generative AI models. They are useful offline and have no provider quota, but they do not replace a full static-analysis suite, dynamic malware sandbox, visual UI review, or an LLM.
-
-A later on-device language model may be added only after Android runtime compatibility, model licensing, device memory/performance, package size, and offline operation are verified. Model files must not silently download through a paid service. No model is currently bundled or claimed to be active.
+The four APK analyzers remain deterministic rule-based checks. This branch also adds an optional on-device language model using Google's LiteRT-LM runtime and Qwen3-0.6B (Apache-2.0). The model file is about 614 MB and is downloaded only after the user explicitly taps the download button; its SHA-256 is verified before activation. After the one-time download, inference runs on the phone CPU without an API key, server, or network request. The model is smaller and less capable than cloud models, and is not a substitute for a full static-analysis suite or dynamic malware sandbox.
 
 ## Optional cloud features
 The cloud chat and server-side AI team remain optional. They require a separately operated HTTPS backend, access token, and Gemini/Groq free-tier credentials. The backend in this branch contains no paid-provider route: legacy OpenAI keys and `ALLOW_PAID_AI` flags are ignored. If all free quotas are exhausted, cloud AI stops; the app must not require it for local app listing, local APK inspection, or viewing locally saved reports.
@@ -25,7 +23,7 @@ Free-tier availability and quotas can change and may run out before a 30-day tri
 1. Build succeeds from this branch in GitHub Actions.
 2. APK exists, is non-empty, and its Android package/version/signature are verified.
 3. Offline APK analysis works without network connectivity and without an access token.
-4. A test confirms the analyzer does not call network endpoints.
-5. The saved report can be reopened after app restart.
-6. Optional cloud controls are visibly labeled optional and quota/hosting-dependent.
+4. The model download checks exact byte length and SHA-256 before use.
+5. Local model inference is verified on a physical target device; CI compilation alone does not prove device performance.
+6. Cloud failures and quota exhaustion route to the local model only after the model has been downloaded.
 7. No production service, secret, billing setting, or `main` branch is modified as part of this work.
