@@ -8,17 +8,44 @@ const TOOL_REGISTRY = [
 ];
 
 function publicIp(ip) {
-  if (net.isIP(ip) === 4) {
-    const p=ip.split(".").map(Number);
-    return !(p[0]===10||p[0]===127||p[0]===0||p[0]>=224||(p[0]===169&&p[1]===254)||(p[0]===172&&p[1]>=16&&p[1]<=31)||(p[0]===192&&p[1]===168)||(p[0]===100&&p[1]>=64&&p[1]<=127));
+  const value = String(ip).replace(/^\\[|\\]$/g, "").toLowerCase();
+  if (net.isIP(value) === 4) {
+    const p = value.split(".").map(Number);
+    return !(p[0] === 10 || p[0] === 127 || p[0] === 0 || p[0] >= 224 ||
+      (p[0] === 169 && p[1] === 254) || (p[0] === 172 && p[1] >= 16 && p[1] <= 31) ||
+      (p[0] === 192 && p[1] === 168) || (p[0] === 100 && p[1] >= 64 && p[1] <= 127));
   }
-  return net.isIP(ip)===6 && !/^(::1|::|fc|fd|fe[89ab])/i.test(ip);
+  if (net.isIP(value) !== 6 || value.includes("%")) return false;
+  // IPv4-mapped IPv6 addresses must inherit the embedded IPv4 restrictions.
+  if (value.startsWith("::ffff:")) {
+    const tail = value.slice(7);
+    if (net.isIP(tail) === 4) return publicIp(tail);
+    const groups = tail.split(":");
+    if (groups.length === 2 && groups.every(x => /^[0-9a-f]{1,4}$/.test(x))) {
+      const n = (parseInt(groups[0], 16) * 65536 + parseInt(groups[1], 16)) >>> 0;
+      return publicIp([(n >>> 24) & 255, (n >>> 16) & 255, (n >>> 8) & 255, n & 255].join("."));
+    }
+    return false;
+  }
+  // Only global-unicast 2000::/3 addresses are eligible; exclude documentation and transition ranges.
+  return /^[23]/.test(value) &&
+    !value.startsWith("2001:db8:") &&
+    !value.startsWith("2001:0:") &&
+    !value.startsWith("2002:");
 }
 async function safeUrl(raw) {
-  const u=new URL(String(raw));
-  if(u.protocol!=="https:"||u.username||u.password||u.hostname==="localhost"||u.hostname.endsWith(".local")) throw new Error("يسمح فقط بروابط HTTPS العامة");
-  if(net.isIP(u.hostname)){if(!publicIp(u.hostname))throw new Error("عنوان محلي غير مسموح");}
-  else {const ips=await dns.lookup(u.hostname,{all:true});if(!ips.length||ips.some(x=>!publicIp(x.address)))throw new Error("النطاق ليس عاماً وآمناً");}
+  const u = new URL(String(raw));
+  const host = u.hostname.replace(/^\\[|\\]$/g, "");
+  if (u.protocol !== "https:" || u.username || u.password ||
+      host === "localhost" || host.endsWith(".local")) {
+    throw new Error("يسمح فقط بروابط HTTPS العامة");
+  }
+  if (net.isIP(host)) {
+    if (!publicIp(host)) throw new Error("عنوان محلي أو خاص غير مسموح");
+  } else {
+    const ips = await dns.lookup(host, { all: true, verbatim: true });
+    if (!ips.length || ips.some(x => !publicIp(x.address))) throw new Error("النطاق ليس عاماً وآمناً");
+  }
   return u;
 }
 function textOf(html) {
