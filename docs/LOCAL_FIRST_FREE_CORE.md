@@ -17,9 +17,9 @@ The four local analyzers are deterministic rule-based analysis, not generative A
 A later on-device language model may be added only after Android runtime compatibility, model licensing, device memory/performance, package size, and offline operation are verified. Model files must not silently download through a paid service. No model is currently bundled or claimed to be active.
 
 ## Optional cloud features
-The legacy cloud chat, server-side AI team, and PostgreSQL memory remain optional. They require a separately operated HTTPS backend, access token, provider credentials, and potentially paid or quota-limited services. Gemini/Groq free tiers are not unlimited or guaranteed. The app must not require these features for local app listing, local APK inspection, or viewing locally saved reports.
+The cloud chat and server-side AI team remain optional. They require a separately operated HTTPS backend, access token, and Gemini/Groq free-tier credentials. The backend in this branch contains no paid-provider route: legacy OpenAI keys and `ALLOW_PAID_AI` flags are ignored. If all free quotas are exhausted, cloud AI stops; the app must not require it for local app listing, local APK inspection, or viewing locally saved reports.
 
-OpenAI must remain disabled unless a separate operator explicitly opts into paid usage. This project does not configure billing, deploy hosting, or create paid resources.
+Free-tier availability and quotas can change and may run out before a 30-day trial ends. This project does not configure billing, deploy hosting, or create paid resources.
 
 ## Acceptance gates before any APK is offered
 1. Build succeeds from this branch in GitHub Actions.
