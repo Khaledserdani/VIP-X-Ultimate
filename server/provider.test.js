@@ -1,14 +1,20 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
 
-process.env.AI_PROVIDER = "gemini";
+process.env.AI_PROVIDER = "auto";
+process.env.ALLOW_PAID_AI = "false";
 process.env.GEMINI_API_KEY = "test-gemini-key";
-process.env.GEMINI_MODEL = "gemini-3.8-flash";
-const { askAI, normalizeGeminiMessages, providerConfigured, selectedProvider } = require("./provider");
+process.env.GROQ_API_KEY = "test-groq-key";
+process.env.OPENAI_API_KEY = "test-openai-key";
+process.env.GEMINI_MODEL = "gemini-2.5-flash";
+process.env.GROQ_MODEL = "llama-3.3-70b-versatile";
 
-test("Gemini provider is selected and configured from its own key", () => {
-  assert.equal(selectedProvider(), "gemini");
+const { askAI, normalizeGeminiMessages, providerConfigured, selectedProvider, configuredProviders, canFallback } = require("./provider");
+
+test("free providers are selected first and paid OpenAI is excluded by default", () => {
   assert.equal(providerConfigured(), true);
+  assert.equal(selectedProvider(), "gemini");
+  assert.deepEqual(configuredProviders().map(p => p.id), ["gemini", "groq"]);
 });
 
 test("system and assistant messages are converted to Gemini roles", () => {
@@ -27,33 +33,51 @@ test("system and assistant messages are converted to Gemini roles", () => {
   ]);
 });
 
-test("Gemini response text is returned through the unchanged askAI interface", async () => {
+test("Gemini success returns its answer without calling another provider", async () => {
   const originalFetch = global.fetch;
+  let calls = 0;
   global.fetch = async (url, options) => {
-    assert.match(String(url), /gemini-3\.8-flash:generateContent/);
+    calls++;
+    assert.match(String(url), /gemini-2\.5-flash:generateContent/);
     assert.equal(options.headers["x-goog-api-key"], "test-gemini-key");
-    return new Response(JSON.stringify({
-      candidates: [{ content: { parts: [{ text: "VIP X test reply" }] } }]
-    }), { status: 200, headers: { "content-type": "application/json" } });
+    return new Response(JSON.stringify({ candidates: [{ content: { parts: [{ text: "Gemini reply" }] } }] }), { status: 200 });
   };
   try {
-    assert.equal(await askAI([{ role: "user", content: "Test" }]), "VIP X test reply");
-  } finally {
-    global.fetch = originalFetch;
-  }
+    assert.equal(await askAI([{ role: "user", content: "Test" }]), "Gemini reply");
+    assert.equal(calls, 1);
+  } finally { global.fetch = originalFetch; }
 });
 
-test("Gemini free-tier exhaustion is reported as a retryable quota limit", async () => {
+test("temporary Gemini quota failure falls back to configured free Groq", async () => {
   const originalFetch = global.fetch;
-  global.fetch = async () => new Response(JSON.stringify({
-    error: { message: "RESOURCE_EXHAUSTED" }
-  }), { status: 429, headers: { "retry-after": "30" } });
+  const calls = [];
+  global.fetch = async (url, options) => {
+    calls.push(String(url));
+    if (String(url).includes("generativelanguage.googleapis.com")) {
+      return new Response(JSON.stringify({ error: { message: "RESOURCE_EXHAUSTED" } }), { status: 429, headers: { "retry-after": "30" } });
+    }
+    assert.match(String(url), /api\.groq\.com\/openai\/v1\/chat\/completions/);
+    assert.equal(options.headers.Authorization, "Bearer test-groq-key");
+    return new Response(JSON.stringify({ choices: [{ message: { content: "Groq fallback reply" } }] }), { status: 200 });
+  };
   try {
-    await assert.rejects(
-      askAI([{ role: "user", content: "Test" }]),
-      error => error.status === 429 && error.retryAfter === 30 && /الحد المجاني/.test(error.message)
-    );
-  } finally {
-    global.fetch = originalFetch;
-  }
+    assert.equal(await askAI([{ role: "user", content: "Test" }]), "Groq fallback reply");
+    assert.equal(calls.length, 2);
+  } finally { global.fetch = originalFetch; }
+});
+
+test("authentication/configuration errors do not trigger pointless provider failover", async () => {
+  const originalFetch = global.fetch;
+  let calls = 0;
+  global.fetch = async () => { calls++; return new Response(JSON.stringify({ error: { message: "bad key" } }), { status: 401 }); };
+  try {
+    await assert.rejects(askAI([{ role: "user", content: "Test" }]), error => error.status === 401);
+    assert.equal(calls, 1);
+  } finally { global.fetch = originalFetch; }
+});
+
+test("paid provider failover is not allowed for ordinary quota errors unless explicitly enabled", () => {
+  assert.equal(configuredProviders().some(p => p.id === "openai"), false);
+  assert.equal(canFallback({ status: 429 }), true);
+  assert.equal(canFallback({ status: 401 }), false);
 });
