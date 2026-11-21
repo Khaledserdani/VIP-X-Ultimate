@@ -19,7 +19,7 @@ gradle :app:assembleDebug
 
 
 ## Cloud AI assistant (v1.2.0)
-The Android app now includes an Arabic cloud-chat screen. To use live AI, deploy `cloud/worker.js` and configure the server-side secrets described in `cloud/README.md`. The APK does not contain provider credentials; the cloud service is not live until you deploy it.
+The Android app includes an Arabic cloud-chat screen. The included Worker is pinned to Gemini's free-tier model only; deploy `cloud/worker.js` and configure the secrets described in `cloud/README.md`. It never falls back to a paid provider. The cloud service is not live until you deploy it.
 
 ## النواة المحلية المجانية
 - يمكن اختيار تطبيق مثبت وتحليل APK الأساسي وملفات split محلياً على الهاتف.
