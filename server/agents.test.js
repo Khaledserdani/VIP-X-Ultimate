@@ -43,3 +43,17 @@ test("one unavailable agent does not discard the other agent reports", async () 
   assert.equal(result.team.filter(item => item.status === "failed").length, 1);
   assert.equal(result.team.filter(item => item.result === "نتيجة متاحة").length, 3);
 });
+
+test("coordinator quota failure preserves four completed agent reports", async () => {
+  let calls = 0;
+  const askAI = async () => {
+    calls += 1;
+    if (calls === 5) throw new Error("429 free quota exhausted");
+    return "تقرير مكتمل";
+  };
+  const result = await runVipTeam({ goal: "مهمة مع حصة محدودة" }, askAI, null);
+  assert.equal(result.team.length, 4);
+  assert.equal(result.team.filter(item => item.status !== "failed").length, 4);
+  assert.match(result.decision, /تعذر تشغيل المنسّق/);
+  assert.match(result.decision, /تقرير مكتمل/);
+});
