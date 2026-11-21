@@ -8,7 +8,8 @@ const TOOL_REGISTRY = [
 ];
 
 function publicIp(ip) {
-  const raw = String(ip);\n  const value = (raw.startsWith("[") ? raw.slice(1, -1) : raw).toLowerCase();
+  const raw = String(ip);
+  const value = (raw.startsWith("[") ? raw.slice(1, -1) : raw).toLowerCase();
   if (net.isIP(value) === 4) {
     const p = value.split(".").map(Number);
     return !(p[0] === 10 || p[0] === 127 || p[0] === 0 || p[0] >= 224 ||
