@@ -95,7 +95,7 @@ async function webSearch(query) {
 function calculate(expr) {
   const s=String(expr||"").trim();if(!s||s.length>100||!/^[0-9+\-*/%^().\s]+$/.test(s))throw new Error("تعبير غير مسموح");
   const ts=s.match(/\d*\.?\d+|[()+\-*/%^]/g)||[];if(ts.join("").replace(/\./g,"")!==s.replace(/[\s.]/g,""))throw new Error("صيغة غير صحيحة");
-  const out=[],ops=[],p={"u-":4,"^":3,"*":2,"/":2,"%":2,"+":1,"-":1};let need=true;
+  const out=[],ops=[],p={"u-":3,"^":4,"*":2,"/":2,"%":2,"+":1,"-":1};let need=true;
   for(const t of ts){
     if(/^\d/.test(t)){if(!need)throw new Error("عامل مفقود");out.push(Number(t));need=false;}
     else if(t==="("){if(!need)throw new Error("صيغة غير صحيحة");ops.push(t);need=true;}
