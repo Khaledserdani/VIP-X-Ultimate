@@ -48,10 +48,18 @@ async function runVipTeam(input, askAI, memoryStore) {
       return true;
     } catch { return false; }
   }));
-  const decision = await askAI([
-    { role: "system", content: "أنت قائد فريق VIP X. نسّق مساعدين مستقلين لإنجاز أي مهمة مفوضة، لا تحصر الحل في APK أو أربع نقرات. اختر أفضل مسار عملي، قسّم المهمة إلى مراحل، وحدد الأدوات والتكاملات اللازمة والنتائج المتوقعة واختبارات التحقق. ميّز ما يمكن تنفيذه الآن عن ما يحتاج صلاحية أو خدمة أو تأكيداً من المستخدم. لا تدّع تنفيذ إجراءات أو الوصول إلى بيانات غير متاحة." },
-    { role: "user", content: context + "\n\n" + reports.map(r => r.name + ":\n" + r.result).join("\n\n") }
-  ]);
+  let decision;
+  try {
+    decision = await askAI([
+      { role: "system", content: "أنت قائد فريق VIP X. نسّق مساعدين مستقلين لإنجاز أي مهمة مفوضة، لا تحصر الحل في APK أو أربع نقرات. اختر أفضل مسار عملي، قسّم المهمة إلى مراحل، وحدد الأدوات والتكاملات اللازمة والنتائج المتوقعة واختبارات التحقق. ميّز ما يمكن تنفيذه الآن عن ما يحتاج صلاحية أو خدمة أو تأكيداً من المستخدم. لا تدّع تنفيذ إجراءات أو الوصول إلى بيانات غير متاحة." },
+      { role: "user", content: context + "\n\n" + reports.map(r => r.name + ":\n" + r.result).join("\n\n") }
+    ]);
+  } catch (error) {
+    const usable = reports.filter(r => r.status !== "failed");
+    decision = usable.length
+      ? "تعذر تشغيل المنسّق بسبب اتصال أو حصة المزود، لكن هذه تقارير الفريق المتاحة ويمكن الاستفادة منها دون فقدها.\n" + usable.map(r => "• " + r.name + ": " + r.result.slice(0, 700)).join("\n")
+      : "تعذر تشغيل الفريق بسبب عدم توفر مزود ذكاء اصطناعي. لم يتم تنفيذ أي إجراء.";
+  }
   return { team: reports, decision, memoryStatus: memoryWrites.every(Boolean) ? "saved" : "unavailable_or_partial" };
 }
 module.exports = { AGENTS, runVipTeam };
