@@ -213,7 +213,7 @@ private fun VipBuilderScreen(loadApps:()->List<InstalledApp>){
                         },
                         color=Soft,fontSize=11.sp
                     )
-                    if(modelDownloading) LinearProgressIndicator(progress={modelProgress/100f},modifier=Modifier.fillMaxWidth())
+                    if(modelDownloading) LinearProgressIndicator(progress=modelProgress/100f,modifier=Modifier.fillMaxWidth())
                     if(!modelReady && !modelDownloading) {
                         Button(onClick={startLocalModelSetup()},modifier=Modifier.fillMaxWidth()) {
                             Text(if(LocalLlmRuntime.isModelDownloaded(context)) "تشغيل الذكاء المحلي" else "تنزيل وتشغيل الذكاء المحلي")
