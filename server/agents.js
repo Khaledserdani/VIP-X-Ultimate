@@ -26,17 +26,27 @@ async function runVipTeam(input, askAI, memoryStore) {
     "القدرات والأدوات المتاحة: " + (input.capabilities || "المحادثة والتحليل وتكاملات النظام المصرح بها"),
     "القيود والتفضيلات: " + (input.constraints || "احرص على أفضل نتيجة عملية")
   ].join("\n");
-  const memories = await Promise.all(AGENTS.map(a => memoryStore.getAgentMemory(a.id)));
+  // Persistent memory is optional: the team must still work without a database.
+  const memories = await Promise.all(AGENTS.map(async a => {
+    try { return memoryStore?.getAgentMemory ? await memoryStore.getAgentMemory(a.id) : null; }
+    catch { return null; }
+  }));
   const reports = await Promise.all(AGENTS.map((a, i) => runAgent(a, context, askAI, memories[i])));
-  for (const r of reports) await memoryStore.saveCandidate(r.id, r.result, {
-    appName: input.appName || "general",
-    packageName: input.packageName || "general",
-    source: "vip-team"
-  });
+  const memoryWrites = await Promise.all(reports.map(async r => {
+    try {
+      if (!memoryStore?.saveCandidate) return false;
+      await memoryStore.saveCandidate(r.id, r.result, {
+        appName: input.appName || "general",
+        packageName: input.packageName || "general",
+        source: "vip-team"
+      });
+      return true;
+    } catch { return false; }
+  }));
   const decision = await askAI([
     { role: "system", content: "أنت قائد فريق VIP X. نسّق مساعدين مستقلين لإنجاز أي مهمة مفوضة، لا تحصر الحل في APK أو أربع نقرات. اختر أفضل مسار عملي، قسّم المهمة إلى مراحل، وحدد الأدوات والتكاملات اللازمة والنتائج المتوقعة واختبارات التحقق. ميّز ما يمكن تنفيذه الآن عن ما يحتاج صلاحية أو خدمة أو تأكيداً من المستخدم. لا تدّع تنفيذ إجراءات أو الوصول إلى بيانات غير متاحة." },
     { role: "user", content: context + "\n\n" + reports.map(r => r.name + ":\n" + r.result).join("\n\n") }
   ]);
-  return { team: reports, decision };
+  return { team: reports, decision, memoryStatus: memoryWrites.every(Boolean) ? "saved" : "unavailable_or_partial" };
 }
 module.exports = { AGENTS, runVipTeam };
