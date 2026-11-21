@@ -12,9 +12,17 @@ function publicIp(ip) {
   const value = (raw.startsWith("[") ? raw.slice(1, -1) : raw).toLowerCase();
   if (net.isIP(value) === 4) {
     const p = value.split(".").map(Number);
-    return !(p[0] === 10 || p[0] === 127 || p[0] === 0 || p[0] >= 224 ||
-      (p[0] === 169 && p[1] === 254) || (p[0] === 172 && p[1] >= 16 && p[1] <= 31) ||
-      (p[0] === 192 && p[1] === 168) || (p[0] === 100 && p[1] >= 64 && p[1] <= 127));
+    const a = p[0], b = p[1], c = p[2];
+    const reserved =
+      a === 0 || a === 10 || a === 127 || a >= 224 ||
+      (a === 100 && b >= 64 && b <= 127) ||
+      (a === 169 && b === 254) ||
+      (a === 172 && b >= 16 && b <= 31) ||
+      (a === 192 && (b === 0 || b === 2 || b === 168)) ||
+      (a === 192 && b === 88 && c === 99) ||
+      (a === 198 && (b === 18 || b === 19 || (b === 51 && c === 100))) ||
+      (a === 203 && b === 0 && c === 113);
+    return !reserved;
   }
   if (net.isIP(value) !== 6 || value.includes("%")) return false;
   // IPv4-mapped IPv6 addresses must inherit the embedded IPv4 restrictions.
