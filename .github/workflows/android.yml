@@ -39,6 +39,7 @@ jobs:
           node --check server/index.js
           node --check server/agents.js
           node --check server/tools.js
+          node --input-type=module --check < cloud/worker.js
 
       - name: Test backend tools and provider failover
         run: node --test server/tools.test.js server/provider.test.js
