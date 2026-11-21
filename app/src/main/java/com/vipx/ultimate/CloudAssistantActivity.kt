@@ -65,10 +65,8 @@ private fun LocalAiModelCard(context: Context, onStatus: (String) -> Unit) {
                     scope.launch {
                         downloading = true
                         try {
-                            if (!LocalLlmRuntime.isModelDownloaded(context)) {
-                                onStatus("جارٍ تنزيل نموذج الذكاء المحلي (614 ميغابايت)...")
-                                LocalLlmRuntime.downloadModel(context) { progress = it }
-                            }
+                            onStatus("جارٍ التحقق من نموذج الذكاء المحلي أو استكمال تنزيله...")
+                            LocalLlmRuntime.downloadModel(context) { progress = it }
                             downloaded = true
                             onStatus("تم تنزيل النموذج والتحقق من سلامته؛ جارٍ تشغيله...")
                             LocalLlmRuntime.initialize(context)
