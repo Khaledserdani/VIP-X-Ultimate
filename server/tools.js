@@ -100,7 +100,7 @@ function calculate(expr) {
     if(/^\d/.test(t)){if(!need)throw new Error("عامل مفقود");out.push(Number(t));need=false;}
     else if(t==="("){if(!need)throw new Error("صيغة غير صحيحة");ops.push(t);need=true;}
     else if(t===")"){if(need)throw new Error("قوس غير صحيح");while(ops.length&&ops.at(-1)!=="(")out.push(ops.pop());if(ops.pop()!=="(")throw new Error("أقواس غير متوازنة");need=false;}
-    else{const op=t==="-"&&need?"u-":t;if(need&&op!=="u-")throw new Error("عامل غير صحيح");while(ops.length&&ops.at(-1)!=="("&&(p[ops.at(-1)]>p[op]||(p[ops.at(-1)]===p[op]&&op!=="^"&&op!=="u-")))out.push(ops.pop());ops.push(op);need=true;}
+    else{const op=t==="-"&&need?"u-":t;if(need&&op!=="u-")throw new Error("عامل غير صحيح");while(op!=="u-"&&ops.length&&ops.at(-1)!=="("&&(p[ops.at(-1)]>p[op]||(p[ops.at(-1)]===p[op]&&op!=="^")))out.push(ops.pop());ops.push(op);need=true;}
   }
   if(need)throw new Error("تعبير ناقص");while(ops.length){const x=ops.pop();if(x==="(")throw new Error("أقواس غير متوازنة");out.push(x);}
   const st=[];for(const x of out){if(typeof x==="number")st.push(x);else if(x==="u-"){if(!st.length)throw new Error("صيغة غير صحيحة");st.push(-st.pop());}else{if(st.length<2)throw new Error("صيغة غير صحيحة");const b=st.pop(),a=st.pop();st.push(x==="+"?a+b:x==="-"?a-b:x==="*"?a*b:x==="/" ?a/b:x==="%"?a%b:Math.pow(a,b));}}
