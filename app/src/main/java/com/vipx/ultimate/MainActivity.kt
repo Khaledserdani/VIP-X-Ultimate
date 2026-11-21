@@ -220,6 +220,7 @@ private fun VipBuilderScreen(loadApps:()->List<InstalledApp>){
                     OutlinedTextField(token,{token=it},Modifier.fillMaxWidth(),singleLine=true,label={Text("رمز ربط خادم VIP X")},visualTransformation=PasswordVisualTransformation())
                     OutlinedButton(
                         onClick = {
+                            if (endpoint.isBlank()) { status = "أدخل رابط الخادم فقط إذا أردت استعمال الخدمة السحابية؛ التحليل المحلي لا يحتاجه"; return@OutlinedButton }
                             if (token.isBlank()) { status = "أدخل رمز الربط أولاً"; return@OutlinedButton }
                             busy = true
                             status = "جارٍ التحقق من رمز الربط والخادم..."
@@ -269,6 +270,7 @@ private fun VipBuilderScreen(loadApps:()->List<InstalledApp>){
                 onClick = {
                     val app = selected
                     if (app == null) { status = "اختر تطبيقاً أولاً"; return@Button }
+                    if (endpoint.isBlank()) { status = "التحليل المحلي لا يحتاج خادماً؛ أدخل رابطه فقط للفحص السحابي"; return@Button }
                     if (token.isBlank()) { status = "أدخل رمز ربط الخادم أولاً"; return@Button }
                     busy = true
                     answer = ""
