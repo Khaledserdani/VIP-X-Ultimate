@@ -43,7 +43,7 @@ jobs:
           node --input-type=module --check < cloud/worker.js
 
       - name: Test backend tools and provider failover
-        run: node --test server/tools.test.js server/provider.test.js
+        run: node --test server/tools.test.js server/provider.test.js server/agents.test.js
 
       - name: Build Android candidate
         run: gradle --no-daemon --stacktrace :app:assembleDebug
