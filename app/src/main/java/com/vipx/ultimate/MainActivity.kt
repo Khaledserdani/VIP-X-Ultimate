@@ -181,6 +181,12 @@ private fun VipBuilderScreen(loadApps:()->List<InstalledApp>){
                     }
                 }
             }
+            LocalAnalysisCard(
+                appName = selected?.name,
+                packageName = selected?.packageName,
+                onResult = { answer = it },
+                onStatus = { status = it }
+            )
             Card(colors=CardDefaults.cardColors(containerColor=Color(0xFF173A3D)),shape=RoundedCornerShape(18.dp)){
                 Column(Modifier.fillMaxWidth().padding(13.dp),verticalArrangement=Arrangement.spacedBy(8.dp)){
                     Text("جلسة VIP X داخل التطبيقات",color=Mint,fontWeight=FontWeight.Bold)
