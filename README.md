@@ -20,3 +20,14 @@ gradle :app:assembleDebug
 
 ## Cloud AI assistant (v1.2.0)
 The Android app now includes an Arabic cloud-chat screen. To use live AI, deploy `cloud/worker.js` and configure the server-side secrets described in `cloud/README.md`. The APK does not contain provider credentials; the cloud service is not live until you deploy it.
+
+## النواة المحلية المجانية
+- يمكن اختيار تطبيق مثبت وتحليل APK الأساسي وملفات split محلياً على الهاتف.
+- يتضمن التحليل بصمة SHA-256، بيانات الإصدار وSDK، بنية DEX والمكتبات والموارد، الصلاحيات، وبصمة شهادة التوقيع التي يعرضها Android.
+- أربعة محللات محلية تقدم تقارير بنيوية وأمنية أولية وتصميمية/موارد وهندسية بقواعد صريحة.
+- تُحفظ آخر نتيجة داخل مساحة التطبيق الخاصة ويمكن فتحها لاحقاً.
+- مسار التحليل المحلي لا يحتاج إنترنت أو رمز وصول ولا يرفع APK إلى خادم.
+
+**تنبيه دقة:** المحللات المحلية الحالية قواعد تحليلية وليست نموذج ذكاء اصطناعي توليدياً. الذكاء السحابي القديم اختياري فقط، ويتطلب خادماً ومزوداً خارجياً وقد يخضع لحصص أو رسوم. لا توجد خدمة سحابية مطلوبة لتشغيل المختبر المحلي.
+
+التفاصيل ومعايير القبول: [docs/LOCAL_FIRST_FREE_CORE.md](docs/LOCAL_FIRST_FREE_CORE.md)
