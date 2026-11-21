@@ -8,6 +8,7 @@ import com.google.ai.edge.litertlm.Conversation
 import com.google.ai.edge.litertlm.ConversationConfig
 import com.google.ai.edge.litertlm.Engine
 import com.google.ai.edge.litertlm.EngineConfig
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.File
@@ -48,9 +49,22 @@ internal object LocalLlmRuntime {
         require(available >= MODEL_BYTES + 100L * 1024L * 1024L) {
             "يلزم توفير نحو 700 ميغابايت مساحة فارغة لتنزيل النموذج"
         }
-        target.delete()
         val partial = File(context.filesDir, "$MODEL_NAME.part")
-        partial.delete()
+        var existing = partial.takeIf { it.isFile }?.length() ?: 0L
+        if (existing > MODEL_BYTES) {
+            partial.delete()
+            existing = 0L
+        }
+        if (existing == MODEL_BYTES) {
+            if (sha256(partial) == MODEL_SHA256) {
+                check(partial.renameTo(target)) { "تعذر اعتماد ملف النموذج بعد التحقق" }
+                onProgress(100)
+                return@withContext
+            } else {
+                partial.delete()
+                existing = 0L
+            }
+        }
 
         val connection = (URL(MODEL_URL).openConnection() as HttpURLConnection).apply {
             requestMethod = "GET"
@@ -58,19 +72,27 @@ internal object LocalLlmRuntime {
             readTimeout = 120000
             instanceFollowRedirects = true
             setRequestProperty("User-Agent", "VIP-X-Ultimate-Android")
+            if (existing > 0L) setRequestProperty("Range", "bytes=$existing-")
         }
         try {
             connection.connect()
-            require(connection.responseCode in 200..299) { "فشل تنزيل النموذج: HTTP ${connection.responseCode}" }
+            val code = connection.responseCode
+            require(code == 200 || code == 206) { "فشل تنزيل النموذج: HTTP $code" }
+            val append = existing > 0L && code == 206
+            if (existing > 0L && code == 200) {
+                partial.delete()
+                existing = 0L
+            }
             val declaredLength = connection.contentLengthLong
-            if (declaredLength > 0) require(declaredLength == MODEL_BYTES) {
+            if (declaredLength > 0 && !append) require(declaredLength == MODEL_BYTES) {
                 "حجم ملف النموذج غير مطابق للنسخة المعتمدة"
             }
-            var total = 0L
+            var total = existing
             connection.inputStream.use { input ->
                 partial.outputStream().buffered().use { output ->
                     val buffer = ByteArray(1024 * 1024)
                     while (true) {
+                        if (!kotlin.coroutines.coroutineContext.isActive) throw CancellationException("أُلغي تنزيل النموذج")
                         val count = input.read(buffer)
                         if (count < 0) break
                         output.write(buffer, 0, count)
@@ -81,11 +103,16 @@ internal object LocalLlmRuntime {
                 }
             }
             require(total == MODEL_BYTES) { "اكتمل تنزيل غير صحيح: الحجم لا يطابق النموذج الأصلي" }
-            require(sha256(partial) == MODEL_SHA256) { "فشل التحقق من سلامة النموذج (SHA-256)" }
+            if (sha256(partial) != MODEL_SHA256) {
+                partial.delete()
+                throw IllegalStateException("فشل التحقق من سلامة النموذج (SHA-256)")
+            }
             check(partial.renameTo(target)) { "تعذر حفظ النموذج في مساحة التطبيق" }
             onProgress(100)
+        } catch (error: CancellationException) {
+            throw error
         } catch (error: Exception) {
-            partial.delete()
+            // Keep a partial download so the next attempt can resume with HTTP Range.
             throw error
         } finally {
             connection.disconnect()
