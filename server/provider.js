@@ -1,18 +1,11 @@
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY || "";
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY || "";
-const AI_PROVIDER = String(process.env.AI_PROVIDER || (GEMINI_API_KEY ? "gemini" : "openai")).toLowerCase();
+const GROQ_API_KEY = process.env.GROQ_API_KEY || "";
+const AI_PROVIDER = String(process.env.AI_PROVIDER || "auto").toLowerCase();
+const ALLOW_PAID_AI = String(process.env.ALLOW_PAID_AI || "").toLowerCase() === "true";
 const OPENAI_MODEL = process.env.AI_MODEL || "gpt-4o-mini";
-const GEMINI_MODEL = process.env.GEMINI_MODEL || "gemini-3.8-flash";
-
-function providerConfigured() {
-  if (AI_PROVIDER === "gemini") return Boolean(GEMINI_API_KEY);
-  if (AI_PROVIDER === "openai") return Boolean(OPENAI_API_KEY);
-  return false;
-}
-
-function selectedProvider() {
-  return AI_PROVIDER;
-}
+const GEMINI_MODEL = process.env.GEMINI_MODEL || "gemini-2.5-flash";
+const GROQ_MODEL = process.env.GROQ_MODEL || "llama-3.3-70b-versatile";
 
 function providerError(message, status, retryAfter) {
   const error = new Error(message);
@@ -25,102 +18,118 @@ function normalizeGeminiMessages(messages) {
   const system = [];
   const contents = [];
   for (const message of messages || []) {
-    const text = String(message.content ?? "");
-    if (!text) continue;
+    const value = String(message.content ?? "");
+    if (!value) continue;
     if (message.role === "system" || message.role === "developer") {
-      system.push(text);
+      system.push(value);
       continue;
     }
     const role = message.role === "assistant" ? "model" : "user";
     const last = contents[contents.length - 1];
-    if (last && last.role === role) last.parts[0].text += "\n\n" + text;
-    else contents.push({ role, parts: [{ text }] });
+    if (last && last.role === role) last.parts[0].text += "\n\n" + value;
+    else contents.push({ role, parts: [{ text: value }] });
   }
   return { system, contents };
+}
+
+function retryAfterOf(response) {
+  const raw = response.headers.get("retry-after");
+  if (!raw) return 0;
+  const seconds = Number(raw);
+  if (Number.isFinite(seconds) && seconds > 0) return seconds;
+  const date = Date.parse(raw);
+  return Number.isFinite(date) ? Math.max(1, Math.ceil((date - Date.now()) / 1000)) : 0;
+}
+
+function canFallback(error) {
+  return error && (error.status === 408 || error.status === 429 || error.status >= 500 || error.status === 502 || error.status === 504);
+}
+
+async function requestJson(url, options, providerName) {
+  let response;
+  try {
+    response = await fetch(url, { ...options, signal: AbortSignal.timeout(45000) });
+  } catch (cause) {
+    const timeout = cause && (cause.name === "TimeoutError" || cause.name === "AbortError");
+    throw providerError("تعذر الاتصال بمزود " + providerName + (timeout ? " بسبب انتهاء المهلة" : "") , timeout ? 504 : 502);
+  }
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    const retryAfter = retryAfterOf(response);
+    const status = response.status >= 500 ? 502 : response.status;
+    const detail = String(data.error?.message || data.error?.status || "").slice(0, 180);
+    throw providerError("رفض مزود " + providerName + " الطلب (HTTP " + response.status + ")" + (detail ? ": " + detail : ""), status, retryAfter);
+  }
+  return data;
 }
 
 async function askGemini(messages) {
   const { system, contents } = normalizeGeminiMessages(messages);
   if (!contents.length) throw providerError("لا توجد رسالة صالحة لإرسالها إلى الذكاء الاصطناعي", 400);
-  let response;
-  try {
-    response = await fetch(
-      "https://generativelanguage.googleapis.com/v1beta/models/" + encodeURIComponent(GEMINI_MODEL) + ":generateContent",
-      {
-        method: "POST",
-        headers: { "x-goog-api-key": GEMINI_API_KEY, "Content-Type": "application/json" },
-        body: JSON.stringify({
-          ...(system.length ? { systemInstruction: { parts: [{ text: system.join("\n\n") }] } } : {}),
-          contents,
-          generationConfig: { temperature: 0.35 }
-        }),
-        signal: AbortSignal.timeout(80000)
-      }
-    );
-  } catch (cause) {
-    throw providerError(
-      "تعذر الاتصال بمزود Gemini؛ حاول لاحقاً",
-      cause && cause.name === "TimeoutError" ? 504 : 502
-    );
-  }
-  const data = await response.json().catch(() => ({}));
-  if (!response.ok) {
-    const retryAfter = Number(response.headers.get("retry-after") || 0);
-    const providerMessage = String(data.error?.message || "");
-    const message = response.status === 429
-      ? "وصلت إلى الحد المجاني المؤقت لـ Gemini. انتظر تجدد الحصة أو خفّض عدد الطلبات؛ لا يلزم شحن رصيد مدفوع."
-      : "رفض مزود Gemini الطلب (HTTP " + response.status + ")" + (providerMessage ? ": " + providerMessage.slice(0, 240) : "");
-    throw providerError(message, response.status === 429 ? 429 : (response.status >= 500 ? 502 : response.status), retryAfter);
-  }
-  const reply = (data.candidates?.[0]?.content?.parts || [])
-    .map(part => part.text || "")
-    .join("")
-    .trim();
-  if (!reply) {
-    const reason = data.promptFeedback?.blockReason || data.candidates?.[0]?.finishReason || "";
-    throw providerError("لم تصل إجابة نصية من Gemini" + (reason ? " (" + reason + ")" : ""), 502);
-  }
+  const data = await requestJson(
+    "https://generativelanguage.googleapis.com/v1beta/models/" + encodeURIComponent(GEMINI_MODEL) + ":generateContent",
+    {
+      method: "POST",
+      headers: { "x-goog-api-key": GEMINI_API_KEY, "Content-Type": "application/json" },
+      body: JSON.stringify({
+        ...(system.length ? { systemInstruction: { parts: [{ text: system.join("\n\n") }] } } : {}),
+        contents,
+        generationConfig: { temperature: 0.35 }
+      })
+    },
+    "Gemini"
+  );
+  const reply = (data.candidates?.[0]?.content?.parts || []).map(part => part.text || "").join("").trim();
+  if (!reply) throw providerError("لم تصل إجابة نصية من Gemini", 502);
   return reply;
 }
 
-async function askOpenAI(messages) {
-  let response;
-  try {
-    response = await fetch("https://api.openai.com/v1/chat/completions", {
-      method: "POST",
-      headers: { "Authorization": "Bearer " + OPENAI_API_KEY, "Content-Type": "application/json" },
-      body: JSON.stringify({ model: OPENAI_MODEL, messages, temperature: 0.35 }),
-      signal: AbortSignal.timeout(80000)
-    });
-  } catch (cause) {
-    throw providerError("تعذر الاتصال بمزود OpenAI؛ حاول لاحقاً", cause && cause.name === "TimeoutError" ? 504 : 502);
-  }
-  const data = await response.json().catch(() => ({}));
-  if (!response.ok) {
-    const code = data.error?.code || data.error?.type || "";
-    const quota = response.status === 429 && /quota|billing|insufficient_quota/i.test(String(code) + " " + String(data.error?.message || ""));
-    const retryAfter = Number(response.headers.get("retry-after") || 0);
-    const message = quota
-      ? "نفدت حصة OpenAI API أو لم تُفعّل الفوترة. يمكن تحويل الخدمة إلى مزود مجاني بإضافة GEMINI_API_KEY في إعدادات الخادم."
-      : response.status === 429
-        ? "تجاوزت طلبات OpenAI الحد المؤقت؛ انتظر قليلاً ثم أعد المحاولة."
-        : "رفض مزود OpenAI الطلب (HTTP " + response.status + ")";
-    throw providerError(message, response.status === 429 ? 429 : (response.status >= 500 ? 502 : response.status), retryAfter);
-  }
+async function askCompatible(url, key, model, messages, providerName) {
+  const data = await requestJson(url, {
+    method: "POST",
+    headers: { "Authorization": "Bearer " + key, "Content-Type": "application/json" },
+    body: JSON.stringify({ model, messages, temperature: 0.35 })
+  }, providerName);
   const reply = data.choices?.[0]?.message?.content;
-  if (!reply) throw providerError("لم تصل إجابة من OpenAI", 502);
-  return reply;
+  if (!reply) throw providerError("لم تصل إجابة نصية من " + providerName, 502);
+  return String(reply);
 }
+
+function configuredProviders() {
+  const all = {
+    gemini: GEMINI_API_KEY ? { id: "gemini", freeTier: true, run: askGemini } : null,
+    groq: GROQ_API_KEY ? { id: "groq", freeTier: true, run: messages => askCompatible("https://api.groq.com/openai/v1/chat/completions", GROQ_API_KEY, GROQ_MODEL, messages, "Groq") } : null,
+    openai: (ALLOW_PAID_AI && OPENAI_API_KEY) ? { id: "openai", freeTier: false, run: messages => askCompatible("https://api.openai.com/v1/chat/completions", OPENAI_API_KEY, OPENAI_MODEL, messages, "OpenAI") } : null
+  };
+  const order = AI_PROVIDER === "gemini" ? ["gemini", "groq"] :
+    AI_PROVIDER === "groq" ? ["groq", "gemini"] :
+    AI_PROVIDER === "openai" ? (ALLOW_PAID_AI ? ["openai", "gemini", "groq"] : ["gemini", "groq"]) :
+    ["gemini", "groq", ...(ALLOW_PAID_AI ? ["openai"] : [])];
+  return order.map(id => all[id]).filter(Boolean);
+}
+
+function providerConfigured() { return configuredProviders().length > 0; }
+function selectedProvider() { return configuredProviders()[0]?.id || "none"; }
 
 async function askAI(messages) {
-  if (!providerConfigured()) {
-    if (AI_PROVIDER === "gemini") throw providerError("أضف مفتاح GEMINI_API_KEY المجاني إلى متغيرات خادم Railway", 503);
-    if (AI_PROVIDER === "openai") throw providerError("مفتاح OpenAI API غير مضبوط على الخادم", 503);
-    throw providerError("مزود الذكاء الاصطناعي غير مضبوط", 503);
+  const providers = configuredProviders();
+  if (!providers.length) {
+    throw providerError("لا يوجد مزود مجاني مضبوط. أضف GEMINI_API_KEY أو GROQ_API_KEY إلى أسرار الخادم. لا يتم تشغيل OpenAI المدفوع إلا بعد تفعيل ALLOW_PAID_AI=true صراحةً.", 503);
   }
-  if (AI_PROVIDER === "gemini") return askGemini(messages);
-  if (AI_PROVIDER === "openai") return askOpenAI(messages);
-  throw providerError("قيمة AI_PROVIDER غير مدعومة؛ استخدم gemini أو openai", 500);
+  const failures = [];
+  for (let index = 0; index < providers.length; index++) {
+    const provider = providers[index];
+    try {
+      return await provider.run(messages);
+    } catch (error) {
+      failures.push(provider.id + ": " + error.message);
+      if (!canFallback(error) || index === providers.length - 1) {
+        error.message = failures.join(" | ");
+        throw error;
+      }
+    }
+  }
+  throw providerError(failures.join(" | "), 502);
 }
 
-module.exports = { askAI, providerConfigured, selectedProvider, normalizeGeminiMessages };
+module.exports = { askAI, providerConfigured, selectedProvider, normalizeGeminiMessages, configuredProviders, canFallback };
