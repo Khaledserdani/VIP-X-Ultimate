@@ -32,7 +32,8 @@ internal object LocalLlmRuntime {
     @Volatile private var conversation: Conversation? = null
 
     fun isReady(): Boolean = engine != null && conversation != null
-\n    fun modelFile(context: Context): File = File(context.filesDir, MODEL_NAME)
+
+    fun modelFile(context: Context): File = File(context.filesDir, MODEL_NAME)
 
     fun isModelDownloaded(context: Context): Boolean =
         modelFile(context).let { it.isFile && it.length() == MODEL_BYTES }
