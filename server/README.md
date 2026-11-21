@@ -17,16 +17,12 @@ When a provider returns a temporary quota/rate-limit/server/network error, the b
 Free tiers are subject to provider account eligibility, rate limits, model availability, and terms that may change. This is not unlimited or guaranteed free service. Internet/mobile data charges may also apply.
 
 ## Paid provider safety
-OpenAI is excluded from automatic routing unless the operator explicitly sets both:
-- `OPENAI_API_KEY`
-- `ALLOW_PAID_AI=true`
-
-Without that explicit opt-in, the server will not send requests to OpenAI, even if an OpenAI key happens to be present. Never enable this variable unless the account owner has knowingly accepted provider charges.
+This build removes OpenAI and all paid-provider routing from the backend. Legacy variables such as `OPENAI_API_KEY`, `AI_MODEL`, and `ALLOW_PAID_AI` are ignored. Even if they are present or set to `true`, requests can only go to the configured Gemini/Groq free-tier providers. If their quotas are exhausted, cloud AI stops and the Android local features remain available.
 
 ## Other optional services
 - `DATABASE_URL` enables PostgreSQL-backed agent memory.
 - `PORT` defaults to 3000.
-- `GEMINI_MODEL` defaults to `gemini-2.5-flash`.
+- `GEMINI_MODEL` defaults to `gemini-3.1-flash-lite`.
 - `GROQ_MODEL` defaults to `llama-3.3-70b-versatile`.
 - `AI_MODEL` defaults to `gpt-4o-mini` and is only used when paid OpenAI is explicitly enabled.
 
