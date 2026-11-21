@@ -8,7 +8,7 @@ const TOOL_REGISTRY = [
 ];
 
 function publicIp(ip) {
-  const value = String(ip).replace(/^\\[|\\]$/g, "").toLowerCase();
+  const raw = String(ip);\n  const value = (raw.startsWith("[") ? raw.slice(1, -1) : raw).toLowerCase();
   if (net.isIP(value) === 4) {
     const p = value.split(".").map(Number);
     return !(p[0] === 10 || p[0] === 127 || p[0] === 0 || p[0] >= 224 ||
@@ -35,7 +35,7 @@ function publicIp(ip) {
 }
 async function safeUrl(raw) {
   const u = new URL(String(raw));
-  const host = u.hostname.replace(/^\\[|\\]$/g, "");
+  const host = u.hostname.startsWith("[") ? u.hostname.slice(1, -1) : u.hostname;
   if (u.protocol !== "https:" || u.username || u.password ||
       host === "localhost" || host.endsWith(".local")) {
     throw new Error("يسمح فقط بروابط HTTPS العامة");
