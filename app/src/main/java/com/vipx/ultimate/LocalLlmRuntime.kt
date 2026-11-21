@@ -43,13 +43,12 @@ internal object LocalLlmRuntime {
 
     suspend fun downloadModel(context: Context, onProgress: (Int) -> Unit) = withContext(Dispatchers.IO) {
         val target = modelFile(context)
-        if (target.isFile && target.length() == MODEL_BYTES && sha256(target) == MODEL_SHA256) {
-            onProgress(100)
-            return@withContext
-        }
-        val available = StatFs(context.filesDir.path).availableBytes
-        require(available >= MODEL_BYTES + 100L * 1024L * 1024L) {
-            "يلزم توفير نحو 700 ميغابايت مساحة فارغة لتنزيل النموذج"
+        if (target.isFile) {
+            if (target.length() == MODEL_BYTES && sha256(target) == MODEL_SHA256) {
+                onProgress(100)
+                return@withContext
+            }
+            target.delete()
         }
         val partial = File(context.filesDir, "$MODEL_NAME.part")
         var existing = partial.takeIf { it.isFile }?.length() ?: 0L
@@ -66,6 +65,11 @@ internal object LocalLlmRuntime {
                 partial.delete()
                 existing = 0L
             }
+        }
+        val requiredSpace = (MODEL_BYTES - existing).coerceAtLeast(0L) + 100L * 1024L * 1024L
+        val available = StatFs(context.filesDir.path).availableBytes
+        require(available >= requiredSpace) {
+            "يلزم توفير مساحة فارغة إضافية لتنزيل النموذج والتحقق منه"
         }
 
         val connection = (URL(MODEL_URL).openConnection() as HttpURLConnection).apply {
