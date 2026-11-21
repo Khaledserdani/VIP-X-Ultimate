@@ -1,4 +1,4 @@
-const FREE_MODEL = "gemini-4-hydrogen";
+const FREE_MODEL = "gemini-3.1-flash-lite";
 
 export default {
   async fetch(request, env) {
