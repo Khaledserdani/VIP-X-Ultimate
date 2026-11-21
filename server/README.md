@@ -22,8 +22,7 @@ This build removes OpenAI and all paid-provider routing from the backend. Legacy
 ## Other optional services
 - `DATABASE_URL` enables PostgreSQL-backed agent memory.
 - `PORT` defaults to 3000.
-- `GEMINI_MODEL` defaults to `gemini-3.1-flash-lite`.
-- `GROQ_MODEL` defaults to `llama-3.3-70b-versatile`.
+- Model IDs are pinned in code to the selected free-tier models; environment variables cannot switch the backend to another model.
 - `AI_MODEL` defaults to `gpt-4o-mini` and is only used when paid OpenAI is explicitly enabled.
 
 ## Health and verification
