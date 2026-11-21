@@ -216,7 +216,8 @@ private fun VipBuilderScreen(loadApps:()->List<InstalledApp>){
                 Column(Modifier.padding(13.dp),verticalArrangement=Arrangement.spacedBy(8.dp)){
                     Text("3 • خدمات الخادم الاختيارية",color=Color.White,fontWeight=FontWeight.Bold)
                     OutlinedTextField(goal,{goal=it},Modifier.fillMaxWidth(),label={Text("ما الذي تريد تحسينه؟")},minLines=2,maxLines=3)
-                    OutlinedTextField(endpoint,{endpoint=it},Modifier.fillMaxWidth(),singleLine=true,label={Text("رابط خادم اختياري (اتركه فارغاً للمختبر المحلي)")},placeholder={Text("https://your-server.example")})\n                    OutlinedTextField(token,{token=it},Modifier.fillMaxWidth(),singleLine=true,label={Text("رمز ربط خادم VIP X")},visualTransformation=PasswordVisualTransformation())
+                    OutlinedTextField(endpoint,{endpoint=it},Modifier.fillMaxWidth(),singleLine=true,label={Text("رابط خادم اختياري (اتركه فارغاً للمختبر المحلي)")},placeholder={Text("https://your-server.example")})
+                    OutlinedTextField(token,{token=it},Modifier.fillMaxWidth(),singleLine=true,label={Text("رمز ربط خادم VIP X")},visualTransformation=PasswordVisualTransformation())
                     OutlinedButton(
                         onClick = {
                             if (token.isBlank()) { status = "أدخل رمز الربط أولاً"; return@OutlinedButton }
