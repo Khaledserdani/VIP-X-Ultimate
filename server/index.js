@@ -173,14 +173,24 @@ const server = http.createServer(async (req, res) => {
         "القدرات: " + String(body.capabilities || "بحث ويب وقراءة صفحات عامة وحساب آمن وتحليل APK وأوامر Android المصرح بها"),
         "القيود: " + String(body.constraints || "احمِ بيانات المستخدم ولا تدّع تنفيذ ما لم يحدث")
       ].join("\n");
-      const rawPlan = await askAI([
-        { role: "system", content: "أنت قائد VIP X ومساعد عملي متعدد المجالات. حلل الطلب مباشرة ولا تستدع فريقاً افتراضياً لكل مهمة. أخرج JSON فقط: decision نص عربي واضح، toolCalls مصفوفة حتى 3 عناصر، actions مصفوفة حتى 5 عناصر. أدوات toolCalls المسموحة: web_search مع {query}، web_fetch مع {url}، calculator مع {expression}. إجراءات actions المسموحة: OPEN_URL و SHARE_TEXT و TAP_TEXT و SCROLL_FORWARD و SCROLL_BACK و BACK. لا تخترع نتائج أو قدرات، ولا تدّع تنفيذ إجراء لم يحدث. لا تنشئ إجراءات محلية إلا عند وجود سبب واضح؛ TAP_TEXT يتطلب نصاً حرفياً موجوداً في سياق الشاشة. OPEN_URL يتطلب رابط HTTPS معروفاً في الطلب أو أدلة المستخدم. لا شراء أو دفع أو حذف أو مراسلة تلقائية أو تسجيل دخول. إذا لم تحتج أدوات فأعد toolCalls فارغة." },
-        { role: "user", content: context }
+      // The Android mission screen explicitly requests the four-agent team.
+      // Memory is optional; runVipTeam degrades gracefully when no database is configured.
+      const teamResult = body.useTeam === true
+        ? await runVipTeam({
+            appName: String(body.appName || "غير محدد").slice(0, 120),
+            packageName: String(body.packageName || "").slice(0, 220),
+            goal,
+            evidence: context
+          }, askAI, memoryStore)
+        : { team: [], decision: "", memoryStatus: "not_requested" };
+      const teamEvidence = teamResult.team.map(item => item.name + ": " + item.result).join("\n\n");
+      const rawPlan = await askAI([        { role: "system", content: "أنت قائد VIP X ومساعد عملي متعدد المجالات. حلل الطلب مباشرة ولا تستدع فريقاً افتراضياً لكل مهمة. أخرج JSON فقط: decision نص عربي واضح، toolCalls مصفوفة حتى 3 عناصر، actions مصفوفة حتى 5 عناصر. أدوات toolCalls المسموحة: web_search مع {query}، web_fetch مع {url}، calculator مع {expression}. إجراءات actions المسموحة: OPEN_URL و SHARE_TEXT و TAP_TEXT و SCROLL_FORWARD و SCROLL_BACK و BACK. لا تخترع نتائج أو قدرات، ولا تدّع تنفيذ إجراء لم يحدث. لا تنشئ إجراءات محلية إلا عند وجود سبب واضح؛ TAP_TEXT يتطلب نصاً حرفياً موجوداً في سياق الشاشة. OPEN_URL يتطلب رابط HTTPS معروفاً في الطلب أو أدلة المستخدم. لا شراء أو دفع أو حذف أو مراسلة تلقائية أو تسجيل دخول. إذا لم تحتج أدوات فأعد toolCalls فارغة." },
+        { role: "user", content: context + (teamEvidence ? "\n\nتقارير فريق VIP X المستقل:\n" + teamEvidence + "\n\nتوجيه منسق الفريق:\n" + teamResult.decision : "") }
       ]);
       let plan = {};
       try { plan = JSON.parse(rawPlan.replace(/^\`\`\`(?:json)?\s*/i, "").replace(/\s*\`\`\`$/i, "")); }
       catch {
-        return send(res, 200, { mission: goal, decision: rawPlan, team: [], execution: [], availableTools: TOOL_REGISTRY, actions: [] });
+        return send(res, 200, { mission: goal, decision: rawPlan, team: teamResult.team, memoryStatus: teamResult.memoryStatus, execution: [], availableTools: TOOL_REGISTRY, actions: [] });
       }
 
       const executionResults = [];
@@ -215,7 +225,8 @@ const server = http.createServer(async (req, res) => {
       return send(res, 200, {
         mission: goal,
         decision,
-        team: [],
+        team: teamResult.team,
+        memoryStatus: teamResult.memoryStatus,
         execution: executionResults,
         availableTools: TOOL_REGISTRY.map(({id,name,description}) => ({id,name,description})),
         actions
