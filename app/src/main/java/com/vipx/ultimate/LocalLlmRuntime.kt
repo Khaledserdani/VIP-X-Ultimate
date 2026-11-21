@@ -11,7 +11,9 @@ import com.google.ai.edge.litertlm.EngineConfig
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.isActive
 import java.io.File
+import java.io.FileOutputStream
 import java.net.HttpURLConnection
 import java.net.URL
 import java.security.MessageDigest
@@ -89,7 +91,7 @@ internal object LocalLlmRuntime {
             }
             var total = existing
             connection.inputStream.use { input ->
-                partial.outputStream().buffered().use { output ->
+                FileOutputStream(partial, append).buffered().use { output ->
                     val buffer = ByteArray(1024 * 1024)
                     while (true) {
                         if (!kotlin.coroutines.coroutineContext.isActive) throw CancellationException("أُلغي تنزيل النموذج")
