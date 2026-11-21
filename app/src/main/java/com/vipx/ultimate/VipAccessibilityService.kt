@@ -67,7 +67,13 @@ class VipAccessibilityService : AccessibilityService() {
 
     private fun findNode(node: AccessibilityNodeInfo?, target: String, depth: Int = 0): AccessibilityNodeInfo? {
         if (node == null || depth > 20 || node.isPassword) return null
-        if (!node.isEditable && node.text?.toString()?.trim()?.equals(target, ignoreCase = true) == true) return node
+        val textLabel = node.text?.toString()?.trim().orEmpty()
+        val descriptionLabel = node.contentDescription?.toString()?.trim().orEmpty()
+        if (!node.isEditable && (
+                textLabel.equals(target, ignoreCase = true) ||
+                descriptionLabel.equals(target, ignoreCase = true)
+            )
+        ) return node
         for (i in 0 until node.childCount) findNode(node.getChild(i), target, depth + 1)?.let { return it }
         return null
     }
