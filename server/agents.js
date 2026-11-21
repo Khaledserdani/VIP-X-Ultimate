@@ -31,10 +31,15 @@ async function runVipTeam(input, askAI, memoryStore) {
     try { return memoryStore?.getAgentMemory ? await memoryStore.getAgentMemory(a.id) : null; }
     catch { return null; }
   }));
-  const reports = await Promise.all(AGENTS.map((a, i) => runAgent(a, context, askAI, memories[i])));
+  const reports = await Promise.all(AGENTS.map(async (a, i) => {
+    try { return await runAgent(a, context, askAI, memories[i]); }
+    catch (error) {
+      return { id: a.id, name: a.name, result: "تعذر تشغيل هذا المحلل: " + String(error.message || "خطأ غير معروف").slice(0, 180), status: "failed" };
+    }
+  }));
   const memoryWrites = await Promise.all(reports.map(async r => {
     try {
-      if (!memoryStore?.saveCandidate) return false;
+      if (r.status === "failed" || !memoryStore?.saveCandidate) return false;
       await memoryStore.saveCandidate(r.id, r.result, {
         appName: input.appName || "general",
         packageName: input.packageName || "general",
