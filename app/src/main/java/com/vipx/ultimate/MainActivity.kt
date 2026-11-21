@@ -144,9 +144,7 @@ private fun VipBuilderScreen(loadApps:()->List<InstalledApp>){
         modelStatus = "جارٍ تجهيز الذكاء المحلي..."
         scope.launch {
             try {
-                if (!LocalLlmRuntime.isModelDownloaded(context)) {
-                    LocalLlmRuntime.downloadModel(context) { modelProgress = it }
-                }
+                LocalLlmRuntime.downloadModel(context) { modelProgress = it }
                 modelStatus = "تم التحقق من النموذج؛ جارٍ تشغيله لأول مرة..."
                 LocalLlmRuntime.initialize(context)
                 modelReady = true
