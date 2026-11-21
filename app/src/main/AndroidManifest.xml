@@ -8,7 +8,7 @@
             <category android:name="android.intent.category.LAUNCHER" />
         </intent>
     </queries>
-    <application android:allowBackup="false" android:label="VIP X Ultimate" android:supportsRtl="true" android:theme="@android:style/Theme.Material.Light.NoActionBar">
+    <application android:allowBackup="false" android:label="VIP X Ultimate" android:supportsRtl="true" android:theme="@android:style/Theme.Material.Light.NoActionBar">\n        <uses-native-library android:name="libvndksupport.so" android:required="false" />\n        <uses-native-library android:name="libOpenCL.so" android:required="false" />
         <activity android:name=".CloudAssistantActivity" android:exported="false" />
         <service android:name=".VipAccessibilityService" android:label="VIP X مساعد داخل التطبيقات" android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE" android:exported="true">
             <intent-filter><action android:name="android.accessibilityservice.AccessibilityService" /></intent-filter>
