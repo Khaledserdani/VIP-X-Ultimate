@@ -123,7 +123,7 @@ private fun VipBuilderScreen(loadApps:()->List<InstalledApp>){
     var selected by remember{mutableStateOf<InstalledApp?>(null)}
     var query by remember{mutableStateOf("")}
     var goal by remember{mutableStateOf("أنشئ تصوراً احترافياً لنسخة VIP متوافقة، بواجهة راقية وميزات عملية دون تعطيل التطبيق الأصلي.") }
-    var endpoint by remember{mutableStateOf("https://vip-x-ultimate-api-production.up.railway.app")}
+    var endpoint by remember{mutableStateOf("")}
     var token by remember{mutableStateOf(SecureTokenStore.load(context))}
     var answer by remember{mutableStateOf("")}
     var memoryInfo by remember{mutableStateOf("")}
@@ -181,6 +181,12 @@ private fun VipBuilderScreen(loadApps:()->List<InstalledApp>){
                     }
                 }
             }
+            LocalAnalysisCard(
+                appName = selected?.name,
+                packageName = selected?.packageName,
+                onResult = { answer = it },
+                onStatus = { status = it }
+            )
             Card(colors=CardDefaults.cardColors(containerColor=Color(0xFF173A3D)),shape=RoundedCornerShape(18.dp)){
                 Column(Modifier.fillMaxWidth().padding(13.dp),verticalArrangement=Arrangement.spacedBy(8.dp)){
                     Text("جلسة VIP X داخل التطبيقات",color=Mint,fontWeight=FontWeight.Bold)
@@ -208,11 +214,13 @@ private fun VipBuilderScreen(loadApps:()->List<InstalledApp>){
             }
             Card(colors=CardDefaults.cardColors(containerColor=Panel),shape=RoundedCornerShape(18.dp)){
                 Column(Modifier.padding(13.dp),verticalArrangement=Arrangement.spacedBy(8.dp)){
-                    Text("2 • ربط الخادم الآمن",color=Color.White,fontWeight=FontWeight.Bold)
+                    Text("3 • خدمات الخادم الاختيارية",color=Color.White,fontWeight=FontWeight.Bold)
                     OutlinedTextField(goal,{goal=it},Modifier.fillMaxWidth(),label={Text("ما الذي تريد تحسينه؟")},minLines=2,maxLines=3)
+                    OutlinedTextField(endpoint,{endpoint=it},Modifier.fillMaxWidth(),singleLine=true,label={Text("رابط خادم اختياري (اتركه فارغاً للمختبر المحلي)")},placeholder={Text("https://your-server.example")})
                     OutlinedTextField(token,{token=it},Modifier.fillMaxWidth(),singleLine=true,label={Text("رمز ربط خادم VIP X")},visualTransformation=PasswordVisualTransformation())
                     OutlinedButton(
                         onClick = {
+                            if (endpoint.isBlank()) { status = "أدخل رابط الخادم فقط إذا أردت استعمال الخدمة السحابية؛ التحليل المحلي لا يحتاجه"; return@OutlinedButton }
                             if (token.isBlank()) { status = "أدخل رمز الربط أولاً"; return@OutlinedButton }
                             busy = true
                             status = "جارٍ التحقق من رمز الربط والخادم..."
@@ -262,6 +270,7 @@ private fun VipBuilderScreen(loadApps:()->List<InstalledApp>){
                 onClick = {
                     val app = selected
                     if (app == null) { status = "اختر تطبيقاً أولاً"; return@Button }
+                    if (endpoint.isBlank()) { status = "التحليل المحلي لا يحتاج خادماً؛ أدخل رابطه فقط للفحص السحابي"; return@Button }
                     if (token.isBlank()) { status = "أدخل رمز ربط الخادم أولاً"; return@Button }
                     busy = true
                     answer = ""
@@ -340,7 +349,7 @@ private fun VipBuilderScreen(loadApps:()->List<InstalledApp>){
                 if (busy) CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp)
                 else Icon(Icons.Default.AutoAwesome, null)
                 Spacer(Modifier.width(8.dp))
-                Text("افحص APK وشغّل المساعدين الأربعة")
+                Text("افحص عبر الخادم الاختياري وشغّل فريق AI")
             }
             OutlinedButton(
                 onClick = {
@@ -383,7 +392,7 @@ private fun VipBuilderScreen(loadApps:()->List<InstalledApp>){
                 },
                 enabled = !busy,
                 modifier = Modifier.fillMaxWidth()
-            ) { Text("اعرض ذاكرة المساعدين وآخر النتائج المثبتة") }
+            ) { Text("اعرض ذاكرة الفريق السحابية (اختياري)") }
             if(answer.isNotBlank()){
                 Card(Modifier.fillMaxWidth().heightIn(max=190.dp),colors=CardDefaults.cardColors(containerColor=Color(0xFF102F32))){
                     Column(Modifier.padding(12.dp)){

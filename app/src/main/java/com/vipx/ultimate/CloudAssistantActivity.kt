@@ -33,6 +33,73 @@ import org.json.JSONObject
 import java.net.HttpURLConnection
 import java.net.URL
 
+
+@Composable
+private fun LocalAiModelCard(context: Context, onStatus: (String) -> Unit) {
+    val scope = rememberCoroutineScope()
+    var downloaded by remember { mutableStateOf(LocalLlmRuntime.isModelDownloaded(context)) }
+    var ready by remember { mutableStateOf(LocalLlmRuntime.isReady()) }
+    var downloading by remember { mutableStateOf(false) }
+    var progress by remember { mutableIntStateOf(0) }
+    Card(colors = CardDefaults.cardColors(containerColor = Color(0xFF173A3D)), shape = RoundedCornerShape(16.dp)) {
+        Column(Modifier.fillMaxWidth().padding(12.dp), verticalArrangement = Arrangement.spacedBy(7.dp)) {
+            Text("الذكاء المحلي الاحتياطي", color = CloudAccent, fontWeight = FontWeight.Bold)
+            Text(
+                "نموذج Qwen3 صغير يعمل داخل الهاتف دون مفتاح API أو خادم. التنزيل لمرة واحدة بحجم 614 ميغابايت تقريباً، وبعدها يعمل دون إنترنت.",
+                color = CloudMuted, fontSize = 11.sp
+            )
+            if (downloading) LinearProgressIndicator(progress = progress / 100f, modifier = Modifier.fillMaxWidth())
+            Text(
+                when {
+                    ready -> "جاهز • يعمل محلياً على الهاتف"
+                    downloading -> "تنزيل النموذج: $progress%"
+                    downloaded -> "النموذج موجود • يحتاج إلى التهيئة"
+                    else -> "لم يتم تنزيل النموذج بعد"
+                },
+                color = if (ready) CloudAccent else CloudMuted, fontSize = 11.sp
+            )
+            Button(
+                enabled = !downloading && !ready,
+                modifier = Modifier.fillMaxWidth(),
+                onClick = {
+                    scope.launch {
+                        downloading = true
+                        try {
+                            if (!LocalLlmRuntime.isModelDownloaded(context)) {
+                                onStatus("جارٍ تنزيل نموذج الذكاء المحلي (614 ميغابايت)...")
+                                LocalLlmRuntime.downloadModel(context) { progress = it }
+                            }
+                            downloaded = true
+                            onStatus("تم تنزيل النموذج والتحقق من سلامته؛ جارٍ تشغيله...")
+                            LocalLlmRuntime.initialize(context)
+                            ready = true
+                            onStatus("الذكاء المحلي جاهز • لن يحتاج إلى الإنترنت بعد التنزيل")
+                        } catch (error: Exception) {
+                            onStatus("تعذر إعداد الذكاء المحلي: " + (error.message ?: "خطأ"))
+                        } finally {
+                            downloading = false
+                        }
+                    }
+                }
+            ) {
+                Text(when {
+                    ready -> "الذكاء المحلي جاهز"
+                    downloaded -> "تهيئة النموذج المحلي"
+                    else -> "تنزيل وتشغيل النموذج المجاني"
+                })
+            }
+        }
+    }
+}
+
+private suspend fun runLocalAssistant(context: Context, prompt: String): String {
+    check(LocalLlmRuntime.isModelDownloaded(context)) {
+        "لم يتم تنزيل نموذج الذكاء المحلي بعد. نزّله من بطاقة الذكاء المحلي أولاً."
+    }
+    if (!LocalLlmRuntime.isReady()) LocalLlmRuntime.initialize(context)
+    return LocalLlmRuntime.generate(prompt)
+}
+
 private val CloudNavy = Color(0xFF081421)
 private val CloudPanel = Color(0xFF122437)
 private val CloudAccent = Color(0xFF36D6C5)
@@ -53,8 +120,7 @@ private data class AgentReport(val name: String, val result: String)
 
 @Composable
 private fun CloudAssistantScreen(context: Context, onBack: () -> Unit) {
-    val prefs = remember { context.getSharedPreferences("vipx_cloud", Context.MODE_PRIVATE) }
-    var endpoint by remember { mutableStateOf(prefs.getString("endpoint", "https://vip-x-ultimate-api-production.up.railway.app") ?: "https://vip-x-ultimate-api-production.up.railway.app") }
+    var endpoint by remember { mutableStateOf("") }
     var accessToken by remember { mutableStateOf(SecureTokenStore.load(context)) }
     var prompt by remember { mutableStateOf("") }
     var actionText by remember { mutableStateOf("") }
@@ -93,9 +159,9 @@ private fun CloudAssistantScreen(context: Context, onBack: () -> Unit) {
             }
             Card(colors = CardDefaults.cardColors(containerColor = CloudPanel), shape = RoundedCornerShape(16.dp)) {
                 Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    OutlinedTextField(endpoint, { endpoint = it }, Modifier.fillMaxWidth(), singleLine = true, label = { Text("رابط الخادم HTTPS") }, placeholder = { Text("https://vip-x-ultimate-api-production.up.railway.app") })
+                    OutlinedTextField(endpoint, { endpoint = it }, Modifier.fillMaxWidth(), singleLine = true, label = { Text("رابط خادم اختياري") }, placeholder = { Text("https://your-server.example") })
                     OutlinedTextField(accessToken, { accessToken = it }, Modifier.fillMaxWidth(), singleLine = true, label = { Text("رمز الوصول") }, visualTransformation = PasswordVisualTransformation(), keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password))
-                    Text("يُحفظ رمز الوصول مشفراً في Android Keystore بعد التحقق منه من الشاشة الرئيسية.", color = CloudMuted, fontSize = 10.sp)
+                    Text("هذه خدمة خارجية اختيارية وقد تكون محدودة الحصة أو مدفوعة. لا تستخدمها قبل التحقق من شروط المزود والاستضافة. المختبر المحلي لا يحتاج إلى خادم أو رمز.", color = CloudMuted, fontSize = 10.sp)
                     Text(status, color = CloudAccent, fontSize = 11.sp)
                 }
             }
@@ -177,11 +243,88 @@ private fun CloudAssistantScreen(context: Context, onBack: () -> Unit) {
                                     }
                                     status = "اكتمل تحليل المهمة • راجع النتيجة أدناه"
                                     messages.add(ChatMessage("assistant", "خطة الفريق: " + planSummary + "\\nعدد الإجراءات: " + plannedActions.size))
-                                } catch (e: Exception) { status = "فشل إعداد الخطة: " + (e.message ?: "خطأ غير معروف") }
+                                } catch (e: Exception) {
+                                    try {
+                                        val localPrompt = """
+                                            أنت مخطط مهام محلي داخل VIP X. لا يوجد إنترنت ولا أدوات خارجية.
+                                            حلّل المهمة والسياق، ثم أعد JSON فقط بلا Markdown بهذا الشكل:
+                                            {"decision":"ملخص الخطة","team":[{"name":"المحلل المحلي","result":"التحليل"}],"actions":[{"type":"TAP_TEXT|OPEN_URL|SHARE_TEXT|SCROLL_FORWARD|SCROLL_BACK|BACK","target":"النص أو الرابط عند الحاجة","reason":"سبب الخطوة"}]}
+                                            لا تخترع عناصر شاشة غير موجودة. TAP_TEXT مسموح فقط إذا كان النص ظاهراً حرفياً في السياق.
+                                            لا تنفذ أي شيء؛ اعرض خطوات مقترحة فقط، فالمستخدم سيوافق على كل خطوة بنفسه.
+                                            المهمة: $goal
+                                            التطبيق: $pkg
+                                            سياق الشاشة: $screen
+                                            الملف المرفق: $attachedFileText
+                                        """.trimIndent()
+                                        val raw = runLocalAssistant(context, localPrompt)
+                                        val start = raw.indexOf('{')
+                                        val end = raw.lastIndexOf('}')
+                                        require(start >= 0 && end > start) { "النموذج المحلي لم يُرجع خطة JSON صالحة: " + raw.take(240) }
+                                        val localResult = JSONObject(raw.substring(start, end + 1))
+                                        planSummary = localResult.optString("decision", "خطة محلية")
+                                        val reports = localResult.optJSONArray("team") ?: JSONArray()
+                                        for (i in 0 until reports.length()) {
+                                            val item = reports.getJSONObject(i)
+                                            agentReports.add(AgentReport(item.optString("name", "المحلل المحلي"), item.optString("result")))
+                                        }
+                                        val actions = localResult.optJSONArray("actions") ?: JSONArray()
+                                        val allowed = setOf("OPEN_URL", "SHARE_TEXT", "TAP_TEXT", "SCROLL_FORWARD", "SCROLL_BACK", "BACK")
+                                        for (i in 0 until actions.length()) {
+                                            val item = actions.getJSONObject(i)
+                                            val type = item.optString("type")
+                                            val target = item.optString("target").take(500)
+                                            val valid = when (type) {
+                                                "TAP_TEXT" -> target.isNotBlank() && screen.contains(target, ignoreCase = true)
+                                                "OPEN_URL" -> target.startsWith("https://") || target.startsWith("http://")
+                                                "SHARE_TEXT" -> target.isNotBlank()
+                                                "SCROLL_FORWARD", "SCROLL_BACK", "BACK" -> true
+                                                else -> false
+                                            }
+                                            if (type in allowed && valid) plannedActions.add(InAppAction(type, target, item.optString("reason").take(300)))
+                                        }
+                                        status = "تعذر السحاب؛ أُعدّت خطة محلية دون إنترنت • راجع كل خطوة قبل التنفيذ"
+                                        messages.add(ChatMessage("assistant", "خطة محلية: " + planSummary + "\\nعدد الخطوات المقترحة: " + plannedActions.size))
+                                    } catch (localError: Exception) {
+                                        status = "تعذر السحاب والذكاء المحلي: " + (localError.message ?: e.message ?: "خطأ")
+                                    }
+                                }
                                 finally { busy = false }
                             }
                         }
                     }, enabled = !busy, modifier = Modifier.fillMaxWidth()) { Text(if (busy) "الفريق يعمل..." else "حلّل المهمة مع VIP X") }
+                    OutlinedButton(
+                        enabled = !busy && task.isNotBlank(),
+                        modifier = Modifier.fillMaxWidth(),
+                        onClick = {
+                            val localGoal = task.trim()
+                            val live = context.getSharedPreferences("vipx_live_context", Context.MODE_PRIVATE)
+                            val localScreen = live.getString("visible_context", "").orEmpty()
+                            val localPackage = live.getString("active_package", "").orEmpty()
+                            busy = true
+                            status = "جارٍ تحليل المهمة محلياً..."
+                            agentReports.clear()
+                            plannedActions.clear()
+                            scope.launch {
+                                try {
+                                    val localPrompt = """
+                                        حلّل المهمة التالية كمساعد محلي دون إنترنت أو أدوات خارجية.
+                                        أعطني خطة واضحة بالعربية: الهدف، المعلومات الناقصة، خطوات آمنة، وما يحتاج موافقة المستخدم.
+                                        لا تدّع تنفيذ أي إجراء ولا تخترع حالة غير موجودة.
+                                        المهمة: $localGoal
+                                        التطبيق: $localPackage
+                                        سياق الشاشة: $localScreen
+                                        محتوى الملف: $attachedFileText
+                                    """.trimIndent()
+                                    val result = runLocalAssistant(context, localPrompt)
+                                    planSummary = "تحليل محلي مكتمل"
+                                    agentReports.add(AgentReport("مخطط VIP X المحلي", result))
+                                    status = "اكتمل التحليل محلياً • لا اتصال بخادم"
+                                } catch (error: Exception) {
+                                    status = error.message ?: "تعذر التحليل المحلي"
+                                } finally { busy = false }
+                            }
+                        }
+                    ) { Text("حلّل المهمة محلياً دون إنترنت") }
                     if (planSummary.isNotBlank()) Text(planSummary, color = Color.White, fontSize = 12.sp)
                     agentReports.forEach { report ->
                         Text(report.name, color = CloudAccent, fontWeight = FontWeight.Bold, fontSize = 12.sp)
@@ -227,7 +370,6 @@ private fun CloudAssistantScreen(context: Context, onBack: () -> Unit) {
                         messages.add(ChatMessage("user", question))
                         busy = true
                         status = "جارٍ الاتصال بالخادم..."
-                        prefs.edit().putString("endpoint", endpoint.trim().trimEnd('/')).apply()
                         val history = JSONArray()
                         val recentMessages = messages.takeLast(20)
                         val liveContext = context.getSharedPreferences("vipx_live_context", Context.MODE_PRIVATE)
@@ -260,7 +402,21 @@ private fun CloudAssistantScreen(context: Context, onBack: () -> Unit) {
                                     } finally { conn.disconnect() }
                                 }
                                 messages.add(ChatMessage("assistant", answer)); status = "متصل • اكتمل الرد"
-                            } catch (e: Exception) { status = "تعذر الاتصال: " + (e.message ?: "تحقق من الخادم والإنترنت") }
+                            } catch (e: Exception) {
+                                try {
+                                    val live = context.getSharedPreferences("vipx_live_context", Context.MODE_PRIVATE)
+                                    val visibleContext = live.getString("visible_context", "").orEmpty()
+                                    val packageName = live.getString("active_package", "").orEmpty()
+                                    val localPrompt = question + if (visibleContext.isNotBlank())
+                                        "\\n\\nالسياق الظاهر محلياً من التطبيق $packageName:\\n$visibleContext"
+                                    else ""
+                                    val localAnswer = runLocalAssistant(context, localPrompt)
+                                    messages.add(ChatMessage("assistant", localAnswer))
+                                    status = "السحابة غير متاحة؛ أجاب الذكاء المحلي دون إرسال بياناتك إلى خادم"
+                                } catch (localError: Exception) {
+                                    status = "تعذر السحاب والبديل المحلي: " + (localError.message ?: e.message ?: "خطأ")
+                                }
+                            }
                             finally { busy = false }
                         }
                     }
@@ -268,6 +424,35 @@ private fun CloudAssistantScreen(context: Context, onBack: () -> Unit) {
             }, enabled = !busy, modifier = Modifier.fillMaxWidth()) {
                 Icon(Icons.Default.Send, null); Spacer(Modifier.width(8.dp)); Text(if (busy) "جارٍ الإرسال..." else "إرسال إلى الذكاء السحابي")
             }
+            OutlinedButton(
+                onClick = {
+                    val question = prompt.trim()
+                    if (question.isNotEmpty() && !busy) {
+                        prompt = ""
+                        messages.add(ChatMessage("user", question))
+                        busy = true
+                        status = "جارٍ تشغيل الذكاء المحلي..."
+                        scope.launch {
+                            try {
+                                val live = context.getSharedPreferences("vipx_live_context", Context.MODE_PRIVATE)
+                                val visibleContext = live.getString("visible_context", "").orEmpty()
+                                val packageName = live.getString("active_package", "").orEmpty()
+                                val localPrompt = question + if (visibleContext.isNotBlank())
+                                    "\\n\\nالسياق الظاهر محلياً من التطبيق $packageName:\\n$visibleContext"
+                                else ""
+                                val answer = runLocalAssistant(context, localPrompt)
+                                messages.add(ChatMessage("assistant", answer))
+                                status = "اكتمل الرد محلياً • دون اتصال سحابي"
+                            } catch (error: Exception) {
+                                status = error.message ?: "تعذر تشغيل الذكاء المحلي"
+                            } finally { busy = false }
+                        }
+                    }
+                },
+                enabled = !busy,
+                modifier = Modifier.fillMaxWidth()
+            ) { Text("إرسال إلى الذكاء المحلي دون إنترنت") }
+
         }
     }
 }

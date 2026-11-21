@@ -1,9 +1,9 @@
 name: Android CI
 on:
   push:
-    branches: [ "main", "final/vipx-ultimate-rebuild", "fix/app-picker-visible-list", "fix/vipx-free-ai-provider", "work/vipx-production-hardening" ]
+    branches: [ "main", "final/vipx-ultimate-rebuild", "fix/app-picker-visible-list", "fix/vipx-free-ai-provider", "work/vipx-production-hardening", "work/vipx-offline-core" ]
   pull_request:
-    branches: [ "main" ]
+    branches: [ "main", "work/vipx-production-hardening" ]
   workflow_dispatch:
 
 concurrency:
@@ -31,6 +31,7 @@ jobs:
       - name: Configure Gradle
         uses: gradle/actions/setup-gradle@v4
         with:
+          gradle-version: "8.13"
           cache-read-only: false
 
       - name: Check Node.js backend syntax
@@ -39,6 +40,7 @@ jobs:
           node --check server/index.js
           node --check server/agents.js
           node --check server/tools.js
+          node --input-type=module --check < cloud/worker.js
 
       - name: Test backend tools and provider failover
         run: node --test server/tools.test.js server/provider.test.js

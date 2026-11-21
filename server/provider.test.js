@@ -2,16 +2,16 @@ const test = require("node:test");
 const assert = require("node:assert/strict");
 
 process.env.AI_PROVIDER = "auto";
-process.env.ALLOW_PAID_AI = "false";
+process.env.ALLOW_PAID_AI = "true"; // legacy paid flag must be ignored
 process.env.GEMINI_API_KEY = "test-gemini-key";
 process.env.GROQ_API_KEY = "test-groq-key";
 process.env.OPENAI_API_KEY = "test-openai-key";
-process.env.GEMINI_MODEL = "gemini-2.5-flash";
-process.env.GROQ_MODEL = "llama-3.3-70b-versatile";
+process.env.GEMINI_MODEL = "paid-model-must-be-ignored";
+process.env.GROQ_MODEL = "paid-model-must-be-ignored";
 
 const { askAI, normalizeGeminiMessages, providerConfigured, selectedProvider, configuredProviders, canFallback } = require("./provider");
 
-test("free providers are selected first and paid OpenAI is excluded by default", () => {
+test("only free providers are selectable even when legacy paid flags are present", () => {
   assert.equal(providerConfigured(), true);
   assert.equal(selectedProvider(), "gemini");
   assert.deepEqual(configuredProviders().map(p => p.id), ["gemini", "groq"]);
@@ -38,7 +38,7 @@ test("Gemini success returns its answer without calling another provider", async
   let calls = 0;
   global.fetch = async (url, options) => {
     calls++;
-    assert.match(String(url), /gemini-2\.5-flash:generateContent/);
+    assert.match(String(url), /gemini-3\.1-flash-lite:generateContent/);
     assert.equal(options.headers["x-goog-api-key"], "test-gemini-key");
     return new Response(JSON.stringify({ candidates: [{ content: { parts: [{ text: "Gemini reply" }] } }] }), { status: 200 });
   };
@@ -58,6 +58,7 @@ test("temporary Gemini quota failure falls back to configured free Groq", async 
     }
     assert.match(String(url), /api\.groq\.com\/openai\/v1\/chat\/completions/);
     assert.equal(options.headers.Authorization, "Bearer test-groq-key");
+    assert.equal(JSON.parse(options.body).model, "llama-3.3-70b-versatile");
     return new Response(JSON.stringify({ choices: [{ message: { content: "Groq fallback reply" } }] }), { status: 200 });
   };
   try {
@@ -76,8 +77,9 @@ test("authentication/configuration errors do not trigger pointless provider fail
   } finally { global.fetch = originalFetch; }
 });
 
-test("paid provider failover is not allowed for ordinary quota errors unless explicitly enabled", () => {
-  assert.equal(configuredProviders().some(p => p.id === "openai"), false);
+test("paid providers are never selectable, even if legacy paid flags are enabled", () => {
+  assert.deepEqual(configuredProviders().map(p => p.id), ["gemini", "groq"]);
+  assert.equal(configuredProviders().some(p => p.freeTier === false), false);
   assert.equal(canFallback({ status: 429 }), true);
   assert.equal(canFallback({ status: 401 }), false);
 });

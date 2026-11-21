@@ -1,11 +1,8 @@
-const OPENAI_API_KEY = process.env.OPENAI_API_KEY || "";
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY || "";
 const GROQ_API_KEY = process.env.GROQ_API_KEY || "";
 const AI_PROVIDER = String(process.env.AI_PROVIDER || "auto").toLowerCase();
-const ALLOW_PAID_AI = String(process.env.ALLOW_PAID_AI || "").toLowerCase() === "true";
-const OPENAI_MODEL = process.env.AI_MODEL || "gpt-4o-mini";
-const GEMINI_MODEL = process.env.GEMINI_MODEL || "gemini-2.5-flash";
-const GROQ_MODEL = process.env.GROQ_MODEL || "llama-3.3-70b-versatile";
+const GEMINI_MODEL = "gemini-3.1-flash-lite";
+const GROQ_MODEL = "llama-3.3-70b-versatile";
 
 function providerError(message, status, retryAfter) {
   const error = new Error(message);
@@ -51,7 +48,7 @@ async function requestJson(url, options, providerName) {
     response = await fetch(url, { ...options, signal: AbortSignal.timeout(45000) });
   } catch (cause) {
     const timeout = cause && (cause.name === "TimeoutError" || cause.name === "AbortError");
-    throw providerError("تعذر الاتصال بمزود " + providerName + (timeout ? " بسبب انتهاء المهلة" : "") , timeout ? 504 : 502);
+    throw providerError("تعذر الاتصال بمزود " + providerName + (timeout ? " بسبب انتهاء المهلة" : ""), timeout ? 504 : 502);
   }
   const data = await response.json().catch(() => ({}));
   if (!response.ok) {
@@ -84,27 +81,23 @@ async function askGemini(messages) {
   return reply;
 }
 
-async function askCompatible(url, key, model, messages, providerName) {
-  const data = await requestJson(url, {
+async function askGroq(messages) {
+  const data = await requestJson("https://api.groq.com/openai/v1/chat/completions", {
     method: "POST",
-    headers: { "Authorization": "Bearer " + key, "Content-Type": "application/json" },
-    body: JSON.stringify({ model, messages, temperature: 0.35 })
-  }, providerName);
+    headers: { "Authorization": "Bearer " + GROQ_API_KEY, "Content-Type": "application/json" },
+    body: JSON.stringify({ model: GROQ_MODEL, messages, temperature: 0.35 })
+  }, "Groq");
   const reply = data.choices?.[0]?.message?.content;
-  if (!reply) throw providerError("لم تصل إجابة نصية من " + providerName, 502);
+  if (!reply) throw providerError("لم تصل إجابة نصية من Groq", 502);
   return String(reply);
 }
 
 function configuredProviders() {
   const all = {
     gemini: GEMINI_API_KEY ? { id: "gemini", freeTier: true, run: askGemini } : null,
-    groq: GROQ_API_KEY ? { id: "groq", freeTier: true, run: messages => askCompatible("https://api.groq.com/openai/v1/chat/completions", GROQ_API_KEY, GROQ_MODEL, messages, "Groq") } : null,
-    openai: (ALLOW_PAID_AI && OPENAI_API_KEY) ? { id: "openai", freeTier: false, run: messages => askCompatible("https://api.openai.com/v1/chat/completions", OPENAI_API_KEY, OPENAI_MODEL, messages, "OpenAI") } : null
+    groq: GROQ_API_KEY ? { id: "groq", freeTier: true, run: askGroq } : null
   };
-  const order = AI_PROVIDER === "gemini" ? ["gemini", "groq"] :
-    AI_PROVIDER === "groq" ? ["groq", "gemini"] :
-    AI_PROVIDER === "openai" ? (ALLOW_PAID_AI ? ["openai", "gemini", "groq"] : ["gemini", "groq"]) :
-    ["gemini", "groq", ...(ALLOW_PAID_AI ? ["openai"] : [])];
+  const order = AI_PROVIDER === "groq" ? ["groq", "gemini"] : ["gemini", "groq"];
   return order.map(id => all[id]).filter(Boolean);
 }
 
@@ -114,7 +107,7 @@ function selectedProvider() { return configuredProviders()[0]?.id || "none"; }
 async function askAI(messages) {
   const providers = configuredProviders();
   if (!providers.length) {
-    throw providerError("لا يوجد مزود مجاني مضبوط. أضف GEMINI_API_KEY أو GROQ_API_KEY إلى أسرار الخادم. لا يتم تشغيل OpenAI المدفوع إلا بعد تفعيل ALLOW_PAID_AI=true صراحةً.", 503);
+    throw providerError("لا يوجد مزود مجاني مضبوط. أضف GEMINI_API_KEY أو GROQ_API_KEY إلى أسرار الخادم. لا يدعم هذا الإصدار أي مزود مدفوع.", 503);
   }
   const failures = [];
   for (let index = 0; index < providers.length; index++) {

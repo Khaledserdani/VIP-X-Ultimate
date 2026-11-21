@@ -26,8 +26,22 @@ test("web reader retrieves a public HTTPS page", async () => {
   const page = await fetchText("https://example.com");
   assert.match(page.text, /Example Domain/i);
 }, { timeout: 25000 });
-test("web search returns public results", async () => {
-  const result = await webSearch("OpenAI");
-  assert.ok(Array.isArray(result.results));
-  assert.ok(result.results.length > 0);
-}, { timeout: 25000 });
+test("web search parses public results without depending on a live search provider", async () => {
+  const originalFetch = global.fetch;
+  global.fetch = async (url) => {
+    assert.match(String(url), /^https:\/\/html\.duckduckgo\.com\/html\//);
+    return new Response(
+      '<a class="result__a" href="https://example.com/article">Example result</a><div class="result__snippet">A deterministic test snippet</div>',
+      { status: 200, headers: { "content-type": "text/html" } }
+    );
+  };
+  try {
+    const result = await webSearch("OpenAI");
+    assert.equal(result.query, "OpenAI");
+    assert.equal(result.results.length, 1);
+    assert.equal(result.results[0].title, "Example result");
+    assert.equal(result.results[0].url, "https://example.com/article");
+  } finally {
+    global.fetch = originalFetch;
+  }
+});
