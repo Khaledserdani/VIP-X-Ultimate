@@ -38,7 +38,7 @@ test("Gemini success returns its answer without calling another provider", async
   let calls = 0;
   global.fetch = async (url, options) => {
     calls++;
-    assert.match(String(url), /gemini-2\.5-flash:generateContent/);
+    assert.match(String(url), /gemini-3\.1-flash-lite:generateContent/);
     assert.equal(options.headers["x-goog-api-key"], "test-gemini-key");
     return new Response(JSON.stringify({ candidates: [{ content: { parts: [{ text: "Gemini reply" }] } }] }), { status: 200 });
   };
