@@ -222,11 +222,17 @@ const server = http.createServer(async (req, res) => {
       }
 
       let decision = String(plan.decision || "تم تحليل طلبك.");
+      let synthesisWarning = "";
       if (executionResults.some(item => item.output)) {
-        decision = await askAI([
-          { role: "system", content: "أجب بالعربية اعتماداً على نتائج الأدوات الفعلية فقط. وضّح ما تم وما لم يتم، وضع روابط المصادر عند توفرها. لا تخترع نتائج." },
-          { role: "user", content: "المهمة: " + goal + "\nالخطة الأولية: " + decision + "\nنتائج الأدوات: " + JSON.stringify(executionResults).slice(0, 16000) }
-        ]);
+        try {
+          decision = await askAI([
+            { role: "system", content: "أجب بالعربية اعتماداً على نتائج الأدوات الفعلية فقط. وضّح ما تم وما لم يتم، وضع روابط المصادر عند توفرها. لا تخترع نتائج." },
+            { role: "user", content: "المهمة: " + goal + "\nالخطة الأولية: " + decision + "\nنتائج الأدوات: " + JSON.stringify(executionResults).slice(0, 16000) }
+          ]);
+        } catch (error) {
+          // Keep actual tool output and team reports if the provider quota is exhausted.
+          synthesisWarning = "تعذر تلخيص نتائج الأدوات بسبب حصة المزود أو الاتصال؛ النتائج الفعلية محفوظة في قسم التنفيذ.";
+        }
       }
 
       const allowedLocal = new Set(["OPEN_URL", "SHARE_TEXT", "TAP_TEXT", "SCROLL_FORWARD", "SCROLL_BACK", "BACK"]);
@@ -247,7 +253,8 @@ const server = http.createServer(async (req, res) => {
         memoryStatus: teamResult.memoryStatus,
         execution: executionResults,
         availableTools: TOOL_REGISTRY.map(({id,name,description}) => ({id,name,description})),
-        actions
+        actions,
+        ...(synthesisWarning ? { warning: "synthesis_unavailable", warningMessage: synthesisWarning } : {})
       });
     }
     if (url.pathname === "/api/in-app/plan") {
