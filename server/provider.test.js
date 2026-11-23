@@ -5,6 +5,7 @@ process.env.AI_PROVIDER = "auto";
 process.env.ALLOW_PAID_AI = "true"; // legacy paid flag must be ignored
 process.env.GEMINI_API_KEY = "test-gemini-key";
 process.env.GROQ_API_KEY = "test-groq-key";
+process.env.GROQ_FREE_TIER_CONFIRMED = "true";
 process.env.OPENAI_API_KEY = "test-openai-key";
 process.env.GEMINI_MODEL = "paid-model-must-be-ignored";
 process.env.GROQ_MODEL = "paid-model-must-be-ignored";
@@ -15,6 +16,17 @@ test("only free providers are selectable even when legacy paid flags are present
   assert.equal(providerConfigured(), true);
   assert.equal(selectedProvider(), "gemini");
   assert.deepEqual(configuredProviders().map(p => p.id), ["gemini", "groq"]);
+});
+
+test("Groq stays disabled unless the owner explicitly confirms the account is on the Free plan", () => {
+  const original = process.env.GROQ_FREE_TIER_CONFIRMED;
+  delete process.env.GROQ_FREE_TIER_CONFIRMED;
+  try {
+    assert.deepEqual(configuredProviders().map(p => p.id), ["gemini"]);
+  } finally {
+    if (original === undefined) delete process.env.GROQ_FREE_TIER_CONFIRMED;
+    else process.env.GROQ_FREE_TIER_CONFIRMED = original;
+  }
 });
 
 test("system and assistant messages are converted to Gemini roles", () => {
@@ -58,7 +70,7 @@ test("temporary Gemini quota failure falls back to configured free Groq", async 
     }
     assert.match(String(url), /api\.groq\.com\/openai\/v1\/chat\/completions/);
     assert.equal(options.headers.Authorization, "Bearer test-groq-key");
-    assert.equal(JSON.parse(options.body).model, "llama-3.3-70b-versatile");
+    assert.equal(JSON.parse(options.body).model, "openai/gpt-oss-120b");
     return new Response(JSON.stringify({ choices: [{ message: { content: "Groq fallback reply" } }] }), { status: 200 });
   };
   try {
