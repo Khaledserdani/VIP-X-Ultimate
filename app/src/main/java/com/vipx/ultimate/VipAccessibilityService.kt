@@ -25,6 +25,11 @@ class VipAccessibilityService : AccessibilityService() {
 
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {
         if (event == null || event.packageName?.toString() == packageName) return
+        val livePrefs = getSharedPreferences("vipx_live_context", MODE_PRIVATE)
+        if (!livePrefs.getBoolean("capture_enabled", false)) {
+            livePrefs.edit().remove("active_package").remove("visible_context").remove("captured_at").apply()
+            return
+        }
         val root = rootInActiveWindow ?: return
         val visibleText = StringBuilder()
         collectVisibleText(root, visibleText, 0)
