@@ -40,7 +40,23 @@ private fun LocalAiModelCard(context: Context, onStatus: (String) -> Unit) {
     var downloaded by remember { mutableStateOf(LocalLlmRuntime.isModelDownloaded(context)) }
     var ready by remember { mutableStateOf(LocalLlmRuntime.isReady()) }
     var downloading by remember { mutableStateOf(false) }
+    var initializing by remember { mutableStateOf(false) }
     var progress by remember { mutableIntStateOf(0) }
+    LaunchedEffect(Unit) {
+        if (downloaded && !ready) {
+            initializing = true
+            onStatus("النموذج محفوظ على الهاتف؛ جارٍ تهيئته تلقائياً دون تنزيل جديد...")
+            try {
+                LocalLlmRuntime.initialize(context)
+                ready = true
+                onStatus("الذكاء المحلي جاهز • تم تحميل النموذج المحفوظ بنجاح")
+            } catch (error: Exception) {
+                onStatus("النموذج محفوظ لكن تعذر تشغيله: " + (error.message ?: "خطأ"))
+            } finally {
+                initializing = false
+            }
+        }
+    }
     Card(colors = CardDefaults.cardColors(containerColor = Color(0xFF173A3D)), shape = RoundedCornerShape(16.dp)) {
         Column(Modifier.fillMaxWidth().padding(12.dp), verticalArrangement = Arrangement.spacedBy(7.dp)) {
             Text("الذكاء المحلي الاحتياطي", color = CloudAccent, fontWeight = FontWeight.Bold)
@@ -53,13 +69,14 @@ private fun LocalAiModelCard(context: Context, onStatus: (String) -> Unit) {
                 when {
                     ready -> "جاهز • يعمل محلياً على الهاتف"
                     downloading -> "تنزيل النموذج: $progress%"
+                    initializing -> "جارٍ تهيئة النموذج المحفوظ واختبار عمله..."
                     downloaded -> "النموذج موجود • يحتاج إلى التهيئة"
                     else -> "لم يتم تنزيل النموذج بعد"
                 },
                 color = if (ready) CloudAccent else CloudMuted, fontSize = 11.sp
             )
             Button(
-                enabled = !downloading && !ready,
+                enabled = !downloading && !initializing && !ready,
                 modifier = Modifier.fillMaxWidth(),
                 onClick = {
                     scope.launch {
@@ -136,21 +153,7 @@ private fun CloudAssistantScreen(context: Context, onBack: () -> Unit) {
     var status by remember { mutableStateOf("أدخل رابط الخادم السحابي ورمز الوصول") }
     val messages = remember { mutableStateListOf<ChatMessage>() }
     val scope = rememberCoroutineScope()
-    LaunchedEffect(Unit) {
-        if (LocalLlmRuntime.isModelDownloaded(context) && !LocalLlmRuntime.isReady()) {
-            status = "النموذج محفوظ على الهاتف؛ جارٍ تشغيله دون إعادة تنزيل..."
-            try {
-                LocalLlmRuntime.initialize(context)
-                status = "الذكاء المحلي جاهز • النموذج محفوظ ولا يحتاج إلى تنزيل جديد"
-            } catch (error: Exception) {
-                status = "النموذج محفوظ لكن تعذر تشغيله: " + (error.message ?: "خطأ")
-            }
-        } else if (LocalLlmRuntime.isReady()) {
-            status = "الذكاء المحلي جاهز بالفعل"
-        } else {
-            status = "الذكاء المحلي غير منزّل بعد • يمكنك تنزيله مرة واحدة أدناه"
-        }
-    }
+
     val filePicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
         if (uri != null) scope.launch {
             try {
