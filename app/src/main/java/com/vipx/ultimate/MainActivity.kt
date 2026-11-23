@@ -175,6 +175,7 @@ private fun VipBuilderScreen(loadApps:()->List<InstalledApp>){
         }
     }
     val visible=remember(apps,query){apps.filter{it.name.contains(query,true)||it.packageName.contains(query,true)}}
+    val partialModelBytes = LocalLlmRuntime.partialDownloadBytes(context)
     Surface(Modifier.fillMaxSize(),color=Navy){
         Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp),verticalArrangement=Arrangement.spacedBy(11.dp)){
             Row(verticalAlignment=Alignment.CenterVertically){
@@ -209,6 +210,7 @@ private fun VipBuilderScreen(loadApps:()->List<InstalledApp>){
                             modelReady -> "جاهز • يعمل على الهاتف دون إنترنت"
                             modelDownloading -> "تنزيل وتجهيز النموذج: $modelProgress%"
                             LocalLlmRuntime.isModelDownloaded(context) -> "النموذج محفوظ • جارٍ تهيئته عند فتح التطبيق"
+                            partialModelBytes > 0L -> "تم حفظ جزء من النموذج: ${partialModelBytes / (1024L * 1024L)} ميغابايت؛ سيُستكمل من موضع التوقف."
                             else -> "نموذج Qwen3 مجاني بحجم يقارب 614 ميغابايت. يُنزّل مرة واحدة بعد موافقتك."
                         },
                         color=Soft,fontSize=11.sp
@@ -216,7 +218,11 @@ private fun VipBuilderScreen(loadApps:()->List<InstalledApp>){
                     if(modelDownloading) LinearProgressIndicator(progress=modelProgress/100f,modifier=Modifier.fillMaxWidth())
                     if(!modelReady && !modelDownloading) {
                         Button(onClick={startLocalModelSetup()},modifier=Modifier.fillMaxWidth()) {
-                            Text(if(LocalLlmRuntime.isModelDownloaded(context)) "تشغيل الذكاء المحلي" else "تنزيل وتشغيل الذكاء المحلي")
+                            Text(when {
+                                LocalLlmRuntime.isModelDownloaded(context) -> "تشغيل الذكاء المحلي"
+                                partialModelBytes > 0L -> "استكمال تنزيل الذكاء المحلي"
+                                else -> "تنزيل وتشغيل الذكاء المحلي"
+                            })
                         }
                     }
                     if(modelStatus.isNotBlank()) Text(modelStatus,color=if(modelReady) Mint else Soft,fontSize=10.sp)
