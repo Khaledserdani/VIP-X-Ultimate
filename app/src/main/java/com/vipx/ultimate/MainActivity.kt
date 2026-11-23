@@ -123,13 +123,57 @@ private fun VipBuilderScreen(loadApps:()->List<InstalledApp>){
     var selected by remember{mutableStateOf<InstalledApp?>(null)}
     var query by remember{mutableStateOf("")}
     var goal by remember{mutableStateOf("أنشئ تصوراً احترافياً لنسخة VIP متوافقة، بواجهة راقية وميزات عملية دون تعطيل التطبيق الأصلي.") }
-    var endpoint by remember{mutableStateOf("https://vip-x-ultimate-api-production.up.railway.app")}
+    var endpoint by remember{mutableStateOf("")}
     var token by remember{mutableStateOf(SecureTokenStore.load(context))}
     var answer by remember{mutableStateOf("")}
     var memoryInfo by remember{mutableStateOf("")}
     var status by remember{mutableStateOf("اختر تطبيقاً من هاتفك للبدء")}
     var busy by remember{mutableStateOf(false)}
-    LaunchedEffect(Unit){apps=withContext(Dispatchers.IO){loadApps()};status="تم العثور على ${apps.size} تطبيقاً"}
+    var showModelPrompt by remember { mutableStateOf(false) }
+    var modelDownloading by remember { mutableStateOf(false) }
+    var modelProgress by remember { mutableIntStateOf(0) }
+    var modelReady by remember { mutableStateOf(LocalLlmRuntime.isReady()) }
+    var modelStatus by remember { mutableStateOf("") }
+
+    fun startLocalModelSetup() {
+        if (modelDownloading || modelReady) return
+        context.getSharedPreferences("vipx_model_setup", Context.MODE_PRIVATE)
+            .edit().putBoolean("first_prompt_shown", true).apply()
+        showModelPrompt = false
+        modelDownloading = true
+        modelStatus = "جارٍ تجهيز الذكاء المحلي..."
+        scope.launch {
+            try {
+                LocalLlmRuntime.downloadModel(context) { modelProgress = it }
+                modelStatus = "تم التحقق من النموذج؛ جارٍ تشغيله لأول مرة..."
+                LocalLlmRuntime.initialize(context)
+                modelReady = true
+                modelStatus = "الذكاء المحلي جاهز ويعمل دون إنترنت"
+            } catch (error: Exception) {
+                modelStatus = "تعذر تجهيز الذكاء المحلي: " + (error.message ?: "خطأ غير معروف")
+            } finally {
+                modelDownloading = false
+            }
+        }
+    }
+
+    LaunchedEffect(Unit) {
+        apps = withContext(Dispatchers.IO) { loadApps() }
+        status = "تم العثور على ${apps.size} تطبيقاً"
+        if (LocalLlmRuntime.isModelDownloaded(context)) {
+            modelStatus = "النموذج موجود؛ جارٍ تهيئته..."
+            try {
+                LocalLlmRuntime.initialize(context)
+                modelReady = true
+                modelStatus = "الذكاء المحلي جاهز ويعمل دون إنترنت"
+            } catch (error: Exception) {
+                modelStatus = "تعذر تهيئة النموذج المحلي: " + (error.message ?: "خطأ")
+            }
+        } else if (!context.getSharedPreferences("vipx_model_setup", Context.MODE_PRIVATE)
+                .getBoolean("first_prompt_shown", false)) {
+            showModelPrompt = true
+        }
+    }
     val visible=remember(apps,query){apps.filter{it.name.contains(query,true)||it.packageName.contains(query,true)}}
     Surface(Modifier.fillMaxSize(),color=Navy){
         Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp),verticalArrangement=Arrangement.spacedBy(11.dp)){
@@ -157,6 +201,44 @@ private fun VipBuilderScreen(loadApps:()->List<InstalledApp>){
                     }
                 }
             }
+            Card(colors=CardDefaults.cardColors(containerColor=Panel),shape=RoundedCornerShape(16.dp)){
+                Column(Modifier.fillMaxWidth().padding(12.dp),verticalArrangement=Arrangement.spacedBy(7.dp)){
+                    Text("الذكاء الاصطناعي المحلي",color=Mint,fontWeight=FontWeight.Bold)
+                    Text(
+                        when {
+                            modelReady -> "جاهز • يعمل على الهاتف دون إنترنت"
+                            modelDownloading -> "تنزيل وتجهيز النموذج: $modelProgress%"
+                            LocalLlmRuntime.isModelDownloaded(context) -> "النموذج محفوظ • جارٍ تهيئته عند فتح التطبيق"
+                            else -> "نموذج Qwen3 مجاني بحجم يقارب 614 ميغابايت. يُنزّل مرة واحدة بعد موافقتك."
+                        },
+                        color=Soft,fontSize=11.sp
+                    )
+                    if(modelDownloading) LinearProgressIndicator(progress=modelProgress/100f,modifier=Modifier.fillMaxWidth())
+                    if(!modelReady && !modelDownloading) {
+                        Button(onClick={startLocalModelSetup()},modifier=Modifier.fillMaxWidth()) {
+                            Text(if(LocalLlmRuntime.isModelDownloaded(context)) "تشغيل الذكاء المحلي" else "تنزيل وتشغيل الذكاء المحلي")
+                        }
+                    }
+                    if(modelStatus.isNotBlank()) Text(modelStatus,color=if(modelReady) Mint else Soft,fontSize=10.sp)
+                }
+            }
+            if(showModelPrompt) {
+                AlertDialog(
+                    onDismissRequest={
+                        context.getSharedPreferences("vipx_model_setup", Context.MODE_PRIVATE)
+                            .edit().putBoolean("first_prompt_shown", true).apply()
+                        showModelPrompt=false
+                    },
+                    title={Text("جهّز ذكاء VIP X المحلي")},
+                    text={Text("يمكن تنزيل نموذج Qwen3 المجاني مرة واحدة (حوالي 614 ميغابايت). بعد التحقق وتشغيله سيعمل داخل هاتفك دون إنترنت أو رمز API. ابدأ الآن إذا كنت تستخدم Wi-Fi وتتوفر مساحة فارغة كافية، أو اختر لاحقاً.")},
+                    confirmButton={TextButton(onClick={::startLocalModelSetup}){Text("تنزيل الآن")}},
+                    dismissButton={TextButton(onClick={
+                        context.getSharedPreferences("vipx_model_setup", Context.MODE_PRIVATE)
+                            .edit().putBoolean("first_prompt_shown", true).apply()
+                        showModelPrompt=false
+                    }){Text("لاحقاً")}}
+                )
+            }
             LazyColumn(Modifier.fillMaxWidth().heightIn(min=90.dp,max=220.dp),verticalArrangement=Arrangement.spacedBy(6.dp)){
                 if(visible.isEmpty()){
                     item{
@@ -181,6 +263,12 @@ private fun VipBuilderScreen(loadApps:()->List<InstalledApp>){
                     }
                 }
             }
+            LocalAnalysisCard(
+                appName = selected?.name,
+                packageName = selected?.packageName,
+                onResult = { answer = it },
+                onStatus = { status = it }
+            )
             Card(colors=CardDefaults.cardColors(containerColor=Color(0xFF173A3D)),shape=RoundedCornerShape(18.dp)){
                 Column(Modifier.fillMaxWidth().padding(13.dp),verticalArrangement=Arrangement.spacedBy(8.dp)){
                     Text("جلسة VIP X داخل التطبيقات",color=Mint,fontWeight=FontWeight.Bold)
@@ -208,11 +296,13 @@ private fun VipBuilderScreen(loadApps:()->List<InstalledApp>){
             }
             Card(colors=CardDefaults.cardColors(containerColor=Panel),shape=RoundedCornerShape(18.dp)){
                 Column(Modifier.padding(13.dp),verticalArrangement=Arrangement.spacedBy(8.dp)){
-                    Text("2 • ربط الخادم الآمن",color=Color.White,fontWeight=FontWeight.Bold)
+                    Text("3 • خدمات الخادم الاختيارية",color=Color.White,fontWeight=FontWeight.Bold)
                     OutlinedTextField(goal,{goal=it},Modifier.fillMaxWidth(),label={Text("ما الذي تريد تحسينه؟")},minLines=2,maxLines=3)
+                    OutlinedTextField(endpoint,{endpoint=it},Modifier.fillMaxWidth(),singleLine=true,label={Text("رابط خادم اختياري (اتركه فارغاً للمختبر المحلي)")},placeholder={Text("https://your-server.example")})
                     OutlinedTextField(token,{token=it},Modifier.fillMaxWidth(),singleLine=true,label={Text("رمز ربط خادم VIP X")},visualTransformation=PasswordVisualTransformation())
                     OutlinedButton(
                         onClick = {
+                            if (endpoint.isBlank()) { status = "أدخل رابط الخادم فقط إذا أردت استعمال الخدمة السحابية؛ التحليل المحلي لا يحتاجه"; return@OutlinedButton }
                             if (token.isBlank()) { status = "أدخل رمز الربط أولاً"; return@OutlinedButton }
                             busy = true
                             status = "جارٍ التحقق من رمز الربط والخادم..."
@@ -262,6 +352,7 @@ private fun VipBuilderScreen(loadApps:()->List<InstalledApp>){
                 onClick = {
                     val app = selected
                     if (app == null) { status = "اختر تطبيقاً أولاً"; return@Button }
+                    if (endpoint.isBlank()) { status = "التحليل المحلي لا يحتاج خادماً؛ أدخل رابطه فقط للفحص السحابي"; return@Button }
                     if (token.isBlank()) { status = "أدخل رمز ربط الخادم أولاً"; return@Button }
                     busy = true
                     answer = ""
@@ -340,7 +431,7 @@ private fun VipBuilderScreen(loadApps:()->List<InstalledApp>){
                 if (busy) CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp)
                 else Icon(Icons.Default.AutoAwesome, null)
                 Spacer(Modifier.width(8.dp))
-                Text("افحص APK وشغّل المساعدين الأربعة")
+                Text("افحص عبر الخادم الاختياري وشغّل فريق AI")
             }
             OutlinedButton(
                 onClick = {
@@ -383,7 +474,7 @@ private fun VipBuilderScreen(loadApps:()->List<InstalledApp>){
                 },
                 enabled = !busy,
                 modifier = Modifier.fillMaxWidth()
-            ) { Text("اعرض ذاكرة المساعدين وآخر النتائج المثبتة") }
+            ) { Text("اعرض ذاكرة الفريق السحابية (اختياري)") }
             if(answer.isNotBlank()){
                 Card(Modifier.fillMaxWidth().heightIn(max=190.dp),colors=CardDefaults.cardColors(containerColor=Color(0xFF102F32))){
                     Column(Modifier.padding(12.dp)){

@@ -26,17 +26,40 @@ async function runVipTeam(input, askAI, memoryStore) {
     "القدرات والأدوات المتاحة: " + (input.capabilities || "المحادثة والتحليل وتكاملات النظام المصرح بها"),
     "القيود والتفضيلات: " + (input.constraints || "احرص على أفضل نتيجة عملية")
   ].join("\n");
-  const memories = await Promise.all(AGENTS.map(a => memoryStore.getAgentMemory(a.id)));
-  const reports = await Promise.all(AGENTS.map((a, i) => runAgent(a, context, askAI, memories[i])));
-  for (const r of reports) await memoryStore.saveCandidate(r.id, r.result, {
-    appName: input.appName || "general",
-    packageName: input.packageName || "general",
-    source: "vip-team"
-  });
-  const decision = await askAI([
-    { role: "system", content: "أنت قائد فريق VIP X. نسّق مساعدين مستقلين لإنجاز أي مهمة مفوضة، لا تحصر الحل في APK أو أربع نقرات. اختر أفضل مسار عملي، قسّم المهمة إلى مراحل، وحدد الأدوات والتكاملات اللازمة والنتائج المتوقعة واختبارات التحقق. ميّز ما يمكن تنفيذه الآن عن ما يحتاج صلاحية أو خدمة أو تأكيداً من المستخدم. لا تدّع تنفيذ إجراءات أو الوصول إلى بيانات غير متاحة." },
-    { role: "user", content: context + "\n\n" + reports.map(r => r.name + ":\n" + r.result).join("\n\n") }
-  ]);
-  return { team: reports, decision };
+  // Persistent memory is optional: the team must still work without a database.
+  const memories = await Promise.all(AGENTS.map(async a => {
+    try { return memoryStore?.getAgentMemory ? await memoryStore.getAgentMemory(a.id) : null; }
+    catch { return null; }
+  }));
+  const reports = await Promise.all(AGENTS.map(async (a, i) => {
+    try { return await runAgent(a, context, askAI, memories[i]); }
+    catch (error) {
+      return { id: a.id, name: a.name, result: "تعذر تشغيل هذا المحلل: " + String(error.message || "خطأ غير معروف").slice(0, 180), status: "failed" };
+    }
+  }));
+  const memoryWrites = await Promise.all(reports.map(async r => {
+    try {
+      if (r.status === "failed" || !memoryStore?.saveCandidate) return false;
+      await memoryStore.saveCandidate(r.id, r.result, {
+        appName: input.appName || "general",
+        packageName: input.packageName || "general",
+        source: "vip-team"
+      });
+      return true;
+    } catch { return false; }
+  }));
+  let decision;
+  try {
+    decision = await askAI([
+      { role: "system", content: "أنت قائد فريق VIP X. نسّق مساعدين مستقلين لإنجاز أي مهمة مفوضة، لا تحصر الحل في APK أو أربع نقرات. اختر أفضل مسار عملي، قسّم المهمة إلى مراحل، وحدد الأدوات والتكاملات اللازمة والنتائج المتوقعة واختبارات التحقق. ميّز ما يمكن تنفيذه الآن عن ما يحتاج صلاحية أو خدمة أو تأكيداً من المستخدم. لا تدّع تنفيذ إجراءات أو الوصول إلى بيانات غير متاحة." },
+      { role: "user", content: context + "\n\n" + reports.map(r => r.name + ":\n" + r.result).join("\n\n") }
+    ]);
+  } catch (error) {
+    const usable = reports.filter(r => r.status !== "failed");
+    decision = usable.length
+      ? "تعذر تشغيل المنسّق بسبب اتصال أو حصة المزود، لكن هذه تقارير الفريق المتاحة ويمكن الاستفادة منها دون فقدها.\n" + usable.map(r => "• " + r.name + ": " + r.result.slice(0, 700)).join("\n")
+      : "تعذر تشغيل الفريق بسبب عدم توفر مزود ذكاء اصطناعي. لم يتم تنفيذ أي إجراء.";
+  }
+  return { team: reports, decision, memoryStatus: memoryWrites.every(Boolean) ? "saved" : "unavailable_or_partial" };
 }
 module.exports = { AGENTS, runVipTeam };
