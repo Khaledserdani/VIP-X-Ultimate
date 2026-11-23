@@ -334,6 +334,7 @@ class VipAccessibilityService : AccessibilityService() {
 
     override fun onInterrupt() = Unit
     override fun onDestroy() {
+        serviceScope.cancel()
         if (active === this) active = null
         hideTeamPanel()
         runCatching { bubble?.let { windowManager?.removeView(it) } }
