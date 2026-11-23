@@ -290,7 +290,14 @@ private fun VipBuilderScreen(loadApps:()->List<InstalledApp>){
                     }
                     Button(onClick={
                         val app=selected
-                        if(app==null){status="اختر تطبيقاً أولاً"} else {
+                        if(app==null){status="اختر تطبيقاً أولاً"}
+                        else if(!Settings.canDrawOverlays(context)){
+                            status="امنح VIP X صلاحية الظهور فوق التطبيقات أولاً"
+                            context.startActivity(Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION, Uri.parse("package:"+context.packageName)))
+                        } else if(!VipAccessibilityService.isActive()){
+                            status="فعّل خدمة VIP X من إعدادات إمكانية الوصول ثم ارجع واضغط الزر مجدداً"
+                            context.startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS))
+                        } else {
                             val launch=context.packageManager.getLaunchIntentForPackage(app.packageName)
                             if(launch==null) status="هذا التطبيق لا يوفّر واجهة تشغيل مباشرة"
                             else {
