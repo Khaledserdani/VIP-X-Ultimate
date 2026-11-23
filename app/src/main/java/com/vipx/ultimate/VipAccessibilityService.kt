@@ -37,6 +37,7 @@ class VipAccessibilityService : AccessibilityService() {
     }
 
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {
+        if (bubble == null && Settings.canDrawOverlays(this)) showBubbleIfAllowed()
         if (event == null || event.packageName?.toString() == packageName) return
         val livePrefs = getSharedPreferences("vipx_live_context", MODE_PRIVATE)
         val target = livePrefs.getString("target_package", "").orEmpty()
@@ -211,7 +212,7 @@ class VipAccessibilityService : AccessibilityService() {
         val params = WindowManager.LayoutParams(
             width, d(520),
             WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
-            WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN or WindowManager.LayoutParams.FLAG_ALT_FOCUSABLE_IM,
+            WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN,
             PixelFormat.TRANSLUCENT
         ).apply {
             gravity = Gravity.CENTER
