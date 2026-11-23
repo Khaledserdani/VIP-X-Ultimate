@@ -104,7 +104,7 @@ class VipAccessibilityService : AccessibilityService() {
             setPadding(dp(16), dp(11), dp(16), dp(11))
             background = rounded(0xFF125B56.toInt(), 24)
             elevation = dp(12).toFloat()
-            setOnClickListener { if (teamPanel == null) showTeamPanel() else hideTeamPanel() }
+            setOnClickListener { if (teamPanel == null) showTeamPanel() /* Keep the panel open on repeated bubble taps; close it only with its explicit close button. */ }
         }
         val params = WindowManager.LayoutParams(
             WindowManager.LayoutParams.WRAP_CONTENT, WindowManager.LayoutParams.WRAP_CONTENT,
