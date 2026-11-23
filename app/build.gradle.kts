@@ -10,8 +10,25 @@ android {
         applicationId = "com.vipx.ultimate"
         minSdk = 26
         targetSdk = 35
-        versionCode = 3
-        versionName = "1.2.0"
+        versionCode = 10
+        versionName = "2.3.3"
+    }
+    signingConfigs {
+        create("release") {
+            val ksPath = System.getenv("VIP_RELEASE_KEYSTORE_PATH")
+            if (!ksPath.isNullOrBlank()) {
+                storeFile = file(ksPath)
+                storePassword = System.getenv("VIP_RELEASE_STORE_PASSWORD")
+                keyAlias = System.getenv("VIP_RELEASE_KEY_ALIAS")
+                keyPassword = System.getenv("VIP_RELEASE_KEY_PASSWORD")
+            }
+        }
+    }
+    buildTypes {
+        getByName("release") {
+            signingConfig = signingConfigs.getByName("release")
+            isMinifyEnabled = false
+        }
     }
     buildFeatures { compose = true }
     compileOptions {

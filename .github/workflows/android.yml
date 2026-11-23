@@ -1,7 +1,7 @@
 name: Android CI
 on:
   push:
-    branches: [ "main" ]
+    branches: [ "main", "final/vipx-ultimate-rebuild", "fix/app-picker-visible-list", "fix/vipx-free-ai-provider", "work/vipx-production-hardening" ]
   pull_request:
     branches: [ "main" ]
   workflow_dispatch:
@@ -14,8 +14,8 @@ permissions:
   contents: read
 
 jobs:
-  build:
-    name: Build and verify Android APK
+  verify:
+    name: Test backend and build installable Android candidate
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
@@ -33,20 +33,35 @@ jobs:
         with:
           cache-read-only: false
 
-      - name: Build debug APK
+      - name: Check Node.js backend syntax
+        run: |
+          node --check server/provider.js
+          node --check server/index.js
+          node --check server/agents.js
+          node --check server/tools.js
+
+      - name: Test backend tools and provider failover
+        run: node --test server/tools.test.js server/provider.test.js
+
+      - name: Build Android candidate
         run: gradle --no-daemon --stacktrace :app:assembleDebug
 
-      - name: Verify APK exists
+      - name: Verify installable APK
         shell: bash
         run: |
-          test -s app/build/outputs/apk/debug/app-debug.apk
-          file app/build/outputs/apk/debug/app-debug.apk
-          ls -lh app/build/outputs/apk/debug/app-debug.apk
+          APK="app/build/outputs/apk/debug/app-debug.apk"
+          test -s "$APK"
+          APKSIGNER="$(find "$ANDROID_HOME/build-tools" -name apksigner -type f | sort -V | tail -n 1)"
+          test -n "$APKSIGNER"
+          "$APKSIGNER" verify --verbose "$APK"
+          sha256sum "$APK"
+          file "$APK"
+          ls -lh "$APK"
 
-      - name: Upload installable APK
+      - name: Upload test candidate (not production release)
         uses: actions/upload-artifact@v4
         with:
-          name: VIP-X-Ultimate-v1.2.0-cloud-debug
+          name: VIP-X-Ultimate-v2.3.3-candidate-debug
           path: app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
           retention-days: 14
