@@ -13,20 +13,14 @@ android {
         versionCode = 10
         versionName = "2.3.3"
     }
+    // No user-managed signing secrets: use Android's automatically generated debug key.
+    // Suitable for direct installation/testing; not a permanent public signing identity.
     signingConfigs {
-        create("release") {
-            val ksPath = System.getenv("VIP_RELEASE_KEYSTORE_PATH")
-            if (!ksPath.isNullOrBlank()) {
-                storeFile = file(ksPath)
-                storePassword = System.getenv("VIP_RELEASE_STORE_PASSWORD")
-                keyAlias = System.getenv("VIP_RELEASE_KEY_ALIAS")
-                keyPassword = System.getenv("VIP_RELEASE_KEY_PASSWORD")
-            }
-        }
+        getByName("debug")
     }
     buildTypes {
         getByName("release") {
-            signingConfig = signingConfigs.getByName("release")
+            signingConfig = signingConfigs.getByName("debug")
             isMinifyEnabled = false
         }
     }
