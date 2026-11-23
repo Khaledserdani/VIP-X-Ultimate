@@ -329,8 +329,8 @@ private fun CloudAssistantScreen(context: Context, onBack: () -> Unit) {
                         onClick = {
                             val localGoal = task.trim()
                             val live = context.getSharedPreferences("vipx_live_context", Context.MODE_PRIVATE)
-                            val localScreen = live.getString("visible_context", "").orEmpty()
-                            val localPackage = live.getString("active_package", "").orEmpty()
+                            val localScreen = if (captureScreenContext) live.getString("visible_context", "").orEmpty() else ""
+                            val localPackage = if (captureScreenContext) live.getString("active_package", "").orEmpty() else ""
                             busy = true
                             status = "جارٍ تحليل المهمة محلياً..."
                             agentReports.clear()
@@ -403,14 +403,14 @@ private fun CloudAssistantScreen(context: Context, onBack: () -> Unit) {
                         status = "جارٍ الاتصال بالخادم..."
                         val history = JSONArray()
                         val recentMessages = messages.takeLast(20)
-                        val liveContext = context.getSharedPreferences("vipx_live_context", Context.MODE_PRIVATE)
-                            .getString("visible_context", "").orEmpty()
+                        val liveContext = if (captureScreenContext && includeScreenContext) context.getSharedPreferences("vipx_live_context", Context.MODE_PRIVATE)
+                            .getString("visible_context", "").orEmpty() else ""
                         val activePackage = liveContext.let {
                             context.getSharedPreferences("vipx_live_context", Context.MODE_PRIVATE)
                                 .getString("active_package", "").orEmpty()
                         }
                         recentMessages.forEachIndexed { index, item ->
-                            val content = if (includeScreenContext && index == recentMessages.lastIndex && item.role == "user" && liveContext.isNotBlank())
+                            val content = if (captureScreenContext && includeScreenContext && index == recentMessages.lastIndex && item.role == "user" && liveContext.isNotBlank())
                                 item.text + "\\n\\n[سياق الشاشة الظاهر من جلسة VIP X للتطبيق " + activePackage + "]\\n" + liveContext
                             else item.text
                             history.put(JSONObject().put("role", item.role).put("content", content))
@@ -466,8 +466,8 @@ private fun CloudAssistantScreen(context: Context, onBack: () -> Unit) {
                         scope.launch {
                             try {
                                 val live = context.getSharedPreferences("vipx_live_context", Context.MODE_PRIVATE)
-                                val visibleContext = live.getString("visible_context", "").orEmpty()
-                                val packageName = live.getString("active_package", "").orEmpty()
+                                val visibleContext = if (captureScreenContext) live.getString("visible_context", "").orEmpty() else ""
+                                val packageName = if (captureScreenContext) live.getString("active_package", "").orEmpty() else ""
                                 val localPrompt = question + if (visibleContext.isNotBlank())
                                     "\\n\\nالسياق الظاهر محلياً من التطبيق $packageName:\\n$visibleContext"
                                 else ""
