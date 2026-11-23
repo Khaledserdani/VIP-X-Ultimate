@@ -93,8 +93,9 @@ internal object LocalLlmRuntime {
                 val append = existing > 0L && code == 206
                 if (append) {
                     val range = connection.getHeaderField("Content-Range").orEmpty()
-                    if (range.isNotBlank() && !range.startsWith("bytes $existing-")) {
-                        throw IOException("الخادم أعاد جزءاً لا يبدأ من موضع الاستكمال المطلوب")
+                    val expectedPrefix = "bytes $existing-"
+                    if (!range.startsWith(expectedPrefix) || !range.endsWith("/$MODEL_BYTES")) {
+                        throw IOException("الخادم لم يؤكد موضع الاستكمال وحجم الملف؛ حُفظ الجزء السابق دون دمج بيانات غير مؤكدة")
                     }
                 } else if (existing > 0L && code == 200) {
                     partial.delete()
@@ -183,6 +184,9 @@ internal object LocalLlmRuntime {
                         )
                     )
                 )
+                // Do not report the model as ready until a real on-device inference succeeds.
+                val smokeReply = chat.sendMessage("أجب بكلمة واحدة: جاهز").toString().trim()
+                check(smokeReply.isNotBlank()) { "تم تحميل النموذج لكن اختبار الاستدلال المحلي لم يُنتج إجابة" }
                 engine = candidate
                 conversation = chat
             } catch (error: Exception) {
