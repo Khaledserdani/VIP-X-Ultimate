@@ -10,19 +10,17 @@ import com.google.ai.edge.litertlm.Engine
 import com.google.ai.edge.litertlm.EngineConfig
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.isActive
 import java.io.File
 import java.io.FileOutputStream
+import java.io.IOException
 import java.net.HttpURLConnection
 import java.net.URL
 import java.security.MessageDigest
 
-/**
- * On-device Qwen3 0.6B fallback.
- * Model weights are downloaded by explicit user action and stay in app-private storage.
- * Inference is CPU-only for broad device compatibility; no API key or cloud call is used.
- */
+/** On-device Qwen3 0.6B fallback; no API key or cloud call is used. */
 internal object LocalLlmRuntime {
     private const val MODEL_NAME = "Qwen3-0.6B.litertlm"
     private const val MODEL_BYTES = 613722264L
@@ -35,14 +33,17 @@ internal object LocalLlmRuntime {
     @Volatile private var conversation: Conversation? = null
 
     fun isReady(): Boolean = engine != null && conversation != null
-
     fun modelFile(context: Context): File = File(context.filesDir, MODEL_NAME)
-
+    fun partialFile(context: Context): File = File(context.filesDir, "$MODEL_NAME.part")
     fun isModelDownloaded(context: Context): Boolean =
         modelFile(context).let { it.isFile && it.length() == MODEL_BYTES }
 
+    fun partialDownloadBytes(context: Context): Long =
+        partialFile(context).takeIf { it.isFile }?.length()?.coerceAtMost(MODEL_BYTES) ?: 0L
+
     suspend fun downloadModel(context: Context, onProgress: (Int) -> Unit) = withContext(Dispatchers.IO) {
         val target = modelFile(context)
+        val partial = partialFile(context)
         if (target.isFile) {
             if (target.length() == MODEL_BYTES && sha256(target) == MODEL_SHA256) {
                 onProgress(100)
@@ -50,9 +51,8 @@ internal object LocalLlmRuntime {
             }
             target.delete()
         }
-        val partial = File(context.filesDir, "$MODEL_NAME.part")
-        var existing = partial.takeIf { it.isFile }?.length() ?: 0L
-        if (existing > MODEL_BYTES) {
+        var existing = partial.length().coerceAtMost(MODEL_BYTES)
+        if (partial.length() > MODEL_BYTES) {
             partial.delete()
             existing = 0L
         }
@@ -61,82 +61,110 @@ internal object LocalLlmRuntime {
                 check(partial.renameTo(target)) { "تعذر اعتماد ملف النموذج بعد التحقق" }
                 onProgress(100)
                 return@withContext
-            } else {
-                partial.delete()
-                existing = 0L
             }
+            partial.delete()
+            existing = 0L
         }
+
         val requiredSpace = (MODEL_BYTES - existing).coerceAtLeast(0L) + 100L * 1024L * 1024L
         val available = StatFs(context.filesDir.path).availableBytes
         require(available >= requiredSpace) {
             "يلزم توفير مساحة فارغة إضافية لتنزيل النموذج والتحقق منه"
         }
 
-        val connection = (URL(MODEL_URL).openConnection() as HttpURLConnection).apply {
-            requestMethod = "GET"
-            connectTimeout = 30000
-            readTimeout = 120000
-            instanceFollowRedirects = true
-            setRequestProperty("User-Agent", "VIP-X-Ultimate-Android")
-            if (existing > 0L) setRequestProperty("Range", "bytes=$existing-")
-        }
-        try {
-            connection.connect()
-            val code = connection.responseCode
-            require(code == 200 || code == 206) { "فشل تنزيل النموذج: HTTP $code" }
-            val append = existing > 0L && code == 206
-            if (existing > 0L && code == 200) {
-                partial.delete()
-                existing = 0L
+        var attempt = 0
+        var lastError: Exception? = null
+        while (attempt < 4) {
+            if (!kotlin.coroutines.coroutineContext.isActive) throw CancellationException("أُلغي تنزيل النموذج")
+            existing = partial.length().coerceAtMost(MODEL_BYTES)
+            val connection = (URL(MODEL_URL).openConnection() as HttpURLConnection).apply {
+                requestMethod = "GET"
+                connectTimeout = 30000
+                readTimeout = 120000
+                instanceFollowRedirects = true
+                setRequestProperty("User-Agent", "VIP-X-Ultimate-Android")
+                setRequestProperty("Accept-Encoding", "identity")
+                if (existing > 0L) setRequestProperty("Range", "bytes=$existing-")
             }
-            val declaredLength = connection.contentLengthLong
-            if (declaredLength > 0 && !append) require(declaredLength == MODEL_BYTES) {
-                "حجم ملف النموذج غير مطابق للنسخة المعتمدة"
-            }
-            var total = existing
-            connection.inputStream.use { input ->
-                FileOutputStream(partial, append).buffered().use { output ->
-                    val buffer = ByteArray(1024 * 1024)
-                    while (true) {
-                        if (!kotlin.coroutines.coroutineContext.isActive) throw CancellationException("أُلغي تنزيل النموذج")
-                        val count = input.read(buffer)
-                        if (count < 0) break
-                        output.write(buffer, 0, count)
-                        total += count
-                        onProgress(((total * 100L) / MODEL_BYTES).toInt().coerceIn(0, 99))
+            try {
+                connection.connect()
+                val code = connection.responseCode
+                if (code != 200 && code != 206) throw IOException("فشل تنزيل النموذج: HTTP $code")
+                val append = existing > 0L && code == 206
+                if (append) {
+                    val range = connection.getHeaderField("Content-Range").orEmpty()
+                    if (range.isNotBlank() && !range.startsWith("bytes $existing-")) {
+                        throw IOException("الخادم أعاد جزءاً لا يبدأ من موضع الاستكمال المطلوب")
                     }
-                    output.flush()
+                } else if (existing > 0L && code == 200) {
+                    partial.delete()
+                    existing = 0L
                 }
+
+                val declaredLength = connection.contentLengthLong
+                val expectedBytes = MODEL_BYTES - existing
+                if (declaredLength > 0L && declaredLength != expectedBytes) {
+                    throw IOException("حجم الجزء المستلم غير مطابق؛ أُبقي الجزء السابق للاستكمال")
+                }
+
+                var total = existing
+                connection.inputStream.use { input ->
+                    FileOutputStream(partial, append).buffered().use { output ->
+                        val buffer = ByteArray(1024 * 1024)
+                        while (true) {
+                            if (!kotlin.coroutines.coroutineContext.isActive) {
+                                throw CancellationException("أُلغي تنزيل النموذج")
+                            }
+                            val count = input.read(buffer)
+                            if (count < 0) break
+                            output.write(buffer, 0, count)
+                            total += count
+                            onProgress(((total * 100L) / MODEL_BYTES).toInt().coerceIn(0, 99))
+                        }
+                        output.flush()
+                    }
+                }
+                if (total != MODEL_BYTES) {
+                    throw IOException("انقطع الاتصال عند ${total} من ${MODEL_BYTES} بايت؛ سيُستكمل من الموضع المحفوظ")
+                }
+                if (sha256(partial) != MODEL_SHA256) {
+                    partial.delete()
+                    throw IOException("فشل SHA-256؛ حُذف الجزء غير السليم وستبدأ محاولة نظيفة")
+                }
+                check(partial.renameTo(target)) { "تعذر حفظ ملف النموذج بعد التحقق" }
+                onProgress(100)
+                return@withContext
+            } catch (error: CancellationException) {
+                throw error
+            } catch (error: Exception) {
+                lastError = error
+                attempt++
+                if (attempt >= 4) {
+                    val saved = partial.length()
+                    throw IOException(
+                        "تعذر إكمال الاتصال بعد 4 محاولات. حُفظ $saved من $MODEL_BYTES بايت؛ اضغط إعادة المحاولة للاستكمال دون إعادة الجزء المحفوظ. السبب: ${error.message}",
+                        error
+                    )
+                }
+                delay(1500L * attempt)
+            } finally {
+                connection.disconnect()
             }
-            require(total == MODEL_BYTES) { "اكتمل تنزيل غير صحيح: الحجم لا يطابق النموذج الأصلي" }
-            if (sha256(partial) != MODEL_SHA256) {
-                partial.delete()
-                throw IllegalStateException("فشل التحقق من سلامة النموذج (SHA-256)")
-            }
-            check(partial.renameTo(target)) { "تعذر حفظ النموذج في مساحة التطبيق" }
-            onProgress(100)
-        } catch (error: CancellationException) {
-            throw error
-        } catch (error: Exception) {
-            // Keep a partial download so the next attempt can resume with HTTP Range.
-            throw error
-        } finally {
-            connection.disconnect()
         }
+        throw IOException("تعذر تنزيل النموذج: ${lastError?.message ?: "خطأ اتصال غير معروف"}")
     }
 
     suspend fun initialize(context: Context) = withContext(Dispatchers.IO) {
         synchronized(lock) {
             val model = modelFile(context)
             require(model.isFile && model.length() == MODEL_BYTES && sha256(model) == MODEL_SHA256) {
-                "نزّل نموذج الذكاء المحلي أولاً"
+                "ملف النموذج غير مكتمل أو فشل التحقق منه؛ أعد محاولة التنزيل"
             }
             if (conversation != null && engine != null) return@synchronized
             runCatching { conversation?.close() }
             runCatching { engine?.close() }
             conversation = null
             engine = null
-
             val candidate = Engine(
                 EngineConfig(
                     modelPath = model.absolutePath,
