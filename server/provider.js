@@ -2,7 +2,7 @@ const GEMINI_API_KEY = process.env.GEMINI_API_KEY || "";
 const GROQ_API_KEY = process.env.GROQ_API_KEY || "";
 const AI_PROVIDER = String(process.env.AI_PROVIDER || "auto").toLowerCase();
 const GEMINI_MODEL = "gemini-3.1-flash-lite";
-const GROQ_MODEL = "llama-3.3-70b-versatile";
+const GROQ_MODEL = "openai/gpt-oss-120b";
 
 function providerError(message, status, retryAfter) {
   const error = new Error(message);
@@ -95,7 +95,7 @@ async function askGroq(messages) {
 function configuredProviders() {
   const all = {
     gemini: GEMINI_API_KEY ? { id: "gemini", freeTier: true, run: askGemini } : null,
-    groq: GROQ_API_KEY ? { id: "groq", freeTier: true, run: askGroq } : null
+    groq: GROQ_API_KEY && process.env.GROQ_FREE_TIER_CONFIRMED === "true" ? { id: "groq", freeTier: true, run: askGroq } : null
   };
   const order = AI_PROVIDER === "groq" ? ["groq", "gemini"] : ["gemini", "groq"];
   return order.map(id => all[id]).filter(Boolean);
@@ -107,7 +107,7 @@ function selectedProvider() { return configuredProviders()[0]?.id || "none"; }
 async function askAI(messages) {
   const providers = configuredProviders();
   if (!providers.length) {
-    throw providerError("لا يوجد مزود مجاني مضبوط. أضف GEMINI_API_KEY أو GROQ_API_KEY إلى أسرار الخادم. لا يدعم هذا الإصدار أي مزود مدفوع.", 503);
+    throw providerError("لا يوجد مزود مجاني مضبوط. أضف GEMINI_API_KEY، أو أضف GROQ_API_KEY مع GROQ_FREE_TIER_CONFIRMED=true بعد التأكد من أن حساب Groq على الخطة المجانية. لا يدعم هذا الإصدار أي مزود مدفوع.", 503);
   }
   const failures = [];
   for (let index = 0; index < providers.length; index++) {
