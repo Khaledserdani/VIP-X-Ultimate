@@ -14,7 +14,6 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     env:
-      VIP_RELEASE_KEYSTORE_PATH: ${{ runner.temp }}/vipx-release.jks
       VIP_RELEASE_STORE_PASSWORD: ${{ secrets.VIP_RELEASE_STORE_PASSWORD }}
       VIP_RELEASE_KEY_ALIAS: ${{ secrets.VIP_RELEASE_KEY_ALIAS }}
       VIP_RELEASE_KEY_PASSWORD: ${{ secrets.VIP_RELEASE_KEY_PASSWORD }}
@@ -39,9 +38,11 @@ jobs:
           test -n "$VIP_RELEASE_STORE_PASSWORD" || { echo "Missing VIP_RELEASE_STORE_PASSWORD repository secret"; exit 1; }
           test -n "$VIP_RELEASE_KEY_ALIAS" || { echo "Missing VIP_RELEASE_KEY_ALIAS repository secret"; exit 1; }
           test -n "$VIP_RELEASE_KEY_PASSWORD" || { echo "Missing VIP_RELEASE_KEY_PASSWORD repository secret"; exit 1; }
-          printf '%s' "$VIP_RELEASE_KEYSTORE_BASE64" | base64 --decode > "$VIP_RELEASE_KEYSTORE_PATH"
-          test -s "$VIP_RELEASE_KEYSTORE_PATH"
-          chmod 600 "$VIP_RELEASE_KEYSTORE_PATH"
+          KEYSTORE_PATH="$RUNNER_TEMP/vipx-release.jks"
+          printf '%s' "$VIP_RELEASE_KEYSTORE_BASE64" | base64 --decode > "$KEYSTORE_PATH"
+          test -s "$KEYSTORE_PATH"
+          chmod 600 "$KEYSTORE_PATH"
+          echo "VIP_RELEASE_KEYSTORE_PATH=$KEYSTORE_PATH" >> "$GITHUB_ENV"
 
       - name: Check cloud API syntax
         run: node --check server/index.js
