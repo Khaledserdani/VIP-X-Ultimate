@@ -287,7 +287,13 @@ private fun VipBuilderScreen(loadApps:()->List<InstalledApp>){
                         if(app==null){status="اختر تطبيقاً أولاً"} else {
                             val launch=context.packageManager.getLaunchIntentForPackage(app.packageName)
                             if(launch==null) status="هذا التطبيق لا يوفّر واجهة تشغيل مباشرة"
-                            else runCatching{context.startActivity(launch)}.onFailure{status="تعذر فتح التطبيق: ${it.message}"}
+                            else {
+                                context.getSharedPreferences("vipx_live_context", Context.MODE_PRIVATE).edit()
+                                    .putString("target_package", app.packageName)
+                                    .putString("target_name", app.name)
+                                    .apply()
+                                runCatching{context.startActivity(launch)}.onFailure{status="تعذر فتح التطبيق: ${it.message}"}
+                            }
                         }
                     },enabled=selected!=null,modifier=Modifier.fillMaxWidth()){
                         Text("افتح التطبيق وابدأ جلسة المساعدة")
