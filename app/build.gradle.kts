@@ -10,8 +10,8 @@ android {
         applicationId = "com.vipx.ultimate"
         minSdk = 26
         targetSdk = 35
-        versionCode = 10
-        versionName = "2.3.3"
+        versionCode = 11
+        versionName = "2.4.0"
     }
     // No user-managed signing secrets: use Android's automatically generated debug key.
     // Suitable for direct installation/testing; not a permanent public signing identity.
