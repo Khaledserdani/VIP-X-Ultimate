@@ -136,6 +136,21 @@ private fun CloudAssistantScreen(context: Context, onBack: () -> Unit) {
     var status by remember { mutableStateOf("أدخل رابط الخادم السحابي ورمز الوصول") }
     val messages = remember { mutableStateListOf<ChatMessage>() }
     val scope = rememberCoroutineScope()
+    LaunchedEffect(Unit) {
+        if (LocalLlmRuntime.isModelDownloaded(context) && !LocalLlmRuntime.isReady()) {
+            status = "النموذج محفوظ على الهاتف؛ جارٍ تشغيله دون إعادة تنزيل..."
+            try {
+                LocalLlmRuntime.initialize(context)
+                status = "الذكاء المحلي جاهز • النموذج محفوظ ولا يحتاج إلى تنزيل جديد"
+            } catch (error: Exception) {
+                status = "النموذج محفوظ لكن تعذر تشغيله: " + (error.message ?: "خطأ")
+            }
+        } else if (LocalLlmRuntime.isReady()) {
+            status = "الذكاء المحلي جاهز بالفعل"
+        } else {
+            status = "الذكاء المحلي غير منزّل بعد • يمكنك تنزيله مرة واحدة أدناه"
+        }
+    }
     val filePicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
         if (uri != null) scope.launch {
             try {
@@ -155,10 +170,11 @@ private fun CloudAssistantScreen(context: Context, onBack: () -> Unit) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 IconButton(onClick = onBack) { Icon(Icons.Default.ArrowBack, "رجوع", tint = CloudAccent) }
                 Column(Modifier.weight(1f)) {
-                    Text("VIP X • الذكاء السحابي", color = Color.White, fontSize = 20.sp, fontWeight = FontWeight.Bold)
-                    Text("مساعد متصل بخادمك الخاص", color = CloudMuted, fontSize = 11.sp)
+                    Text("VIP X • إعدادات الذكاء", color = Color.White, fontSize = 20.sp, fontWeight = FontWeight.Bold)
+                    Text("الذكاء المحلي يعمل دون خادم؛ السحابة اختيارية", color = CloudMuted, fontSize = 11.sp)
                 }
             }
+            LocalAiModelCard(context) { status = it }
             Card(colors = CardDefaults.cardColors(containerColor = CloudPanel), shape = RoundedCornerShape(16.dp)) {
                 Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     OutlinedTextField(endpoint, { endpoint = it }, Modifier.fillMaxWidth(), singleLine = true, label = { Text("رابط خادم اختياري") }, placeholder = { Text("https://your-server.example") })
