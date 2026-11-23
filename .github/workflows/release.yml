@@ -27,13 +27,18 @@ jobs:
           distribution: temurin
           java-version: "17"
 
-      - name: Configure Gradle
+      - name: Configure Gradle 8.13
         uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: "8.13"
+          cache-read-only: false
 
       - name: Prepare persistent release signing key
         env:
           VIP_RELEASE_KEYSTORE_BASE64: ${{ secrets.VIP_RELEASE_KEYSTORE_BASE64 }}
+        shell: bash
         run: |
+          set -euo pipefail
           test -n "$VIP_RELEASE_KEYSTORE_BASE64" || { echo "Missing VIP_RELEASE_KEYSTORE_BASE64 repository secret"; exit 1; }
           test -n "$VIP_RELEASE_STORE_PASSWORD" || { echo "Missing VIP_RELEASE_STORE_PASSWORD repository secret"; exit 1; }
           test -n "$VIP_RELEASE_KEY_ALIAS" || { echo "Missing VIP_RELEASE_KEY_ALIAS repository secret"; exit 1; }
@@ -59,13 +64,18 @@ jobs:
       - name: Build signed release APK
         run: gradle --no-daemon --stacktrace :app:assembleRelease
 
-      - name: Verify package and persistent APK signature
+      - name: Verify package, version, and persistent APK signature
         shell: bash
         run: |
+          set -euo pipefail
           APK="app/build/outputs/apk/release/app-release.apk"
           test -s "$APK"
-          "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify --verbose --print-certs "$APK"
-          "$ANDROID_HOME/build-tools/35.0.0/aapt" dump badging "$APK" | grep -F "package: name='com.vipx.ultimate' versionCode='10' versionName='2.3.3'"
+          APKSIGNER="$(find "$ANDROID_HOME/build-tools" -name apksigner -type f | sort -V | tail -n 1)"
+          AAPT="$(find "$ANDROID_HOME/build-tools" -name aapt -type f | sort -V | tail -n 1)"
+          test -n "$APKSIGNER"
+          test -n "$AAPT"
+          "$APKSIGNER" verify --verbose --print-certs "$APK"
+          "$AAPT" dump badging "$APK" | grep -F "package: name='com.vipx.ultimate' versionCode='10' versionName='2.3.3'"
           sha256sum "$APK"
 
       - name: Upload installable release APK
