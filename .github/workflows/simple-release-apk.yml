@@ -45,7 +45,7 @@ jobs:
           test -n "$APKSIGNER"
           "$APKSIGNER" verify --verbose "$APK"
           AAPT="$(find "$ANDROID_HOME/build-tools" -name aapt -type f | sort -V | tail -n 1)"
-          "$AAPT" dump badging "$APK" | grep -F "package: name='com.vipx.ultimate' versionCode='10' versionName='2.3.3'"
+          "$AAPT" dump badging "$APK" | grep -F "package: name='com.vipx.ultimate' versionCode='11' versionName='2.4.0'"
           sha256sum "$APK"
           file "$APK"
           ls -lh "$APK"
@@ -53,7 +53,7 @@ jobs:
       - name: Upload installable APK
         uses: actions/upload-artifact@v4
         with:
-          name: VIP-X-Ultimate-v2.3.3-no-secrets
+          name: VIP-X-Ultimate-v2.4.0-local-team
           path: app/build/outputs/apk/release/app-release.apk
           if-no-files-found: error
           retention-days: 14
