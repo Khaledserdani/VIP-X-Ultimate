@@ -139,6 +139,13 @@ class VipAccessibilityService : AccessibilityService() {
             LinearLayout.LayoutParams(0, d(44), 1f))
         heading.addView(button("إغلاق") { hideTeamPanel() })
         content.addView(heading)
+        content.addView(button("إعداد الذكاء المحلي والسحابي") {
+            runCatching {
+                startActivity(Intent(this, CloudAssistantActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+            }.onFailure {
+                resultTextView?.text = "تعذر فتح إعدادات الذكاء: " + (it.message ?: "خطأ")
+            }
+        })
 
         val appLabel = if (targetPackage.isBlank()) "لم يُحفظ تطبيق مستهدف بعد" else "التطبيق: $targetPackage"
         content.addView(text(appLabel, 10f, 0xFFA8B9CA.toInt()))
