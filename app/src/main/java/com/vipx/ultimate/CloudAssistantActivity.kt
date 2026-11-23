@@ -124,6 +124,9 @@ private fun CloudAssistantScreen(context: Context, onBack: () -> Unit) {
     var actionText by remember { mutableStateOf("") }
     var task by remember { mutableStateOf("") }
     var includeScreenContext by remember { mutableStateOf(false) }
+    var captureScreenContext by remember {
+        mutableStateOf(context.getSharedPreferences("vipx_live_context", Context.MODE_PRIVATE).getBoolean("capture_enabled", false))
+    }
     var attachedFileName by remember { mutableStateOf("") }
     var attachedFileText by remember { mutableStateOf("") }
     var planSummary by remember { mutableStateOf("") }
@@ -192,6 +195,28 @@ private fun CloudAssistantScreen(context: Context, onBack: () -> Unit) {
             }
             Card(colors = CardDefaults.cardColors(containerColor = Color(0xFF173A3D)), shape = RoundedCornerShape(14.dp)) {
                 Column(Modifier.fillMaxWidth().padding(10.dp), verticalArrangement = Arrangement.spacedBy(7.dp)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Checkbox(
+                            checked = captureScreenContext,
+                            onCheckedChange = { enabled ->
+                                captureScreenContext = enabled
+                                context.getSharedPreferences("vipx_live_context", Context.MODE_PRIVATE).edit().putBoolean("capture_enabled", enabled).apply()
+                                if (!enabled) {
+                                    context.getSharedPreferences("vipx_live_context", Context.MODE_PRIVATE).edit()
+                                        .remove("active_package").remove("visible_context").remove("captured_at").apply()
+                                    includeScreenContext = false
+                                }
+                            }
+                        )
+                        Column(Modifier.weight(1f)) {
+                            Text("السماح بقراءة نص الشاشة للتفاعل المحلي", color = Color.White, fontSize = 12.sp)
+                            Text("مغلق افتراضياً. عند تفعيله تُحفظ مقتطفات محدودة على الهاتف فقط؛ إيقافه يمسح السياق المحفوظ.", color = CloudMuted, fontSize = 10.sp)
+                        }
+                    }
+                }
+            }
+            Card(colors = CardDefaults.cardColors(containerColor = Color(0xFF173A3D)), shape = RoundedCornerShape(14.dp)) {
+                Column(Modifier.fillMaxWidth().padding(10.dp), verticalArrangement = Arrangement.spacedBy(7.dp)) {
                     Text("فريق VIP X • تنفيذ مهام متنوعة", color = CloudAccent, fontWeight = FontWeight.Bold)
                     OutlinedTextField(task, { task = it }, Modifier.fillMaxWidth(), label = { Text("اكتب أي مهمة تريد من فريق VIP X إنجازها") }, minLines = 2, maxLines = 3)
                     Row(verticalAlignment = Alignment.CenterVertically) {
@@ -208,8 +233,8 @@ private fun CloudAssistantScreen(context: Context, onBack: () -> Unit) {
                     Button(onClick = {
                         val goal = task.trim()
                         val live = context.getSharedPreferences("vipx_live_context", Context.MODE_PRIVATE)
-                        val screen = live.getString("visible_context", "").orEmpty()
-                        val pkg = live.getString("active_package", "").orEmpty()
+                        val screen = if (captureScreenContext) live.getString("visible_context", "").orEmpty() else ""
+                        val pkg = if (captureScreenContext) live.getString("active_package", "").orEmpty() else ""
                         if (goal.isBlank()) status = "اكتب المهمة أولاً"
                         
                         else if (!endpoint.startsWith("https://") || accessToken.isBlank()) status = "أدخل رابط الخادم ورمز الربط الصحيح"
@@ -411,8 +436,8 @@ private fun CloudAssistantScreen(context: Context, onBack: () -> Unit) {
                             } catch (e: Exception) {
                                 try {
                                     val live = context.getSharedPreferences("vipx_live_context", Context.MODE_PRIVATE)
-                                    val visibleContext = live.getString("visible_context", "").orEmpty()
-                                    val packageName = live.getString("active_package", "").orEmpty()
+                                    val visibleContext = if (captureScreenContext) live.getString("visible_context", "").orEmpty() else ""
+                                    val packageName = if (captureScreenContext) live.getString("active_package", "").orEmpty() else ""
                                     val localPrompt = question + if (visibleContext.isNotBlank())
                                         "\\n\\nالسياق الظاهر محلياً من التطبيق $packageName:\\n$visibleContext"
                                     else ""
