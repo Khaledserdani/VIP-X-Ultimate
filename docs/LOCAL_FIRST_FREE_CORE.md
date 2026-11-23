@@ -9,6 +9,7 @@ The core Android app must remain usable without a paid host, provider key, subsc
 - It computes SHA-256 for the base APK, reads package/version/SDK metadata, enumerates DEX/native/resource entries, and reports the signing-certificate fingerprint exposed by Android PackageManager.
 - Four transparent local analyzers produce structure, permission-review, resource/design-evidence, and engineering summaries.
 - The last report is stored in private app preferences per package.
+- Accessibility screen-text capture is disabled by default and requires a separate in-app opt-in; turning it off clears the stored screen context. Sending that context to the cloud requires a second, independent opt-in.
 - The offline analysis path does not open a network connection and does not upload APK files or screen contents.
 
 ## Honest capability boundary
