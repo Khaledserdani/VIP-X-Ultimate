@@ -20,8 +20,14 @@ import android.widget.ScrollView
 import android.widget.TextView
 import android.os.Handler
 import android.os.Looper
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.launch
 
 class VipAccessibilityService : AccessibilityService() {
+    private val serviceScope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
     private var windowManager: WindowManager? = null
     private var bubble: TextView? = null
     private var teamPanel: View? = null
@@ -199,12 +205,34 @@ class VipAccessibilityService : AccessibilityService() {
                 else "لم يصل نص من التطبيق المستهدف بعد."
             }
         })
-        content.addView(button("شغّل فريق التحليل المحلي") {
+        content.addView(button("شغّل فريق التحليل المحلي الأساسي") {
             val captured = if (prefs.getBoolean("capture_enabled", false)) captureCurrentScreen() else ""
             val pkg = prefs.getString("active_package", targetPackage).orEmpty()
             val report = LocalAgentTeam.analyze(pkg, captured, input.text.toString())
             output.text = report.asArabicText()
             screenView.text = captured.ifBlank { "لا يوجد نص شاشة متاح حالياً." }
+        })
+        content.addView(button("حلّل المهمة بنموذج Qwen المحلي") {
+            val goal = input.text.toString().trim()
+            if (goal.isBlank()) {
+                output.text = "اكتب المهمة أولاً."
+            } else {
+                output.text = "جارٍ تهيئة نموذج Qwen المحفوظ وتشغيل الاستدلال على الهاتف..."
+                serviceScope.launch {
+                    try {
+                        check(LocalLlmRuntime.isModelDownloaded(this@VipAccessibilityService)) {
+                            "نموذج الذكاء غير موجود بعد. افتح إعداد الذكاء المحلي من الزر أعلى اللوحة ونزّله مرة واحدة."
+                        }
+                        if (!LocalLlmRuntime.isReady()) LocalLlmRuntime.initialize(this@VipAccessibilityService)
+                        val captured = if (prefs.getBoolean("capture_enabled", false)) captureCurrentScreen() else ""
+                        val prompt = "أنت مساعد VIP X داخل تطبيق Android. حلّل المهمة بالعربية، واستعمل سياق الشاشة فقط إن توفر. لا تدّع تنفيذ إجراء. اقترح خطوات آمنة واطلب الموافقة قبل النقر أو أي تغيير.\\nالمهمة: $goal\\nالتطبيق: $targetPackage\\nنص الشاشة: $captured"
+                        output.text = LocalLlmRuntime.generate(prompt)
+                        screenView.text = captured.ifBlank { "لم تُفعّل قراءة الشاشة؛ جرى التحليل من وصف المهمة فقط." }
+                    } catch (error: Exception) {
+                        output.text = "تعذر تشغيل الذكاء المحلي: " + (error.message ?: "خطأ غير معروف")
+                    }
+                }
+            }
         })
         content.addView(button("نفّذ الأمر الآمن داخل التطبيق") {
             val before = if (prefs.getBoolean("capture_enabled", false)) captureCurrentScreen() else ""
