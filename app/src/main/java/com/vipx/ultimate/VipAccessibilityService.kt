@@ -50,8 +50,20 @@ class VipAccessibilityService : AccessibilityService() {
         captureCurrentScreen(eventPackage)
     }
 
+    private fun targetWindowRoot(): AccessibilityNodeInfo? {
+        val target = getSharedPreferences("vipx_live_context", MODE_PRIVATE)
+            .getString("target_package", "").orEmpty()
+        if (target.isBlank()) return rootInActiveWindow
+        for (window in windows) {
+            val root = window.root ?: continue
+            if (root.packageName?.toString() == target) return root
+        }
+        val activeRoot = rootInActiveWindow
+        return activeRoot?.takeIf { it.packageName?.toString() == target }
+    }
+
     private fun captureCurrentScreen(eventPackage: String = ""): String {
-        val root = rootInActiveWindow ?: return ""
+        val root = targetWindowRoot() ?: return ""
         val actualPackage = root.packageName?.toString().orEmpty().ifBlank { eventPackage }
         val livePrefs = getSharedPreferences("vipx_live_context", MODE_PRIVATE)
         val target = livePrefs.getString("target_package", "").orEmpty()
@@ -259,13 +271,13 @@ class VipAccessibilityService : AccessibilityService() {
 
     fun tapVisibleText(target: String): Boolean {
         if (target.isBlank()) return false
-        val node = findNode(rootInActiveWindow, target.trim()) ?: return false
+        val node = findNode(targetWindowRoot(), target.trim()) ?: return false
         val clickable = generateSequence(node) { it.parent }.firstOrNull { it.isClickable } ?: node
         return clickable.performAction(AccessibilityNodeInfo.ACTION_CLICK)
     }
 
     fun scroll(forward: Boolean): Boolean {
-        val root = rootInActiveWindow ?: return false
+        val root = targetWindowRoot() ?: return false
         val action = if (forward) AccessibilityNodeInfo.ACTION_SCROLL_FORWARD else AccessibilityNodeInfo.ACTION_SCROLL_BACKWARD
         fun scan(n: AccessibilityNodeInfo?, depth: Int): AccessibilityNodeInfo? {
             if (n == null || depth > 18) return null
