@@ -185,8 +185,14 @@ private fun VipBuilderScreen(loadApps:()->List<InstalledApp>){
         while (true) {
             val work = withContext(Dispatchers.IO) {
                 runCatching {
-                    workManager.getWorkInfosForUniqueWork(ModelDownloadWorker.UNIQUE_WORK_NAME).get()
-                        .firstOrNull()
+                    val infos = workManager.getWorkInfosForUniqueWork(ModelDownloadWorker.UNIQUE_WORK_NAME).get()
+                    // A unique-work name can retain completed history after a retry is enqueued.
+                    // Prefer the currently active request instead of accidentally reading an older FAILED/SUCCEEDED entry.
+                    infos.lastOrNull { info ->
+                        info.state == androidx.work.WorkInfo.State.ENQUEUED ||
+                        info.state == androidx.work.WorkInfo.State.BLOCKED ||
+                        info.state == androidx.work.WorkInfo.State.RUNNING
+                    } ?: infos.lastOrNull()
                 }.getOrNull()
             }
             if (work != null) {
