@@ -157,7 +157,7 @@ private fun VipBuilderScreen(loadApps:()->List<InstalledApp>){
             .build()
         WorkManager.getInstance(context).enqueueUniqueWork(
             ModelDownloadWorker.UNIQUE_WORK_NAME,
-            ExistingWorkPolicy.KEEP,
+            ExistingWorkPolicy.REPLACE,
             request
         )
     }
