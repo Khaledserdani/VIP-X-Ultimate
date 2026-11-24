@@ -1,7 +1,7 @@
 name: Android CI
 on:
   push:
-    branches: [ "main", "final/vipx-ultimate-rebuild", "fix/app-picker-visible-list", "fix/vipx-free-ai-provider", "work/vipx-production-hardening", "work/vipx-offline-core" ]
+    branches: [ "main", "final/vipx-ultimate-rebuild", "fix/app-picker-visible-list", "fix/vipx-free-ai-provider", "work/vipx-production-hardening", "work/vipx-offline-core", "fix/vipx-persistent-model-download" ]
   pull_request:
     branches: [ "main", "work/vipx-production-hardening" ]
   workflow_dispatch:
