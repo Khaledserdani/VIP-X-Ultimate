@@ -19,9 +19,13 @@ internal class ModelDownloadWorker(
     override suspend fun doWork(): Result {
         return try {
             setForeground(createForegroundInfo(0))
+            var lastReportedProgress = -1
             LocalLlmRuntime.downloadModel(applicationContext) { percent ->
-                setProgressAsync(workDataOf(KEY_PROGRESS to percent))
-                updateNotification(percent)
+                if (percent != lastReportedProgress) {
+                    lastReportedProgress = percent
+                    setProgressAsync(workDataOf(KEY_PROGRESS to percent))
+                    updateNotification(percent)
+                }
             }
             Result.success(workDataOf(KEY_PROGRESS to 100))
         } catch (error: kotlinx.coroutines.CancellationException) {
