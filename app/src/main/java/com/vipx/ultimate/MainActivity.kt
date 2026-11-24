@@ -150,14 +150,15 @@ private fun VipBuilderScreen(loadApps:()->List<InstalledApp>){
         showModelPrompt = false
         modelInitializationAttempted = false
         modelDownloading = true
-        modelStatus = "تم وضع التنزيل في مهمة مستقلة؛ سيستمر عند مغادرة الشاشة."
+        modelStatus = "جارٍ التحقق من مهمة التنزيل الحالية؛ لن نلغي أي تنزيل جارٍ."
+
         val request = OneTimeWorkRequestBuilder<ModelDownloadWorker>()
             .setConstraints(Constraints.Builder().setRequiredNetworkType(NetworkType.CONNECTED).build())
             .setBackoffCriteria(androidx.work.BackoffPolicy.EXPONENTIAL, 30, TimeUnit.SECONDS)
             .build()
         WorkManager.getInstance(context).enqueueUniqueWork(
             ModelDownloadWorker.UNIQUE_WORK_NAME,
-            ExistingWorkPolicy.REPLACE,
+            ExistingWorkPolicy.KEEP,
             request
         )
     }
