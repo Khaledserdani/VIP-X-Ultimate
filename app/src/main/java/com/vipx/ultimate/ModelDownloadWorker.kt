@@ -31,8 +31,10 @@ internal class ModelDownloadWorker(
         } catch (error: kotlinx.coroutines.CancellationException) {
             throw error
         } catch (error: Exception) {
-            if (runAttemptCount < MAX_RETRIES) Result.retry()
-            else Result.failure(workDataOf(KEY_ERROR to (error.message ?: "تعذر تنزيل النموذج")))
+            // LocalLlmRuntime already performs bounded retries and preserves verified partial bytes.
+            // Do not wrap those retries in another WorkManager retry loop: that resets UI progress
+            // and can make a near-complete download appear to restart forever.
+            Result.failure(workDataOf(KEY_ERROR to (error.message ?: "تعذر تنزيل النموذج")))
         }
     }
 
@@ -77,6 +79,5 @@ internal class ModelDownloadWorker(
         const val KEY_ERROR = "error"
         private const val CHANNEL_ID = "vipx_model_download"
         private const val NOTIFICATION_ID = 2406
-        private const val MAX_RETRIES = 10
     }
 }
