@@ -140,6 +140,7 @@ private fun VipBuilderScreen(loadApps:()->List<InstalledApp>){
     var modelDownloading by remember { mutableStateOf(false) }
     var modelProgress by remember { mutableIntStateOf(0) }
     var modelReady by remember { mutableStateOf(LocalLlmRuntime.isReady()) }
+    var modelInitializationAttempted by remember { mutableStateOf(false) }
     var modelStatus by remember { mutableStateOf("") }
 
     fun startLocalModelSetup() {
@@ -147,6 +148,7 @@ private fun VipBuilderScreen(loadApps:()->List<InstalledApp>){
         context.getSharedPreferences("vipx_model_setup", Context.MODE_PRIVATE)
             .edit().putBoolean("first_prompt_shown", true).apply()
         showModelPrompt = false
+        modelInitializationAttempted = false
         modelDownloading = true
         modelStatus = "تم وضع التنزيل في مهمة مستقلة؛ سيستمر عند مغادرة الشاشة."
         val request = OneTimeWorkRequestBuilder<ModelDownloadWorker>()
@@ -161,7 +163,6 @@ private fun VipBuilderScreen(loadApps:()->List<InstalledApp>){
     }
 
     LaunchedEffect(Unit) {
-        var modelInitializationAttempted = false
         apps = withContext(Dispatchers.IO) { loadApps() }
         status = "تم العثور على ${apps.size} تطبيقاً"
         if (LocalLlmRuntime.isModelDownloaded(context)) {
