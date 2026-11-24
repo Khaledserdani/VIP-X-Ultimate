@@ -2,7 +2,7 @@ name: Build simple signed VIP X APK
 
 on:
   push:
-    branches: [ "fix/vipx-no-secret-installable-release" ]
+    branches: [ "fix/vipx-no-secret-installable-release", "fix/vipx-draggable-floating-bubble" ]
     paths:
       - "app/**"
       - ".github/workflows/simple-release-apk.yml"
