@@ -161,9 +161,11 @@ private fun VipBuilderScreen(loadApps:()->List<InstalledApp>){
     }
 
     LaunchedEffect(Unit) {
+        var modelInitializationAttempted = false
         apps = withContext(Dispatchers.IO) { loadApps() }
         status = "تم العثور على ${apps.size} تطبيقاً"
         if (LocalLlmRuntime.isModelDownloaded(context)) {
+            modelInitializationAttempted = true
             modelStatus = "النموذج موجود؛ جارٍ تهيئته..."
             try {
                 LocalLlmRuntime.initialize(context)
@@ -198,7 +200,8 @@ private fun VipBuilderScreen(loadApps:()->List<InstalledApp>){
                     }
                     androidx.work.WorkInfo.State.SUCCEEDED -> {
                         modelDownloading = false
-                        if (!modelReady && LocalLlmRuntime.isModelDownloaded(context)) {
+                        if (!modelReady && !modelInitializationAttempted && LocalLlmRuntime.isModelDownloaded(context)) {
+                            modelInitializationAttempted = true
                             modelStatus = "اكتمل التنزيل والتحقق؛ جارٍ اختبار تشغيل النموذج..."
                             try {
                                 LocalLlmRuntime.initialize(context)
