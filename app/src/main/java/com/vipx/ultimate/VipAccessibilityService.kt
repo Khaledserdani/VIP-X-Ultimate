@@ -10,6 +10,8 @@ import android.provider.Settings
 import android.view.Gravity
 import android.view.WindowManager
 import android.view.View
+import android.view.MotionEvent
+import android.view.ViewConfiguration
 import android.view.accessibility.AccessibilityEvent
 import android.view.accessibility.AccessibilityNodeInfo
 import android.widget.Button
@@ -103,6 +105,7 @@ class VipAccessibilityService : AccessibilityService() {
 
     private fun showBubbleIfAllowed() {
         if (!Settings.canDrawOverlays(this) || bubble != null) return
+        val positionPrefs = getSharedPreferences("vipx_overlay_position", MODE_PRIVATE)
         val view = TextView(this).apply {
             text = "VIP X"
             textSize = 14f
@@ -110,14 +113,65 @@ class VipAccessibilityService : AccessibilityService() {
             setPadding(dp(16), dp(11), dp(16), dp(11))
             background = rounded(0xFF125B56.toInt(), 24)
             elevation = dp(12).toFloat()
-            setOnClickListener { if (teamPanel == null) showTeamPanel() /* Keep the panel open on repeated bubble taps; close it only with its explicit close button. */ }
+            setOnClickListener {
+                if (teamPanel == null) showTeamPanel()
+            }
         }
         val params = WindowManager.LayoutParams(
             WindowManager.LayoutParams.WRAP_CONTENT, WindowManager.LayoutParams.WRAP_CONTENT,
             WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
             WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN,
             PixelFormat.TRANSLUCENT
-        ).apply { gravity = Gravity.END or Gravity.CENTER_VERTICAL; x = dp(12); y = 0 }
+        ).apply {
+            gravity = Gravity.END or Gravity.CENTER_VERTICAL
+            x = positionPrefs.getInt("x", dp(12)).coerceAtLeast(0)
+            y = positionPrefs.getInt("y", 0)
+        }
+
+        val touchSlop = ViewConfiguration.get(this).scaledTouchSlop
+        var downRawX = 0f
+        var downRawY = 0f
+        var startX = params.x
+        var startY = params.y
+        var dragging = false
+
+        view.setOnTouchListener { touchedView, event ->
+            when (event.actionMasked) {
+                MotionEvent.ACTION_DOWN -> {
+                    downRawX = event.rawX
+                    downRawY = event.rawY
+                    startX = params.x
+                    startY = params.y
+                    dragging = false
+                    true
+                }
+                MotionEvent.ACTION_MOVE -> {
+                    val deltaX = event.rawX - downRawX
+                    val deltaY = event.rawY - downRawY
+                    if (kotlin.math.abs(deltaX) > touchSlop || kotlin.math.abs(deltaY) > touchSlop) {
+                        dragging = true
+                    }
+                    if (dragging) {
+                        val maxX = (resources.displayMetrics.widthPixels - touchedView.width).coerceAtLeast(0)
+                        val maxY = ((resources.displayMetrics.heightPixels - touchedView.height) / 2).coerceAtLeast(0)
+                        params.x = (startX - deltaX).toInt().coerceIn(0, maxX)
+                        params.y = (startY + deltaY).toInt().coerceIn(-maxY, maxY)
+                        runCatching { windowManager?.updateViewLayout(touchedView, params) }
+                    }
+                    true
+                }
+                MotionEvent.ACTION_UP -> {
+                    if (dragging) {
+                        positionPrefs.edit().putInt("x", params.x).putInt("y", params.y).apply()
+                    } else {
+                        touchedView.performClick()
+                    }
+                    true
+                }
+                MotionEvent.ACTION_CANCEL -> true
+                else -> true
+            }
+        }
         runCatching { windowManager?.addView(view, params); bubble = view }
     }
 

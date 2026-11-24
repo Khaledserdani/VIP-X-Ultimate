@@ -34,6 +34,13 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.delay
+import androidx.work.Constraints
+import androidx.work.ExistingWorkPolicy
+import androidx.work.NetworkType
+import androidx.work.OneTimeWorkRequestBuilder
+import androidx.work.WorkManager
+import java.util.concurrent.TimeUnit
 import org.json.JSONArray
 import org.json.JSONObject
 import java.net.HttpURLConnection
@@ -133,6 +140,7 @@ private fun VipBuilderScreen(loadApps:()->List<InstalledApp>){
     var modelDownloading by remember { mutableStateOf(false) }
     var modelProgress by remember { mutableIntStateOf(0) }
     var modelReady by remember { mutableStateOf(LocalLlmRuntime.isReady()) }
+    var modelInitializationAttempted by remember { mutableStateOf(false) }
     var modelStatus by remember { mutableStateOf("") }
 
     fun startLocalModelSetup() {
@@ -140,27 +148,26 @@ private fun VipBuilderScreen(loadApps:()->List<InstalledApp>){
         context.getSharedPreferences("vipx_model_setup", Context.MODE_PRIVATE)
             .edit().putBoolean("first_prompt_shown", true).apply()
         showModelPrompt = false
+        modelInitializationAttempted = false
         modelDownloading = true
-        modelStatus = "جارٍ تجهيز الذكاء المحلي..."
-        scope.launch {
-            try {
-                LocalLlmRuntime.downloadModel(context) { modelProgress = it }
-                modelStatus = "تم التحقق من النموذج؛ جارٍ تشغيله لأول مرة..."
-                LocalLlmRuntime.initialize(context)
-                modelReady = true
-                modelStatus = "الذكاء المحلي جاهز ويعمل دون إنترنت"
-            } catch (error: Exception) {
-                modelStatus = "تعذر تجهيز الذكاء المحلي: " + (error.message ?: "خطأ غير معروف")
-            } finally {
-                modelDownloading = false
-            }
-        }
+        modelStatus = "جارٍ التحقق من مهمة التنزيل الحالية؛ لن نلغي أي تنزيل جارٍ."
+
+        val request = OneTimeWorkRequestBuilder<ModelDownloadWorker>()
+            .setConstraints(Constraints.Builder().setRequiredNetworkType(NetworkType.CONNECTED).build())
+            .setBackoffCriteria(androidx.work.BackoffPolicy.EXPONENTIAL, 30, TimeUnit.SECONDS)
+            .build()
+        WorkManager.getInstance(context).enqueueUniqueWork(
+            ModelDownloadWorker.UNIQUE_WORK_NAME,
+            ExistingWorkPolicy.KEEP,
+            request
+        )
     }
 
     LaunchedEffect(Unit) {
         apps = withContext(Dispatchers.IO) { loadApps() }
         status = "تم العثور على ${apps.size} تطبيقاً"
         if (LocalLlmRuntime.isModelDownloaded(context)) {
+            modelInitializationAttempted = true
             modelStatus = "النموذج موجود؛ جارٍ تهيئته..."
             try {
                 LocalLlmRuntime.initialize(context)
@@ -172,6 +179,59 @@ private fun VipBuilderScreen(loadApps:()->List<InstalledApp>){
         } else if (!context.getSharedPreferences("vipx_model_setup", Context.MODE_PRIVATE)
                 .getBoolean("first_prompt_shown", false)) {
             showModelPrompt = true
+        }
+
+        val workManager = WorkManager.getInstance(context)
+        while (true) {
+            val work = withContext(Dispatchers.IO) {
+                runCatching {
+                    val infos = workManager.getWorkInfosForUniqueWork(ModelDownloadWorker.UNIQUE_WORK_NAME).get()
+                    // A unique-work name can retain completed history after a retry is enqueued.
+                    // Prefer the currently active request instead of accidentally reading an older FAILED/SUCCEEDED entry.
+                    infos.lastOrNull { info ->
+                        info.state == androidx.work.WorkInfo.State.ENQUEUED ||
+                        info.state == androidx.work.WorkInfo.State.BLOCKED ||
+                        info.state == androidx.work.WorkInfo.State.RUNNING
+                    } ?: infos.lastOrNull()
+                }.getOrNull()
+            }
+            if (work != null) {
+                modelProgress = work.progress.getInt(ModelDownloadWorker.KEY_PROGRESS, modelProgress)
+                when (work.state) {
+                    androidx.work.WorkInfo.State.ENQUEUED,
+                    androidx.work.WorkInfo.State.BLOCKED,
+                    androidx.work.WorkInfo.State.RUNNING -> {
+                        modelDownloading = true
+                        modelStatus = if (work.state == androidx.work.WorkInfo.State.RUNNING)
+                            "التنزيل يعمل في الخلفية: $modelProgress%"
+                        else "التنزيل محفوظ وينتظر توفر اتصال بالإنترنت."
+                    }
+                    androidx.work.WorkInfo.State.SUCCEEDED -> {
+                        modelDownloading = false
+                        if (!modelReady && !modelInitializationAttempted && LocalLlmRuntime.isModelDownloaded(context)) {
+                            modelInitializationAttempted = true
+                            modelStatus = "اكتمل التنزيل والتحقق؛ جارٍ اختبار تشغيل النموذج..."
+                            try {
+                                LocalLlmRuntime.initialize(context)
+                                modelReady = true
+                                modelStatus = "الذكاء المحلي جاهز ويعمل دون إنترنت"
+                            } catch (error: Exception) {
+                                modelStatus = "اكتمل التنزيل لكن فشل تشغيل الذكاء المحلي: " + (error.message ?: "خطأ")
+                            }
+                        }
+                    }
+                    androidx.work.WorkInfo.State.FAILED -> {
+                        modelDownloading = false
+                        modelStatus = work.outputData.getString(ModelDownloadWorker.KEY_ERROR)
+                            ?: "فشل التنزيل؛ يمكنك إعادة المحاولة وسيُستكمل الجزء المحفوظ."
+                    }
+                    androidx.work.WorkInfo.State.CANCELLED -> {
+                        modelDownloading = false
+                        modelStatus = "تم إيقاف مهمة التنزيل."
+                    }
+                }
+            }
+            delay(1000)
         }
     }
     val visible=remember(apps,query){apps.filter{it.name.contains(query,true)||it.packageName.contains(query,true)}}

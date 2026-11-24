@@ -1,7 +1,7 @@
 name: Android CI
 on:
   push:
-    branches: [ "main", "final/vipx-ultimate-rebuild", "fix/app-picker-visible-list", "fix/vipx-free-ai-provider", "work/vipx-production-hardening", "work/vipx-offline-core" ]
+    branches: [ "main", "final/vipx-ultimate-rebuild", "fix/app-picker-visible-list", "fix/vipx-free-ai-provider", "work/vipx-production-hardening", "work/vipx-offline-core", "fix/vipx-persistent-model-download" ]
   pull_request:
     branches: [ "main", "work/vipx-production-hardening" ]
   workflow_dispatch:
@@ -58,7 +58,7 @@ jobs:
           "$APKSIGNER" verify --verbose "$APK"
           AAPT="$(find "$ANDROID_HOME/build-tools" -name aapt -type f | sort -V | tail -n 1)"
           test -n "$AAPT"
-          "$AAPT" dump badging "$APK" | grep -F "package: name='com.vipx.ultimate' versionCode='10' versionName='2.3.3'"
+          "$AAPT" dump badging "$APK" | grep -F "package: name='com.vipx.ultimate' versionCode='11' versionName='2.4.0'"
           sha256sum "$APK"
           file "$APK"
           ls -lh "$APK"
@@ -66,7 +66,7 @@ jobs:
       - name: Upload test candidate (not production release)
         uses: actions/upload-artifact@v4
         with:
-          name: VIP-X-Ultimate-v2.3.3-candidate-debug
+          name: VIP-X-Ultimate-v2.4.0-candidate-debug
           path: app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
           retention-days: 14

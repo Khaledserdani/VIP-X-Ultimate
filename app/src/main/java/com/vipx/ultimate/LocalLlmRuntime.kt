@@ -24,7 +24,7 @@ import java.security.MessageDigest
 internal object LocalLlmRuntime {
     private const val MODEL_NAME = "Qwen3-0.6B.litertlm"
     private const val MODEL_BYTES = 613722264L
-    private const val MODEL_SHA256 = "c5f39b4191926783c6e6668b62af4d6eb15248dfc7a5348252a9b406f33f2108"
+    private const val MODEL_SHA256 = "c5f39b4191926786c3e6668b62af4d6eb15248dfc7a5348252a9b406f33f2108"
     private const val MODEL_URL =
         "https://huggingface.co/litert-community/Qwen3-0.6B/resolve/e6687177e00897731e7716267eebd4eba0dde7c2/Qwen3-0.6B.litertlm"
 
