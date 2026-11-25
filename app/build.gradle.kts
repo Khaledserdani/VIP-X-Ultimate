@@ -52,5 +52,6 @@ dependencies {
     implementation("androidx.media3:media3-session:1.11.1")
     implementation("androidx.media3:media3-ui:1.11.1")
     implementation("com.google.guava:guava:33.3.1-android")
+    testImplementation("junit:junit:4.13.2")
     debugImplementation("androidx.compose.ui:ui-tooling")
 }
