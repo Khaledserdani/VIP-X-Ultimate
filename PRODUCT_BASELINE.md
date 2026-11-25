@@ -1,28 +1,32 @@
 # VIP X — Product Baseline
 
 ## Product
-A personal Android companion dedicated to Tango Live Grid and broadcast-viewing quality diagnostics.
+A personal, standalone Android companion intended to improve video/live-stream viewing across multiple apps, not Tango specifically.
 
-## Implemented
-- Kotlin + Jetpack Compose.
-- Package: `com.vipx.ultimate`.
-- Tango package detection and launch.
-- Arabic RTL-friendly dark interface.
-- Adjustable 2/3-column layout and preview-slot cap.
-- Data-saver preference with two-slot limit.
-- Android network, memory, and thermal diagnostics.
+## User constraints
+- Original streaming apps and accounts stay untouched.
+- No root, no paid services/APIs, no cloud builds, no publication or distribution.
+- No passive monitoring dashboard as the product.
+- No fabricated quality claims or hidden capture of private streams.
 
-## Not implemented
-- Authorized Tango multi-live video source.
-- Real playback in grid tiles.
-- Measured stream throughput, frame-drop telemetry, or per-stream bitrate.
-- Automatic adjustment of Tango's server-side quality.
+## Current code reality
+The current branch still contains an earlier Tango Live Grid interface and read-only network/RAM/thermal diagnostics. Those are legacy prototype elements and do not satisfy the new product goal. No cross-app stream enhancement is implemented or validated.
 
-## Excluded legacy features
-APK analysis, local AI chat/model download, cloud gateway, remote server, Accessibility scraping, and old agent orchestration.
+## Engineering constraints
+- A normal Android app cannot universally intercept and replace decoded frames rendered by arbitrary third-party apps.
+- MediaProjection requires explicit user approval and captures only content the source app permits; it is not a universal in-place enhancement hook.
+- Android AudioEffect APIs are tied to audio sessions; attaching effects to the global output mix via session 0 is deprecated.
+- VPNService creates a routed virtual interface; packet routing alone does not improve throughput or override a streaming server's bitrate decisions.
+- System-wide effects may require OEM/system privileges unavailable to an ordinary app.
+
+## Candidate capabilities (must be proven)
+1. System-supported display controls that genuinely affect other apps.
+2. Optional user-approved screen processing only if latency, protected-content behavior, touch interaction, and battery cost are acceptable.
+3. Audio improvements only for playback paths Android explicitly exposes to VIP X.
+4. Network optimization only when a controlled test demonstrates lower latency, fewer stalls, or lower overhead; never promise higher source quality by default.
 
 ## Acceptance gate
-Do not claim multi-live support until at least two independent authorized live video sources play concurrently in separate tiles, behave correctly during scrolling, and open the selected original room on tap.
+A feature is called cross-app only after repeatable before/after tests in at least two unrelated streaming apps. A feature is called quality improvement only when an objective or clearly reproducible viewing/listening improvement is demonstrated.
 
-## Cost and distribution
-Personal use only. No paid APIs or services, no cloud build pipeline, no APK publishing or distribution.
+## Excluded
+Tango-only grid, fake preview streams, RAM/thermal monitoring as a primary feature, private stream endpoint extraction, token capture, DRM/access-control bypass, app modification/injection, paid APIs, cloud services, CI/cloud builds, and APK publishing.
