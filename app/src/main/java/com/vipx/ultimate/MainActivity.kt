@@ -5,6 +5,9 @@ import android.net.ConnectivityManager
 import android.net.NetworkCapabilities
 import android.net.Uri
 import android.os.Bundle
+import android.os.Build
+import android.os.PowerManager
+import android.app.ActivityManager
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.background
@@ -36,15 +39,33 @@ private data class NetworkStatus(
     val validated: Boolean,
     val downKbps: Int,
     val upKbps: Int,
-    val metered: Boolean
+    val metered: Boolean,
+    val freeMemoryMb: Long,
+    val thermal: String
 )
 
 private fun readNetworkStatus(context: android.content.Context): NetworkStatus {
     val manager = context.getSystemService(ConnectivityManager::class.java)
+    val activityManager = context.getSystemService(ActivityManager::class.java)
+    val memory = ActivityManager.MemoryInfo().also { activityManager.getMemoryInfo(it) }
+    val freeMemoryMb = memory.availMem / (1024L * 1024L)
+    val thermal = if (Build.VERSION.SDK_INT >= 29) {
+        val power = context.getSystemService(PowerManager::class.java)
+        when (power.currentThermalStatus) {
+            PowerManager.THERMAL_STATUS_NONE -> "طبيعي"
+            PowerManager.THERMAL_STATUS_LIGHT -> "خفيف"
+            PowerManager.THERMAL_STATUS_MODERATE -> "متوسط"
+            PowerManager.THERMAL_STATUS_SEVERE -> "مرتفع"
+            PowerManager.THERMAL_STATUS_CRITICAL -> "حرج"
+            PowerManager.THERMAL_STATUS_EMERGENCY -> "طارئ"
+            PowerManager.THERMAL_STATUS_SHUTDOWN -> "إيقاف حراري"
+            else -> "غير معروف"
+        }
+    } else "غير مدعوم على هذا الإصدار"
     val network = manager.activeNetwork
-        ?: return NetworkStatus("غير متصل", false, 0, 0, true)
+        ?: return NetworkStatus("غير متصل", false, 0, 0, true, freeMemoryMb, thermal)
     val caps = manager.getNetworkCapabilities(network)
-        ?: return NetworkStatus("غير معروف", false, 0, 0, manager.isActiveNetworkMetered)
+        ?: return NetworkStatus("غير معروف", false, 0, 0, manager.isActiveNetworkMetered, freeMemoryMb, thermal)
     val connection = when {
         caps.hasTransport(NetworkCapabilities.TRANSPORT_WIFI) -> "Wi-Fi"
         caps.hasTransport(NetworkCapabilities.TRANSPORT_CELLULAR) -> "بيانات الهاتف"
@@ -56,7 +77,9 @@ private fun readNetworkStatus(context: android.content.Context): NetworkStatus {
         validated = caps.hasCapability(NetworkCapabilities.NET_CAPABILITY_VALIDATED),
         downKbps = caps.linkDownstreamBandwidthKbps,
         upKbps = caps.linkUpstreamBandwidthKbps,
-        metered = manager.isActiveNetworkMetered
+        metered = manager.isActiveNetworkMetered,
+        freeMemoryMb = freeMemoryMb,
+        thermal = thermal
     )
 }
 
@@ -173,6 +196,11 @@ private fun LiveGridHome() {
                     )
                     Text("تقدير النظام: تنزيل ${network.downKbps} kbps • رفع ${network.upKbps} kbps", color = Muted, fontSize = 10.sp)
                     Text(if (network.metered) "الشبكة محسوبة البيانات" else "الشبكة غير محسوبة البيانات", color = Muted, fontSize = 10.sp)
+                    Text("ذاكرة RAM المتاحة: " + network.freeMemoryMb + " MB", color = Muted, fontSize = 10.sp)
+                    Text("حرارة الجهاز: " + network.thermal, color = if (network.thermal in listOf("مرتفع", "حرج", "طارئ", "إيقاف حراري")) Color(0xFFFFD27A) else Muted, fontSize = 10.sp)
+                    if (network.freeMemoryMb < 700 || network.thermal in listOf("مرتفع", "حرج", "طارئ", "إيقاف حراري")) {
+                        Text("اقتراح: استخدم خانتين أو أوقف المعاينات مؤقتاً لتخفيف الحمل.", color = Color(0xFFFFD27A), fontSize = 10.sp)
+                    }
                 }
             }
 
