@@ -42,6 +42,23 @@ class VipxEncryptedMediaTest {
         }
     }
 
+    @Test fun actualMp4VideoContainerRoundTripsWithoutChangingBytes() {
+        // A tiny generated MP4 fixture (64x64 red test clip, 0.4 seconds).
+        val mp4 = java.util.Base64.getDecoder().decode("AAAAHGZ0eXBpc29tAAACAGlzb21pc28ybXA0MQAAA1xtb292AAAAbG12aGQAAAAAAAAAAAAAAAAAAAPoAAABkAABAAABAAAAAAAAAAAAAAAAAQAAAAAAAAAAAAAAAAAAAAEAAAAAAAAAAAAAAAAAAEAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACAAACh3RyYWsAAABcdGtoZAAAAAMAAAAAAAAAAAAAAAEAAAAAAAABkAAAAAAAAAAAAAAAAAAAAAAAAQAAAAAAAAAAAAAAAAAAAAEAAAAAAAAAAAAAAAAAAEAAAAAAQAAAAEAAAAAAACRlZHRzAAAAHGVsc3QAAAAAAAAAAQAAAZAAAAAAAAEAAAAAAf9tZGlhAAAAIG1kaGQAAAAAAAAAAAAAAAAAACgAAAAQAFXEAAAAAAAtaGRscgAAAAAAAAAAdmlkZQAAAAAAAAAAAAAAAFZpZGVvSGFuZGxlcgAAAAGqbWluZgAAABR2bWhkAAAAAQAAAAAAAAAAAAAAJGRpbmYAAAAcZHJlZgAAAAAAAAABAAAADHVybCAAAAABAAABanN0YmwAAADqc3RzZAAAAAAAAAABAAAA2m1wNHYAAAAAAAAAAQAAAAAAAAAAAAAAAAAAAAAAQABAAEgAAABIAAAAAAAAAAETTGF2YzYxLjE5LjEwMSBtcGVnNAAAAAAAAAAAAAAAAAAY//8AAABgZXNkcwAAAAADgICATwABAASAgIBBIBEAAAAAAw1AAAAH+AWAgIAvAAABsAEAAAG1iRMAAAEAAAABIADEjYgALQIECBRDAAABskxhdmM2MS4xOS4xMDEGgICAAQIAAAAQcGFzcAAAAAEAAAABAAAAFGJ0cnQAAAAAAAMNQAAAB/gAAAAYc3R0cwAAAAAAAAABAAAAAgAACAAAAAAUc3RzcwAAAAAAAAABAAAAAQAAABxzdHNjAAAAAAAAAAEAAAABAAAAAgAAAAEAAAAcc3RzegAAAAAAAAAAAAAAAgAAAFIAAAAUAAAAFHN0Y28AAAAAAAAAAQAAA4gAAABhdWR0YQAAAFltZXRhAAAAAAAAACFoZGxyAAAAAAAAAABtZGlyYXBwbAAAAAAAAAAAAAAAACxpbHN0AAAAJKl0b28AAAAcZGF0YQAAAAEAAAAATGF2ZjYxLjcuMTAzAAAACGZyZWUAAABubWRhdAAAAbMAEAcAAAG2EYVGKm2EYGlG238bbfxtt+8AAKKRipthGBpRtt/G238bbfsAAMKRipthGBpRtt/G238bbfsAAOKRipthGBpRtt/G238bbfsAAAG2U8KPvwAAop4AAMKeAADing==")
+        val originalText = mp4.toString(Charsets.ISO_8859_1)
+        org.junit.Assert.assertTrue("Fixture must contain an MP4 ftyp box", originalText.startsWith("\u0000\u0000\u0000\u001Cftyp"))
+        org.junit.Assert.assertTrue("Fixture must contain movie metadata", originalText.contains("moov"))
+        org.junit.Assert.assertTrue("Fixture must contain media data", originalText.contains("mdat"))
+
+        val encrypted = ByteArrayOutputStream()
+        VipxEncryptedMedia.encrypt(ByteArrayInputStream(mp4), encrypted, "mp4-test".toCharArray(), "video/mp4", 4096)
+        val recovered = ByteArrayOutputStream()
+        assertEquals("video/mp4", VipxEncryptedMedia.decrypt(
+            ByteArrayInputStream(encrypted.toByteArray()), recovered, "mp4-test".toCharArray()
+        ))
+        assertArrayEquals("Decrypted MP4 bytes must exactly match the source clip", mp4, recovered.toByteArray())
+    }
+
     @Test fun emptyMediaHasAuthenticatedEndMarker() {
         val encrypted = ByteArrayOutputStream()
         VipxEncryptedMedia.encrypt(ByteArrayInputStream(ByteArray(0)), encrypted, "empty-pass".toCharArray(), "video/mp4")
