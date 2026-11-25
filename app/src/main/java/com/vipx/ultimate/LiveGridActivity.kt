@@ -125,6 +125,13 @@ private fun LiveGridScreen(
             .remove("stream_urls").remove("drm_enabled").remove("license_url").remove("authorization").apply()
     }
 
+    var url by remember { mutableStateOf("") }
+    var drmEnabled by remember { mutableStateOf(false) }
+    var licenseUrl by remember { mutableStateOf("") }
+    var authorization by remember { mutableStateOf("") }
+    var message by remember { mutableStateOf("أضف حتى أربعة بثوث؛ ستعمل معاً وتستمر عند تصفح التطبيق.") }
+    var audibleStream by remember { mutableStateOf<String?>(service?.selectedAudioStream()) }
+
     LaunchedEffect(importedStreamUrl) {
         val candidate = importedStreamUrl?.let(SharedMediaCapture::parse)
         if (candidate != null && streams.none { it.url == candidate.url } && streams.size < 4) {
@@ -136,13 +143,6 @@ private fun LiveGridScreen(
             message = "الشبكة ممتلئة. احذف بثاً أولاً ثم أعد استيراد الرابط."
         }
     }
-
-    var url by remember { mutableStateOf("") }
-    var drmEnabled by remember { mutableStateOf(false) }
-    var licenseUrl by remember { mutableStateOf("") }
-    var authorization by remember { mutableStateOf("") }
-    var message by remember { mutableStateOf("أضف حتى أربعة بثوث؛ ستعمل معاً وتستمر عند تصفح التطبيق.") }
-    var audibleStream by remember { mutableStateOf<String?>(service?.selectedAudioStream()) }
 
     LaunchedEffect(service) { audibleStream = service?.selectedAudioStream() }
 
