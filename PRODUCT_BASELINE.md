@@ -1,7 +1,7 @@
 # VIP X — Product Baseline
 
 ## Product
-A standalone Android app centered on in-app video/live-stream browsing and playback: an HTTPS stream collection, multi-tile previews, autoplay while the grid is visible, and a full player with Picture-in-Picture. Audio enhancement is not a priority.
+A standalone Android app for in-app media access and playback: live/HTTPS streams, multi-tile previews, full playback with Picture-in-Picture, and local image/video viewing. Audio enhancement is not a priority.
 
 ## User constraints
 - No subscriptions, paid services/APIs, cloud builds, CI builds, publication, or distribution.
@@ -10,7 +10,8 @@ A standalone Android app centered on in-app video/live-stream browsing and playb
 - Protected playback is supported only through provider-authorized Widevine licensing.
 
 ## Current implementation
-- Arabic Compose main screen and a dedicated Live Grid screen.
+- Arabic Compose main screen, dedicated Live Grid screen, and a Media Library screen.
+- Media Library uses Android's Storage Access Framework document picker to select local images or videos without broad storage permission. Images are rendered in-app with ImageView; videos are played in-app with Media3 ExoPlayer. This is newly added source code and has not yet been built or device-tested.
 - Up to four user-supplied HTTPS stream URLs are saved locally and shown in a two-column grid.
 - Each tile creates its own Media3 ExoPlayer, starts muted, repeats, and exposes loading/ready/error state.
 - Grid players pause when the grid Activity stops and release when their composable is disposed; returning to the grid resumes only previews that were actually playing before the stop, and the Android PlayerView is detached on release.
@@ -26,10 +27,14 @@ A standalone Android app centered on in-app video/live-stream browsing and playb
 - Grid previews are Activity/composable-scoped. They pause in background and are released when the screen is disposed; they do not persist as a multi-stream background service.
 - Full-player PiP and MediaSessionService integration are configured but require target-device verification.
 - No real protected stream/provider license has been supplied or tested. Widevine integration is configuration plumbing, not verified DRM playback.
+- The new local image/video viewer has not yet been built or tested on a device. Remote image URLs, remote standalone video URLs, and general web browsing are not yet part of the Media Library.
 - No local Gradle build, APK install, or target-device playback test is recorded.
 
 ## Acceptance gate
 A feature is complete only after a successful local build and target-device test. DRM is complete only after an actual provider-authorized protected stream plays with a valid license. Grid/autoplay is complete only after multiple real streams play concurrently without crashes or uncontrolled resource use.
 
+## Security testing boundary
+Temporary security experiments are limited to app-owned test data, devices, and services, or systems for which the user has explicit authorization. The local AES-GCM lab creates its own temporary key and ciphertext and verifies both successful decryption and tamper rejection; it does not unlock third-party DRM.
+
 ## Excluded
-DRM/access-control bypass, private endpoint/token extraction, app modification/injection, paid APIs, cloud builds/CI, APK publishing, and claims of universal playback.
+Unauthorized DRM/access-control bypass, private endpoint/token extraction, app modification/injection, paid APIs, cloud builds/CI, APK publishing, and claims of universal playback.
