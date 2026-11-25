@@ -43,6 +43,16 @@ object SharedMediaCapture {
         return SharedMediaCandidate(cleaned, kind, uri.host.orEmpty())
     }
 
+    fun safeDisplay(raw: String): String {
+        val uri = Uri.parse(raw)
+        val base = buildString {
+            append(uri.scheme).append("://").append(uri.host)
+            if (uri.port != -1) append(":").append(uri.port)
+            append(uri.encodedPath.orEmpty())
+        }
+        return if (uri.encodedQuery.isNullOrBlank()) base else "$base?…"
+    }
+
     fun label(kind: SharedMediaKind): String = when (kind) {
         SharedMediaKind.HLS -> "HLS • بث m3u8"
         SharedMediaKind.DASH -> "DASH • بث mpd"
