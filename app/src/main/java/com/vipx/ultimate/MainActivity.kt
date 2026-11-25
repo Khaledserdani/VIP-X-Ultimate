@@ -147,7 +147,7 @@ private fun LiveGridHome() {
                     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         Text("عدد الخانات", color = Muted, modifier = Modifier.weight(1f), fontSize = 13.sp)
                         listOf(2, 4, 6).forEach { count ->
-                            ChoiceButton(count.toString(), previewLimit == count) { previewLimit = count }
+                            ChoiceButton(count.toString(), previewLimit == count, enabled = !dataSaver || count == 2) { previewLimit = count }
                         }
                     }
                     Row(verticalAlignment = Alignment.CenterVertically) {
@@ -210,9 +210,10 @@ private fun LiveGridHome() {
 }
 
 @Composable
-private fun ChoiceButton(label: String, selected: Boolean, onClick: () -> Unit) {
+private fun ChoiceButton(label: String, selected: Boolean, enabled: Boolean = true, onClick: () -> Unit) {
     OutlinedButton(
         onClick = onClick,
+        enabled = enabled,
         contentPadding = PaddingValues(horizontal = 13.dp, vertical = 4.dp),
         colors = ButtonDefaults.outlinedButtonColors(
             contentColor = if (selected) Background else Color.White,
