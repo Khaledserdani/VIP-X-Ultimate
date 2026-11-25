@@ -38,7 +38,15 @@ class LiveGridActivity : ComponentActivity() {
 @Composable
 private fun LiveGridScreen() {
     val context = LocalContext.current
-    val streams = remember { mutableStateListOf<String>() }
+    val preferences = remember { context.getSharedPreferences("vipx_stream_library", android.content.Context.MODE_PRIVATE) }
+    val streams = remember {
+        mutableStateListOf<String>().apply {
+            addAll(preferences.getStringSet("stream_urls", emptySet()).orEmpty().take(4))
+        }
+    }
+    fun persistStreams() {
+        preferences.edit().putStringSet("stream_urls", streams.toSet()).apply()
+    }
     var url by remember { mutableStateOf("") }
     var message by remember { mutableStateOf("أضف روابط بث HTTPS تملك حق الوصول إليها. الحد الحالي 4 معاينات متزامنة.") }
 
@@ -51,7 +59,7 @@ private fun LiveGridScreen() {
             Button(onClick = {
                 val parsed = Uri.parse(url.trim())
                 if (parsed.scheme == "https" && !parsed.host.isNullOrBlank() && streams.size < 4 && !streams.contains(url.trim())) {
-                    streams.add(url.trim()); url = ""; message = "تمت إضافة البث؛ بدأ التحميل تلقائياً."
+                    streams.add(url.trim()); persistStreams(); url = ""; message = "تمت إضافة البث؛ بدأ التحميل تلقائياً."
                 } else {
                     message = when {
                         streams.size >= 4 -> "وصلت إلى الحد الآمن للمعاينات المتزامنة (4)."
@@ -60,7 +68,7 @@ private fun LiveGridScreen() {
                     }
                 }
             }, enabled = url.isNotBlank()) { Text("إضافة وتشغيل") }
-            OutlinedButton(onClick = { streams.clear(); message = "تم إيقاف جميع المعاينات." }) { Text("إيقاف الكل") }
+            OutlinedButton(onClick = { streams.clear(); persistStreams(); message = "تم إيقاف جميع المعاينات." }) { Text("إيقاف الكل") }
         }
         Text(message, color = Color(0xFF9FB2C7), fontSize = 11.sp)
         LazyVerticalGrid(columns = GridCells.Fixed(2), modifier = Modifier.weight(1f).fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -74,7 +82,7 @@ private fun LiveGridScreen() {
                             TextButton(onClick = {
                                 context.startActivity(Intent(context, PlayerActivity::class.java).putExtra(PlayerActivity.EXTRA_STREAM_URL, stream))
                             }) { Text("تكبير", fontSize = 11.sp) }
-                            TextButton(onClick = { streams.remove(stream) }) { Text("إزالة", fontSize = 11.sp) }
+                            TextButton(onClick = { streams.remove(stream); persistStreams() }) { Text("إزالة", fontSize = 11.sp) }
                         }
                     }
                 }
