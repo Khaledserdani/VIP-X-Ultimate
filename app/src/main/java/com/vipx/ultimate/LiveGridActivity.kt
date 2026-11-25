@@ -190,6 +190,7 @@ private fun LiveGridScreen(
 
             OutlinedButton(onClick = {
                 service?.stopAll()
+                audibleStream = null
                 streams.clear()
                 sessionAuthorization.clear()
                 persistStreams()
