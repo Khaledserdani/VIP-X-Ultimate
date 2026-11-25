@@ -88,10 +88,9 @@ class PlayerActivity : ComponentActivity() {
     }
 
     override fun onDestroy() {
-        mediaController?.release()
-        mediaController = null
-        controllerFuture?.cancel(false)
+        controllerFuture?.let { MediaController.releaseFuture(it) }
         controllerFuture = null
+        mediaController = null
         super.onDestroy()
     }
 
