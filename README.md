@@ -1,35 +1,22 @@
-# VIP X Ultimate
+# VIP X — Live Grid
 
-مشروع Android مستقل باستخدام Kotlin وJetpack Compose، بواجهة عربية RTL ومعرّف الحزمة com.vipx.ultimate.
+VIP X is a standalone Android companion focused on one purpose: a multi-preview live-broadcast browsing experience for Tango.
 
-## النواة الحالية
-- عرض التطبيقات التي تظهر في مشغّل الهاتف.
-- البحث بالاسم أو اسم الحزمة.
-- عرض الاسم واسم الحزمة والإصدار.
-- فتح التطبيق المختار.
-- بناء APK تجريبي عبر GitHub Actions.
+## Current app scope
+- Dedicated Arabic RTL Live Grid interface.
+- Tango is the only target app.
+- Grid layout controls (2 or 3 columns), preview-slot limit, and a data-saver preference.
+- A one-tap action to open the original Tango app.
+- No replacement, modification, repackaging, or injection into Tango.
+- No account automation, paid-feature unlocking, private traffic extraction, or protected-stream bypass.
 
-## الحدود
-هذه نواة تأسيسية وليست النسخة النهائية. لا تدّعي تعديل التطبيقات المثبتة أو قراءة بياناتها الخاصة أو تجاوز اشتراكاتها. لا يمكن استعادة المصدر الأصلي من APK مثبت.
+## Important status
+The current interface is a foundation only. The preview slots intentionally show that no authorized video source is connected. They are not fake streams or screenshots.
 
-## البناء
-gradle :app:assembleDebug
+A real multi-live grid is complete only after at least two independent live previews can play simultaneously from an authorized Tango source, continue correctly while scrolling, and open the selected room in Tango. Until that is verified, multi-stream playback must be described as unavailable.
 
-الناتج: app/build/outputs/apk/debug/app-debug.apk
+## Reuse policy
+Only general, useful engineering lessons from the earlier VIP X codebase may be reused. The previous APK-analysis, AI assistant, cloud gateway, accessibility overlay, and agent features are not part of this product and have been removed from the active app.
 
-
-## Cloud AI assistant (v1.2.0)
-The Android app includes an Arabic cloud-chat screen. The included Worker is pinned to Gemini's free-tier model only; deploy `cloud/worker.js` and configure the secrets described in `cloud/README.md`. It never falls back to a paid provider. The cloud service is not live until you deploy it.
-
-## النواة المحلية المجانية
-- يمكن اختيار تطبيق مثبت وتحليل APK الأساسي وملفات split محلياً على الهاتف.
-- يتضمن التحليل بصمة SHA-256، بيانات الإصدار وSDK، بنية DEX والمكتبات والموارد، الصلاحيات، وبصمة شهادة التوقيع التي يعرضها Android.
-- أربعة محللات محلية تقدم تقارير بنيوية وأمنية أولية وتصميمية/موارد وهندسية بقواعد صريحة.
-- تُحفظ آخر نتيجة داخل مساحة التطبيق الخاصة ويمكن فتحها لاحقاً.
-- مسار التحليل المحلي لا يحتاج إنترنت أو رمز وصول ولا يرفع APK إلى خادم.
-
-**الذكاء المحلي:** أُضيف تكامل اختياري مع LiteRT-LM ونموذج Qwen3-0.6B بترخيص Apache-2.0. حجمه نحو 614 ميغابايت ويُنزل مرة واحدة فقط بعد ضغط المستخدم، ثم يعمل محلياً دون إنترنت أو مفتاح API. يتحقق التطبيق من SHA-256 قبل تشغيله. النموذج الصغير أقل قدرة من Gemini/Groq، ويحتاج اختبار أداء على الهاتف الفعلي.
-
-**الذكاء السحابي:** اختياري ويعتمد على حصص مجانية قد تنفد. عند فشل الخدمة ينتقل المساعد إلى النموذج المحلي إذا كان قد نُزّل وشُغّل؛ ولا يوجد تحويل إلى مزود مدفوع.
-
-التفاصيل ومعايير القبول: [docs/LOCAL_FIRST_FREE_CORE.md](docs/LOCAL_FIRST_FREE_CORE.md)
+## Build policy
+No cloud builds, CI workflows, release uploads, or APK distribution are configured in this branch. The app is intended for the owner's personal use.
