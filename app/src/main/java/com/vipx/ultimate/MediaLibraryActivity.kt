@@ -75,6 +75,22 @@ class MediaLibraryActivity : ComponentActivity() {
                             throw error
                         }
                     },
+                    encryptToDocument = { sourceUri, destinationUri, password ->
+                        val mime = contentResolver.getType(sourceUri)
+                            ?: throw IllegalStateException("تعذر تحديد نوع الصورة أو الفيديو")
+                        require(mime.startsWith("image/") || mime.startsWith("video/")) {
+                            "يمكن تشفير الصور والفيديوهات فقط"
+                        }
+                        val input = contentResolver.openInputStream(sourceUri)
+                            ?: throw IllegalStateException("تعذر قراءة الملف الأصلي")
+                        val output = contentResolver.openOutputStream(destinationUri, "wt")
+                            ?: throw IllegalStateException("تعذر إنشاء ملف VIPXENC")
+                        input.use { source ->
+                            output.use { sink ->
+                                VipxEncryptedMedia.encrypt(source, sink, password, mime)
+                            }
+                        }
+                    },
                     clearDecryptedCache = {
                         decryptedPreviewFile?.delete()
                         decryptedPreviewFile = null
@@ -97,6 +113,7 @@ private fun MediaLibraryScreen(
     mimeFor: (Uri) -> String,
     inspectEncrypted: (Uri) -> String,
     decryptToPrivateCache: (Uri, CharArray) -> Pair<Uri, String>,
+    encryptToDocument: (Uri, Uri, CharArray) -> Unit,
     clearDecryptedCache: () -> Unit
 ) {
     var selectedUri by remember { mutableStateOf<Uri?>(null) }
@@ -104,6 +121,9 @@ private fun MediaLibraryScreen(
     var encryptedSource by remember { mutableStateOf<Uri?>(null) }
     var encryptedMime by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
+    var encryptPassword by remember { mutableStateOf("") }
+    var pendingEncryptSource by remember { mutableStateOf<Uri?>(null) }
+    var pendingEncryptPassword by remember { mutableStateOf("") }
     var busy by remember { mutableStateOf(false) }
     var message by remember { mutableStateOf("اختر صورة أو فيديو، أو افتح ملف VIPXENC مشفّراً.") }
     val scope = rememberCoroutineScope()
@@ -119,6 +139,32 @@ private fun MediaLibraryScreen(
             selectedMime = mimeFor(uri)
             message = if (selectedMime.startsWith("image/")) "صورة محددة" else
                 if (selectedMime.startsWith("video/")) "فيديو محدد" else "نوع الملف غير مدعوم للمعاينة."
+        }
+    }
+
+    val encryptedSavePicker = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/octet-stream")) { destination ->
+        val source = pendingEncryptSource
+        if (destination != null && source != null) {
+            val secret = pendingEncryptPassword.toCharArray()
+            busy = true
+            message = "يجري تشفير الملف وحفظه بصيغة VIPXENC…"
+            scope.launch {
+                try {
+                    withContext(Dispatchers.IO) { encryptToDocument(source, destination, secret) }
+                    message = "نجح تشفير الملف وحفظه. احتفظ بكلمة المرور لاستعادته لاحقاً."
+                } catch (error: Exception) {
+                    message = "فشل التشفير: ${error.message ?: error.javaClass.simpleName}"
+                } finally {
+                    secret.fill('\u0000')
+                    pendingEncryptPassword = ""
+                    pendingEncryptSource = null
+                    encryptPassword = ""
+                    busy = false
+                }
+            }
+        } else {
+            pendingEncryptPassword = ""
+            pendingEncryptSource = null
         }
     }
 
@@ -158,6 +204,28 @@ private fun MediaLibraryScreen(
                 OutlinedButton(onClick = { encryptedPicker.launch(arrayOf("*/*")) }, modifier = Modifier.weight(1f)) {
                     Text("ملف مشفّر")
                 }
+            }
+
+            if (selectedUri != null && (selectedMime.startsWith("image/") || selectedMime.startsWith("video/"))) {
+                OutlinedTextField(
+                    value = encryptPassword,
+                    onValueChange = { encryptPassword = it },
+                    modifier = Modifier.fillMaxWidth(),
+                    label = { Text("كلمة مرور جديدة للتشفير") },
+                    visualTransformation = PasswordVisualTransformation(),
+                    singleLine = true,
+                    enabled = !busy
+                )
+                OutlinedButton(
+                    onClick = {
+                        pendingEncryptSource = selectedUri
+                        pendingEncryptPassword = encryptPassword
+                        val extension = if (selectedMime.startsWith("image/")) "image" else "video"
+                        encryptedSavePicker.launch("VIPX-$extension-${System.currentTimeMillis()}.vipxenc")
+                    },
+                    enabled = encryptPassword.isNotEmpty() && !busy,
+                    modifier = Modifier.fillMaxWidth()
+                ) { Text("تشفير الملف وحفظ VIPXENC") }
             }
 
             if (encryptedSource != null) {
