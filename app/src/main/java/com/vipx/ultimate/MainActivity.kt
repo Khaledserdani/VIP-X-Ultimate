@@ -93,11 +93,11 @@ private fun VipHome(
                     Button(
                         onClick = {
                             val parsed = Uri.parse(streamUrl.trim())
-                            if (parsed.scheme in listOf("https", "http") && !parsed.host.isNullOrBlank()) {
+                            if (parsed.scheme == "https" && !parsed.host.isNullOrBlank()) {
                                 streamMessage = "يتم فتح المشغّل…"
                                 openStream(streamUrl.trim())
                             } else {
-                                streamMessage = "أدخل رابطاً صحيحاً يبدأ بـ https:// أو http://"
+                                streamMessage = "أدخل رابطاً صحيحاً يبدأ بـ https://"
                             }
                         },
                         enabled = streamUrl.isNotBlank(),
