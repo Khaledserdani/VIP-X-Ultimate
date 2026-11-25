@@ -109,6 +109,7 @@ class MediaCaptureActivity : ComponentActivity() {
                                                     val source = contentResolver.openInputStream(sharedUri)
                                                         ?: throw IllegalStateException("تعذر قراءة المشاركة")
                                                     val outputFile = File.createTempFile("vipx-shared-", ".tmp", cacheDir)
+                                                    var finalFile: File? = null
                                                     try {
                                                         val mime = source.use { input ->
                                                             outputFile.outputStream().buffered().use { output ->
@@ -117,14 +118,16 @@ class MediaCaptureActivity : ComponentActivity() {
                                                         }
                                                         val extension = android.webkit.MimeTypeMap.getSingleton()
                                                             .getExtensionFromMimeType(mime) ?: "media"
-                                                        val finalFile = File(cacheDir, "vipx-shared-${System.nanoTime()}.$extension")
+                                                        finalFile = File(cacheDir, "vipx-shared-${System.nanoTime()}.$extension")
                                                         if (!outputFile.renameTo(finalFile)) {
                                                             outputFile.copyTo(finalFile, overwrite = true)
                                                             outputFile.delete()
                                                         }
                                                         Pair(Uri.fromFile(finalFile), mime)
                                                     } catch (error: Exception) {
+                                                        // Never leave a partially decrypted plaintext file behind.
                                                         outputFile.delete()
+                                                        finalFile?.delete()
                                                         throw error
                                                     }
                                                 }
