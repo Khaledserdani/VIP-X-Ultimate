@@ -17,6 +17,7 @@ import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.delay
 import java.security.SecureRandom
 import javax.crypto.AEADBadTagException
 import javax.crypto.Cipher
@@ -99,8 +100,19 @@ private fun runLocalAesGcmTest(): CryptoTestResult {
 private fun CryptoLabScreen() {
     val scope = rememberCoroutineScope()
     var running by remember { mutableStateOf(false) }
+    var secondsLeft by remember { mutableIntStateOf(0) }
     var result by remember { mutableStateOf<CryptoTestResult?>(null) }
     var error by remember { mutableStateOf<String?>(null) }
+
+    LaunchedEffect(running) {
+        if (running) {
+            for (second in 10 downTo 1) {
+                secondsLeft = second
+                delay(1_000L)
+            }
+            secondsLeft = 0
+        }
+    }
 
     Surface(modifier = Modifier.fillMaxSize(), color = LabBg) {
         Column(
@@ -122,6 +134,7 @@ private fun CryptoLabScreen() {
                         onClick = {
                             result = null
                             error = null
+                            secondsLeft = 10
                             running = true
                             scope.launch {
                                 try {
@@ -144,6 +157,7 @@ private fun CryptoLabScreen() {
 
             if (running) {
                 LinearProgressIndicator(modifier = Modifier.fillMaxWidth(), color = LabAccent)
+                Text("الوقت المتبقي: ${secondsLeft} ثوانٍ", color = LabAccent, fontSize = 16.sp, fontWeight = FontWeight.Bold)
                 Text("يجري فك بيانات المختبر والتحقق من سلامتها…", color = LabMuted, fontSize = 13.sp)
             }
 
