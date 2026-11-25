@@ -10,7 +10,7 @@ A personal, standalone Android companion intended to improve video/live-stream v
 - No fabricated quality claims or hidden capture of private streams.
 
 ## Current code reality
-The current branch still contains an earlier Tango Live Grid interface and read-only network/RAM/thermal diagnostics. Those are legacy prototype elements and do not satisfy the new product goal. No cross-app stream enhancement is implemented or validated.
+The current branch no longer contains the Tango Live Grid or the old diagnostics screen. It currently provides a standalone HTTPS media player (Media3 with HLS/DASH modules), Android system-brightness control after the special user-granted permission, and a local AES-GCM test screen. These are in-app/system-setting utilities; they do not enhance video frames or audio produced by unrelated streaming apps. No cross-app stream enhancement is implemented or validated.
 
 ## Engineering constraints
 - A normal Android app cannot universally intercept and replace decoded frames rendered by arbitrary third-party apps.
