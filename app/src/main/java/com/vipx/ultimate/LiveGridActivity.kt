@@ -163,7 +163,7 @@ private fun LiveGridScreen() {
 private fun StreamPreview(url: String, drmEnabled: Boolean, licenseUrl: String, authorization: String, modifier: Modifier = Modifier) {
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
-    var state by remember(url) { mutableStateOf("جارٍ التحميل…") }
+    var state by remember(url, drmEnabled, licenseUrl, authorization) { mutableStateOf("جارٍ التحميل…") }
     val player = remember(url, drmEnabled, licenseUrl, authorization) {
         ExoPlayer.Builder(context).build().apply {
             volume = 0f
@@ -193,10 +193,19 @@ private fun StreamPreview(url: String, drmEnabled: Boolean, licenseUrl: String, 
         }
     }
     DisposableEffect(player, lifecycleOwner) {
+        var resumeAfterStop = false
         val observer = LifecycleEventObserver { _, event ->
             when (event) {
-                Lifecycle.Event.ON_START -> if (player.playbackState != Player.STATE_IDLE) player.play()
-                Lifecycle.Event.ON_STOP -> player.pause()
+                Lifecycle.Event.ON_START -> {
+                    if (resumeAfterStop && player.playbackState != Player.STATE_IDLE && player.playbackState != Player.STATE_ENDED) {
+                        player.play()
+                    }
+                    resumeAfterStop = false
+                }
+                Lifecycle.Event.ON_STOP -> {
+                    resumeAfterStop = player.isPlaying
+                    player.pause()
+                }
                 else -> Unit
             }
         }
@@ -208,7 +217,8 @@ private fun StreamPreview(url: String, drmEnabled: Boolean, licenseUrl: String, 
     }
     Column(modifier, verticalArrangement = Arrangement.spacedBy(2.dp)) {
         AndroidView(factory = { PlayerView(it).apply { useController = false; this.player = player } },
-            modifier = Modifier.fillMaxWidth().height(88.dp), update = { it.player = player })
+            modifier = Modifier.fillMaxWidth().height(88.dp), update = { it.player = player },
+            onRelease = { view -> view.player = null })
         Text(state, color = GridAccent, fontSize = 10.sp)
     }
 }
