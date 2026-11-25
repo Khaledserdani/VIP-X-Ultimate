@@ -3,6 +3,7 @@ package com.vipx.ultimate
 import android.content.Intent
 import android.net.Uri
 import android.os.Bundle
+import android.webkit.MimeTypeMap
 import android.widget.ImageView
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -15,51 +16,130 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.viewinterop.AndroidView
+import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.viewinterop.AndroidView
 import androidx.media3.common.MediaItem
 import androidx.media3.common.Player
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.ui.PlayerView
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import java.io.File
 
 private val MediaBg = Color(0xFF07111F)
 private val MediaAccent = Color(0xFF42E3C2)
 
 class MediaLibraryActivity : ComponentActivity() {
+    private var decryptedPreviewFile: File? = null
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         window.statusBarColor = android.graphics.Color.rgb(7, 17, 31)
         window.navigationBarColor = android.graphics.Color.rgb(7, 17, 31)
-        setContent { MaterialTheme(colorScheme = darkColorScheme(primary = MediaAccent, background = MediaBg)) {
-            MediaLibraryScreen(
-                onPersistPermission = { uri ->
-                    try {
-                        contentResolver.takePersistableUriPermission(
-                            uri, Intent.FLAG_GRANT_READ_URI_PERMISSION
-                        )
-                    } catch (_: Exception) { }
-                },
-                mimeFor = { uri -> contentResolver.getType(uri).orEmpty() }
-            )
-        } }
+        setContent {
+            MaterialTheme(colorScheme = darkColorScheme(primary = MediaAccent, background = MediaBg)) {
+                MediaLibraryScreen(
+                    onPersistPermission = { uri ->
+                        try {
+                            contentResolver.takePersistableUriPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                        } catch (_: Exception) { }
+                    },
+                    mimeFor = { uri -> contentResolver.getType(uri).orEmpty() },
+                    inspectEncrypted = { uri ->
+                        contentResolver.openInputStream(uri)?.use { VipxEncryptedMedia.inspect(it).mimeType }
+                            ?: throw IllegalStateException("تعذر قراءة الملف")
+                    },
+                    decryptToPrivateCache = { uri, password ->
+                        val input = contentResolver.openInputStream(uri)
+                            ?: throw IllegalStateException("تعذر فتح الملف المشفر")
+                        val outputFile = File.createTempFile("vipx-dec-", ".tmp", cacheDir)
+                        try {
+                            val mime = input.use { source ->
+                                outputFile.outputStream().buffered().use { sink ->
+                                    VipxEncryptedMedia.decrypt(source, sink, password)
+                                }
+                            }
+                            val extension = MimeTypeMap.getSingleton().getExtensionFromMimeType(mime) ?: "media"
+                            val finalFile = File(cacheDir, "vipx-dec-${System.nanoTime()}.$extension")
+                            if (!outputFile.renameTo(finalFile)) {
+                                outputFile.copyTo(finalFile, overwrite = true)
+                                outputFile.delete()
+                            }
+                            decryptedPreviewFile?.delete()
+                            decryptedPreviewFile = finalFile
+                            Pair(Uri.fromFile(finalFile), mime)
+                        } catch (error: Exception) {
+                            outputFile.delete()
+                            throw error
+                        }
+                    },
+                    clearDecryptedCache = {
+                        decryptedPreviewFile?.delete()
+                        decryptedPreviewFile = null
+                    }
+                )
+            }
+        }
+    }
+
+    override fun onDestroy() {
+        decryptedPreviewFile?.delete()
+        decryptedPreviewFile = null
+        super.onDestroy()
     }
 }
 
 @Composable
 private fun MediaLibraryScreen(
     onPersistPermission: (Uri) -> Unit,
-    mimeFor: (Uri) -> String
+    mimeFor: (Uri) -> String,
+    inspectEncrypted: (Uri) -> String,
+    decryptToPrivateCache: (Uri, CharArray) -> Pair<Uri, String>,
+    clearDecryptedCache: () -> Unit
 ) {
     var selectedUri by remember { mutableStateOf<Uri?>(null) }
     var selectedMime by remember { mutableStateOf("") }
-    var message by remember { mutableStateOf("اختر صورة أو فيديو من ملفات هاتفك.") }
-    val picker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+    var encryptedSource by remember { mutableStateOf<Uri?>(null) }
+    var encryptedMime by remember { mutableStateOf("") }
+    var password by remember { mutableStateOf("") }
+    var busy by remember { mutableStateOf(false) }
+    var message by remember { mutableStateOf("اختر صورة أو فيديو، أو افتح ملف VIPXENC مشفّراً.") }
+    val scope = rememberCoroutineScope()
+
+    val mediaPicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
         if (uri != null) {
+            clearDecryptedCache()
+            encryptedSource = null
+            encryptedMime = ""
+            password = ""
             onPersistPermission(uri)
             selectedUri = uri
             selectedMime = mimeFor(uri)
             message = if (selectedMime.startsWith("image/")) "صورة محددة" else
                 if (selectedMime.startsWith("video/")) "فيديو محدد" else "نوع الملف غير مدعوم للمعاينة."
+        }
+    }
+
+    val encryptedPicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+        if (uri != null) {
+            clearDecryptedCache()
+            selectedUri = null
+            selectedMime = ""
+            encryptedSource = uri
+            password = ""
+            onPersistPermission(uri)
+            encryptedMime = try {
+                inspectEncrypted(uri)
+            } catch (error: Exception) {
+                ""
+            }
+            message = if (encryptedMime.startsWith("image/") || encryptedMime.startsWith("video/")) {
+                "ملف VIPXENC صالح مبدئياً • النوع: $encryptedMime. أدخل كلمة المرور لفكّه."
+            } else {
+                "لم يتم التعرف على حاوية VIPXENC صالحة أو أن ترويسة الملف تالفة."
+            }
         }
     }
 
@@ -70,15 +150,60 @@ private fun MediaLibraryScreen(
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             Text("VIP X • مكتبة الوسائط", color = MediaAccent, style = MaterialTheme.typography.titleLarge)
-            Text("فتح الصور والفيديوهات محلياً داخل التطبيق", color = Color.LightGray)
+            Text("فتح الصور والفيديوهات العادية وملفات VIPXENC التي تملك كلمة مرورها.", color = Color.LightGray)
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
-                Button(onClick = { picker.launch(arrayOf("image/*")) }, modifier = Modifier.weight(1f)) {
-                    Text("اختيار صورة")
+                Button(onClick = { mediaPicker.launch(arrayOf("image/*", "video/*")) }, modifier = Modifier.weight(1f)) {
+                    Text("صور وفيديو")
                 }
-                Button(onClick = { picker.launch(arrayOf("video/*")) }, modifier = Modifier.weight(1f)) {
-                    Text("اختيار فيديو")
+                OutlinedButton(onClick = { encryptedPicker.launch(arrayOf("*/*")) }, modifier = Modifier.weight(1f)) {
+                    Text("ملف مشفّر")
                 }
             }
+
+            if (encryptedSource != null) {
+                OutlinedTextField(
+                    value = password,
+                    onValueChange = { password = it },
+                    modifier = Modifier.fillMaxWidth(),
+                    label = { Text("كلمة مرور ملف VIPXENC") },
+                    visualTransformation = PasswordVisualTransformation(),
+                    singleLine = true,
+                    enabled = !busy
+                )
+                Button(
+                    onClick = {
+                        val source = encryptedSource ?: return@Button
+                        val secret = password.toCharArray()
+                        busy = true
+                        message = "يجري فك التشفير والتحقق من سلامة جميع القطع…"
+                        scope.launch {
+                            try {
+                                val result = withContext(Dispatchers.IO) { decryptToPrivateCache(source, secret) }
+                                selectedUri = result.first
+                                selectedMime = result.second
+                                encryptedSource = null
+                                encryptedMime = ""
+                                message = "نجح فك التشفير والتحقق. تمت المعاينة من نسخة مؤقتة داخل مساحة التطبيق الخاصة."
+                            } catch (error: Exception) {
+                                message = when (error) {
+                                    is javax.crypto.AEADBadTagException -> "فشل التحقق: كلمة المرور خاطئة أو الملف تم العبث به."
+                                    is java.io.EOFException -> "الملف مبتور أو علامة اكتماله غير موجودة."
+                                    else -> "تعذر فك الملف: ${error.message ?: error.javaClass.simpleName}"
+                                }
+                            } finally {
+                                secret.fill('\u0000')
+                                password = ""
+                                busy = false
+                            }
+                        }
+                    },
+                    enabled = password.isNotEmpty() && encryptedMime.startsWith("image/").or(encryptedMime.startsWith("video/")) && !busy,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text(if (busy) "جارٍ التحقق وفك التشفير…" else "فك التشفير وفتح الوسائط")
+                }
+            }
+
             Text(message, color = Color.White)
             val uri = selectedUri
             if (uri != null && selectedMime.startsWith("image/")) {
@@ -115,8 +240,10 @@ private fun MediaLibraryScreen(
                     Text("ستظهر معاينة الصورة أو مشغّل الفيديو هنا", color = Color.LightGray)
                 }
             }
-            Text("تُفتح الملفات عبر منتقي Android الرسمي؛ لا يطلب التطبيق صلاحية شاملة لقراءة ملفات الهاتف.",
-                color = Color.Gray, style = MaterialTheme.typography.bodySmall)
+            Text(
+                "تُفتح الملفات عبر منتقي Android الرسمي. الملفات المفكوكة تحفظ مؤقتاً في مساحة التطبيق الخاصة وتحذف عند إغلاق شاشة المكتبة.",
+                color = Color.Gray, style = MaterialTheme.typography.bodySmall
+            )
         }
     }
 }
