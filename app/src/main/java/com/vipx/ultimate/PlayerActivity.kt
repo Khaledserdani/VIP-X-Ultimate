@@ -25,6 +25,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
+import androidx.media3.common.C
 import androidx.media3.common.MediaItem
 import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
@@ -49,7 +50,11 @@ class PlayerActivity : ComponentActivity() {
         }
 
         override fun onPlayerError(error: PlaybackException) {
-            playbackMessage = "تعذر تشغيل البث: ${error.errorCodeName}"
+            val detail = error.cause?.message?.take(180)
+            playbackMessage = buildString {
+                append("تعذر تشغيل البث: ${error.errorCodeName}")
+                if (detail != null) append(" • ").append(detail)
+            }
         }
     }
 
@@ -59,6 +64,16 @@ class PlayerActivity : ComponentActivity() {
         val parsedUri = Uri.parse(streamUrl)
         if (parsedUri.scheme != "https" || parsedUri.host.isNullOrBlank()) {
             playbackMessage = "الرابط غير صالح؛ يلزم رابط HTTPS مباشر متوافق."
+            finish()
+            return
+        }
+
+        val drmEnabled = intent.getBooleanExtra(EXTRA_DRM_ENABLED, false)
+        val licenseUrl = intent.getStringExtra(EXTRA_DRM_LICENSE_URL)?.trim().orEmpty()
+        val authorization = intent.getStringExtra(EXTRA_DRM_AUTHORIZATION)?.trim().orEmpty()
+        val parsedLicenseUri = if (drmEnabled) Uri.parse(licenseUrl) else null
+        if (drmEnabled && (parsedLicenseUri?.scheme != "https" || parsedLicenseUri.host.isNullOrBlank())) {
+            playbackMessage = "رابط ترخيص Widevine غير صالح؛ يلزم HTTPS."
             finish()
             return
         }
@@ -75,7 +90,20 @@ class PlayerActivity : ComponentActivity() {
                 }
                 mediaController = controller
                 controller.addListener(playerListener)
-                controller.setMediaItem(MediaItem.fromUri(parsedUri))
+                val mediaItem = if (drmEnabled) {
+                    val drmBuilder = MediaItem.DrmConfiguration.Builder(C.WIDEVINE_UUID)
+                        .setLicenseUri(parsedLicenseUri!!)
+                    if (authorization.isNotBlank()) {
+                        drmBuilder.setLicenseRequestHeaders(mapOf("Authorization" to authorization))
+                    }
+                    MediaItem.Builder()
+                        .setUri(parsedUri)
+                        .setDrmConfiguration(drmBuilder.build())
+                        .build()
+                } else {
+                    MediaItem.fromUri(parsedUri)
+                }
+                controller.setMediaItem(mediaItem)
                 controller.prepare()
                 controller.play()
             } catch (_: Exception) {
@@ -150,5 +178,8 @@ class PlayerActivity : ComponentActivity() {
 
     companion object {
         const val EXTRA_STREAM_URL = "com.vipx.ultimate.STREAM_URL"
+        const val EXTRA_DRM_ENABLED = "com.vipx.ultimate.DRM_ENABLED"
+        const val EXTRA_DRM_LICENSE_URL = "com.vipx.ultimate.DRM_LICENSE_URL"
+        const val EXTRA_DRM_AUTHORIZATION = "com.vipx.ultimate.DRM_AUTHORIZATION"
     }
 }
