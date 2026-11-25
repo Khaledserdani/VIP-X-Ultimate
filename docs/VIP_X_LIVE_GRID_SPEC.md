@@ -1,35 +1,33 @@
-# VIP X — Universal Viewing Enhancement Direction
+# VIP X — In-App Live Grid Specification
 
-## Direction change
-This document replaces the Tango-only Live Grid product direction. VIP X is now intended as a personal Android companion for improving the viewing/listening experience across different video and live-streaming apps. It must not modify, replace, repackage, or inject into those apps.
+## Product direction
+VIP X is an in-app video/live-stream browsing and playback experience. The user adds stream URLs they are authorized to access, previews them inside VIP X, opens a selected stream in the full player, and may use Android Picture-in-Picture where supported.
 
-## User's actual goal
-VIP X is an in-app video/live browsing and playback experience: browse a collection of streams, keep playback inside VIP X while moving between items, provide a multi-tile preview/grid, support automatic playback while browsing, and offer a floating/Picture-in-Picture player. Audio enhancement is not a priority. DRM-protected streams are in scope only through valid provider-issued Widevine licenses; bypassing DRM is explicitly out of scope.
+## Current implementation
+- A dedicated Compose Live Grid screen accepts up to four HTTPS stream URLs.
+- URLs are stored locally in SharedPreferences.
+- A two-column grid creates one muted Media3 ExoPlayer per tile, with repeat enabled and visible loading/ready/error text.
+- Players pause when the grid screen receives lifecycle stop and release when their composables are disposed.
+- Widevine can be enabled for the grid. A shared HTTPS license URL is persisted; Authorization is session-only and not persisted.
+- Selecting a tile launches the full PlayerActivity and passes its URL and current DRM settings.
+- The full player uses MediaController/MediaSessionService and has PiP configuration.
 
-## Reality check: Android boundaries
-- A regular non-root app has no universal API to intercept decoded video frames from arbitrary third-party apps and replace them with enhanced frames.
-- MediaProjection can capture screen/audio only after user approval. Android documents that capture can be stopped by the user/system, and source apps may restrict playback capture. It is not an invisible global video-processing pipeline.
-- Android's AudioEffect APIs are associated with a specific audio session. The documented global output-mix path using session 0 is deprecated.
-- VPNService routes packets through a virtual interface. It does not inherently improve the radio link, remove congestion, or force a streaming service to provide a higher bitrate.
-- A stream's resolution and bitrate are usually selected by the source app/service and server; VIP X must not claim to override them without an exposed supported control.
+## Limitations
+- This is a user-managed URL grid, not a general browser, search engine, or automatic stream discovery feature.
+- DRM configuration is shared across tiles. Independent per-stream license URLs/headers are not yet supported.
+- Authorization headers are passed through an Activity intent to the full player; they are not stored in preferences.
+- Four simultaneous players may exceed device decoder, memory, network, battery, or thermal capacity. The UI cap is not a device capability guarantee.
+- Grid playback is not persistent in the background. It pauses when the Activity stops and releases when the screen is disposed.
+- No provider-issued license or protected test stream has been provided; actual Widevine playback is unverified.
+- No local build, APK installation, or device-level multi-stream test is recorded.
 
-## Product rules
-1. Remove Tango as the sole target and remove the old live-grid assumption.
-2. Remove RAM, temperature, and generic network status panels as the product's main functionality.
-3. Do not display invented quality scores, FPS, bitrate, packet-loss, or improvement percentages.
-4. Do not capture screens or audio in the background or without a clear user action and Android consent.
-5. Do not extract private stream URLs, session tokens, or protected traffic; do not bypass DRM or app access controls.
-6. No root, paid APIs, subscriptions, cloud services, CI/cloud builds, release uploads, or public distribution.
+## DRM rules
+Use only a license URL and request headers issued by the content provider for VIP X. Require HTTPS. Do not bypass DRM, extract keys, intercept other apps, or claim universal protected-stream support. Provider authorization, manifest/container compatibility, device provisioning/security level, license expiry, and renewal must be verified for each provider.
 
-## Candidate implementation path
-- Build an in-app stream library/browser and persistent navigation so selecting another stream does not require leaving the VIP X experience.
-- Add a multi-tile preview grid with explicit per-tile loading/error states and resource limits; autoplay behavior must respect Android lifecycle, bandwidth, and user controls.
-- Keep a selected stream in the Media3 playback service and support Picture-in-Picture/floating playback where Android permits.
-- Integrate Widevine using provider-issued license URLs and authorized request headers; verify DASH/HLS/container compatibility, device Widevine provisioning/security level, license expiry, and renewal behavior.
-- Never promise playback for arbitrary protected providers: each provider must authorize VIP X and issue a compatible license.
-
-## Proof required
-For each claimed improvement, test at least two unrelated streaming apps with the same content/network/device conditions. Record objective measures where available and user-visible results. Do not claim universal enhancement until the same feature works consistently across those apps.
-
-## Current status
-The app currently has a single HTTPS stream entry and a Media3 player backed by a MediaSessionService, plus system brightness control and a local AES-GCM test screen. Picture-in-Picture is configured. A first Widevine path now accepts a HTTPS license-server URL and optional Authorization request header and passes them to Media3 ExoPlayer. Error reporting distinguishes DRM/license, provisioning, parser, and network failure categories. This is not yet a browser, stream library, multi-tile preview grid, or automatic multi-stream browsing experience. Widevine playback is not yet verified on a real protected stream with a valid provider-issued license on the target phone.
+## Acceptance tests
+1. Build locally with the pinned project toolchain.
+2. Test one clear HLS and one DASH stream.
+3. Test two then four streams on the target phone; record playback failures, decoder errors, heat, battery impact, and network use.
+4. Background and foreground the grid; confirm pause/resume and resource release.
+5. Test PiP on the target Android version.
+6. Test DRM only with a provider-authorized protected stream and valid license. Do not mark DRM complete before successful playback.
