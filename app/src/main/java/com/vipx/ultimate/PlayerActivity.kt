@@ -1,7 +1,10 @@
 package com.vipx.ultimate
 
 import android.net.Uri
+import android.os.Build
 import android.os.Bundle
+import android.app.PictureInPictureParams
+import android.util.Rational
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.layout.fillMaxSize
@@ -44,7 +47,7 @@ class PlayerActivity : ComponentActivity() {
             }
         }, mainExecutor)
 
-        setContent {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {\n            val params = PictureInPictureParams.Builder()\n                .setAspectRatio(Rational(16, 9))\n                .apply { if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) setAutoEnterEnabled(true) }\n                .build()\n            setPictureInPictureParams(params)\n        }\n\n        setContent {
             MaterialTheme(colorScheme = darkColorScheme()) {
                 val playerView = remember {
                     PlayerView(this).apply {
@@ -65,7 +68,7 @@ class PlayerActivity : ComponentActivity() {
         }
     }
 
-    override fun onDestroy() {
+    override fun onUserLeaveHint() {\n        super.onUserLeaveHint()\n        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O && mediaController?.isPlaying == true) {\n            enterPictureInPictureMode(\n                PictureInPictureParams.Builder().setAspectRatio(Rational(16, 9)).build()\n            )\n        }\n    }\n\n    override fun onDestroy() {
         mediaController?.release()
         mediaController = null
         controllerFuture?.cancel(false)
