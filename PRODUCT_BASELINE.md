@@ -1,33 +1,35 @@
 # VIP X — Product Baseline
 
 ## Product
-A standalone Android app centered on its own video/live-stream browsing and playback experience: stream discovery/organization, in-app navigation, multi-tile previews, autoplay while browsing, and floating/Picture-in-Picture playback. Audio enhancement is not a priority.
+A standalone Android app centered on in-app video/live-stream browsing and playback: an HTTPS stream collection, multi-tile previews, autoplay while the grid is visible, and a full player with Picture-in-Picture. Audio enhancement is not a priority.
 
 ## User constraints
-- Original streaming apps and accounts stay untouched.
-- No root, no paid services/APIs, no cloud builds, no publication or distribution.
-- No passive monitoring dashboard as the product.
-- No fabricated quality claims or hidden capture of private streams.
+- No subscriptions, paid services/APIs, cloud builds, CI builds, publication, or distribution.
+- Do not modify `main`, merge, or rebase without explicit approval.
+- Do not modify or inject into other streaming apps; no root, token extraction, private endpoint harvesting, or DRM bypass.
+- Protected playback is supported only through provider-authorized Widevine licensing.
 
-## Current code reality
-The current branch currently provides one HTTPS Media3 stream entry with HLS/DASH modules, a MediaSessionService-backed player, Picture-in-Picture configuration, Android system-brightness control after special user permission, and a local AES-GCM test screen. A first Widevine integration accepts a HTTPS license URL and optional Authorization header, and surfaces DRM/license/provisioning/parser/network diagnostics. It does not bypass DRM. The in-app browser, stream library, multi-tile preview grid, and autoplay-while-browsing are not implemented yet. Real protected playback is not yet verified against a compatible stream and provider-issued license on the target device.
+## Current implementation
+- Arabic Compose main screen and a dedicated Live Grid screen.
+- Up to four user-supplied HTTPS stream URLs are saved locally and shown in a two-column grid.
+- Each tile creates its own Media3 ExoPlayer, starts muted, repeats, and exposes loading/ready/error state.
+- Grid players pause when the grid Activity stops and release when their composable is disposed.
+- Grid Widevine enabled flag and license URL are saved locally; Authorization header is kept in the current screen session and is not persisted.
+- Tapping a tile opens the full Media3 player backed by MediaSessionService and passes the current DRM settings.
+- Full player accepts HTTPS stream and license URLs, optional Authorization header, and has PiP configuration.
+- HLS/DASH Media3 modules are dependencies. This is a URL-based stream grid, not yet a general web browser or content discovery engine.
 
-## Engineering constraints
-- A normal Android app cannot universally intercept and replace decoded frames rendered by arbitrary third-party apps.
-- MediaProjection requires explicit user approval and captures only content the source app permits; it is not a universal in-place enhancement hook.
-- Android AudioEffect APIs are tied to audio sessions; attaching effects to the global output mix via session 0 is deprecated.
-- VPNService creates a routed virtual interface; packet routing alone does not improve throughput or override a streaming server's bitrate decisions.
-- System-wide effects may require OEM/system privileges unavailable to an ordinary app.
-
-## Candidate capabilities (must be proven)
-1. Expand the basic URL grid into a proper browsing/library experience without leaving VIP X.
-2. Validate multi-tile previews and controlled autoplay against decoder, bandwidth, battery, and lifecycle limits.
-3. Validate persistent selected-stream playback and PiP/floating playback.
-4. Extend Widevine configuration to the grid only where provider authorization and per-stream license metadata are available; validate protected playback on target hardware.
-5. Any cross-app display feature only when Android exposes a supported and user-approved mechanism.
+## Known limitations / outstanding work
+- One shared DRM license URL and one session-only Authorization value currently apply to all grid tiles. Per-stream DRM configuration is not implemented.
+- Authorization is passed in Activity intents to the full player; avoid logging it and keep its lifetime short.
+- The four-player cap is a UI limit, not proof that every device can decode four streams. Device decoder, memory, bandwidth, battery, and thermal limits remain untested.
+- Grid previews are Activity/composable-scoped. They pause in background and are released when the screen is disposed; they do not persist as a multi-stream background service.
+- Full-player PiP and MediaSessionService integration are configured but require target-device verification.
+- No real protected stream/provider license has been supplied or tested. Widevine integration is configuration plumbing, not verified DRM playback.
+- No local Gradle build, APK install, or target-device playback test is recorded.
 
 ## Acceptance gate
-A feature is complete only after implementation, local build, and device-level test. DRM is complete only after an actual protected stream starts and remains playable using a valid provider-issued license on the target device. Grid/autoplay is complete only after multiple real streams preview concurrently without crashes or uncontrolled resource use. Never claim untested functionality.
+A feature is complete only after a successful local build and target-device test. DRM is complete only after an actual provider-authorized protected stream plays with a valid license. Grid/autoplay is complete only after multiple real streams play concurrently without crashes or uncontrolled resource use.
 
 ## Excluded
-Tango-only grid, fake preview streams, RAM/thermal monitoring as a primary feature, private stream endpoint extraction, token capture, DRM/access-control bypass, app modification/injection, paid APIs, cloud services, CI/cloud builds, and APK publishing.
+DRM/access-control bypass, private endpoint/token extraction, app modification/injection, paid APIs, cloud builds/CI, APK publishing, and claims of universal playback.
