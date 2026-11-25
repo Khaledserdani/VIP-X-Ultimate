@@ -13,26 +13,25 @@ data class SharedMediaCandidate(
 )
 
 object SharedMediaCapture {
-    private val urlRegex = Regex("https?://[^\\s<>\\\"']+", RegexOption.IGNORE_CASE)
+    private val urlRegex = Regex("https://[^\\s<>\\\"']+", RegexOption.IGNORE_CASE)
 
     fun fromIntent(intent: Intent?): SharedMediaCandidate? {
         if (intent == null) return null
         val candidates = linkedSetOf<String>()
         intent.data?.toString()?.let(candidates::add)
-        intent.getStringExtra(Intent.EXTRA_TEXT)?.let { text ->
+        intent.getCharSequenceExtra(Intent.EXTRA_TEXT)?.toString()?.let { text ->
             urlRegex.findAll(text).forEach { candidates.add(it.value.trimEnd('.', ',', ';', ')', ']', '}')) }
             if (candidates.isEmpty() && Patterns.WEB_URL.matcher(text.trim()).matches()) {
                 candidates.add(if (text.trim().startsWith("http", true)) text.trim() else "https://${text.trim()}")
             }
         }
-        intent.getStringExtra(Intent.EXTRA_STREAM)?.let(candidates::add)
         return candidates.asSequence().mapNotNull(::parse).firstOrNull()
     }
 
     fun parse(raw: String): SharedMediaCandidate? {
         val cleaned = raw.trim().trimEnd('.', ',', ';', ')', ']', '}')
         val uri = runCatching { Uri.parse(cleaned) }.getOrNull() ?: return null
-        if (uri.scheme !in setOf("https", "http") || uri.host.isNullOrBlank()) return null
+        if (uri.scheme != "https" || uri.host.isNullOrBlank()) return null
         val path = uri.path.orEmpty().lowercase()
         val kind = when {
             path.endsWith(".m3u8") -> SharedMediaKind.HLS
