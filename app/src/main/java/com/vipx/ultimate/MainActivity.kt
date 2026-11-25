@@ -11,6 +11,8 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.ui.platform.LocalLayoutDirection
+import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
@@ -28,29 +30,31 @@ class MainActivity : ComponentActivity() {
         window.statusBarColor = android.graphics.Color.rgb(7, 17, 31)
         window.navigationBarColor = android.graphics.Color.rgb(7, 17, 31)
         setContent {
-            MaterialTheme(colorScheme = darkColorScheme(
-                primary = VipAccent, background = VipBg, surface = VipPanel,
-                onBackground = Color.White, onSurface = Color.White
-            )) { VipHome(
-                canWriteSettings = { Settings.System.canWrite(this) },
-                requestSettings = {
-                    val intent = Intent(Settings.ACTION_MANAGE_WRITE_SETTINGS,
-                        Uri.parse("package:$packageName"))
-                    startActivity(intent)
-                },
-                applyBrightness = { value ->
-                    Settings.System.putInt(
-                        contentResolver,
-                        Settings.System.SCREEN_BRIGHTNESS,
-                        (value * 255f).toInt().coerceIn(20, 255)
-                    )
-                },
-                openCryptoLab = { startActivity(Intent(this, CryptoLabActivity::class.java)) },
-                openStream = { url ->
-                    startActivity(Intent(this, PlayerActivity::class.java)
-                        .putExtra(PlayerActivity.EXTRA_STREAM_URL, url))
-                }
-            ) }
+            CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Rtl) {
+                MaterialTheme(colorScheme = darkColorScheme(
+                    primary = VipAccent, background = VipBg, surface = VipPanel,
+                    onBackground = Color.White, onSurface = Color.White
+                )) { VipHome(
+                    canWriteSettings = { Settings.System.canWrite(this) },
+                    requestSettings = {
+                        val intent = Intent(Settings.ACTION_MANAGE_WRITE_SETTINGS,
+                            Uri.parse("package:$packageName"))
+                        startActivity(intent)
+                    },
+                    applyBrightness = { value ->
+                        Settings.System.putInt(
+                            contentResolver,
+                            Settings.System.SCREEN_BRIGHTNESS,
+                            (value * 255f).toInt().coerceIn(20, 255)
+                        )
+                    },
+                    openCryptoLab = { startActivity(Intent(this, CryptoLabActivity::class.java)) },
+                    openStream = { url ->
+                        startActivity(Intent(this, PlayerActivity::class.java)
+                            .putExtra(PlayerActivity.EXTRA_STREAM_URL, url))
+                    }
+                ) }
+            }
         }
     }
 }
