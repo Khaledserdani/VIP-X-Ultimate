@@ -16,27 +16,26 @@ import javax.crypto.spec.PBEKeySpec
 import javax.crypto.spec.SecretKeySpec
 
 /**
- * VIPXENC v1: chunk-authenticated AES-256-GCM container.
+ * VIPXENC authenticated chunk container.
  *
- * Layout: magic[8], version[1], chunkSize[4], mimeLength[2], mime[UTF-8],
- * salt[16], noncePrefix[8], then repeated records [plainLength:int][ciphertext+tag].
- * Each chunk has its own GCM tag and nonce (prefix + monotonically increasing
- * 32-bit counter); the header and chunk index/length are authenticated as AAD.
- * Passwords are never persisted. This format is for user-owned/authorized files,
- * not a replacement for provider DRM such as Widevine.
+ * v2 adds an authenticated end-of-file record. This detects truncation even
+ * when complete encrypted chunks are removed. v1 remains readable for
+ * compatibility, but new encryption always writes v2.
  */
 object VipxEncryptedMedia {
-    private val MAGIC = byteArrayOf(0x56, 0x49, 0x50, 0x58, 0x45, 0x4E, 0x43, 0x31) // VIPXENC1
-    private const val VERSION = 1
+    private val MAGIC = byteArrayOf(0x56, 0x49, 0x50, 0x58, 0x45, 0x4E, 0x43, 0x31)
+    private const val VERSION = 2
     const val DEFAULT_CHUNK_SIZE = 256 * 1024
     private const val MIN_CHUNK_SIZE = 4 * 1024
     private const val MAX_CHUNK_SIZE = 1024 * 1024
     private const val SALT_SIZE = 16
     private const val PREFIX_SIZE = 8
     private const val TAG_BITS = 128
+    private const val TAG_BYTES = TAG_BITS / 8
     private const val PBKDF2_ITERATIONS = 310_000
 
     data class Header(
+        val version: Int,
         val chunkSize: Int,
         val mimeType: String,
         val salt: ByteArray,
@@ -52,6 +51,7 @@ object VipxEncryptedMedia {
         val salt = ByteArray(SALT_SIZE).also { SecureRandom().nextBytes(it) }
         val prefix = ByteArray(PREFIX_SIZE).also { SecureRandom().nextBytes(it) }
         val mime = mimeType.toByteArray(Charsets.UTF_8)
+        require(mime.size in 1..255) { "بيانات MIME غير صالحة" }
         val headerBytes = java.io.ByteArrayOutputStream().also { bytes ->
             DataOutputStream(bytes).use { out ->
                 out.write(MAGIC); out.writeByte(VERSION); out.writeInt(chunkSize)
@@ -73,7 +73,7 @@ object VipxEncryptedMedia {
                 count += n
             }
             if (count == 0) break
-            require(index <= 0xFFFF_FFFFL) { "الملف أكبر من حد صيغة VIPXENC1" }
+            require(index <= 0xFFFF_FFFFL) { "الملف أكبر من حد صيغة VIPXENC" }
             val encrypted = crypt(Cipher.ENCRYPT_MODE, key, nonce(prefix, index),
                 aad(headerBytes, index, count), buffer.copyOf(count))
             sink.writeInt(count)
@@ -81,6 +81,11 @@ object VipxEncryptedMedia {
             index++
             if (count < buffer.size) break
         }
+        // Authenticated terminator: makes missing/truncated trailing chunks detectable.
+        val finalTag = crypt(Cipher.ENCRYPT_MODE, key, nonce(prefix, index),
+            aad(headerBytes, index, 0), ByteArray(0))
+        sink.writeInt(0)
+        sink.write(finalTag)
         sink.flush()
     }
 
@@ -91,11 +96,33 @@ object VipxEncryptedMedia {
         val key = deriveKey(password, header.salt)
         val sink = BufferedOutputStream(output)
         var index = 0L
+        var authenticatedEnd = false
         while (true) {
-            val plainLength = try { source.readInt() } catch (_: EOFException) { break }
+            val plainLength = if (header.version >= 2) {
+                // Distinguish a clean record boundary from a partially truncated length.
+                val first = source.read()
+                if (first < 0) throw EOFException("ملف VIPXENC2 مبتور: علامة النهاية غير موجودة")
+                val rest = ByteArray(3)
+                source.readFully(rest)
+                ((first and 0xff) shl 24) or ((rest[0].toInt() and 0xff) shl 16) or
+                    ((rest[1].toInt() and 0xff) shl 8) or (rest[2].toInt() and 0xff)
+            } else {
+                try { source.readInt() } catch (_: EOFException) { break }
+            }
+
+            if (plainLength == 0 && header.version >= 2) {
+                val finalTag = ByteArray(TAG_BYTES)
+                source.readFully(finalTag)
+                crypt(Cipher.DECRYPT_MODE, key, nonce(header.noncePrefix, index),
+                    aad(header.authenticatedBytes, index, 0), finalTag)
+                require(source.read() == -1) { "بيانات إضافية بعد نهاية الملف" }
+                authenticatedEnd = true
+                break
+            }
+
             require(plainLength in 1..header.chunkSize) { "قطعة تالفة أو غير صالحة" }
             require(index <= 0xFFFF_FFFFL) { "تجاوز عدد القطع المدعوم" }
-            val encrypted = ByteArray(plainLength + 16)
+            val encrypted = ByteArray(plainLength + TAG_BYTES)
             source.readFully(encrypted)
             val plain = crypt(Cipher.DECRYPT_MODE, key, nonce(header.noncePrefix, index),
                 aad(header.authenticatedBytes, index, plainLength), encrypted)
@@ -103,6 +130,7 @@ object VipxEncryptedMedia {
             sink.write(plain)
             index++
         }
+        if (header.version >= 2) require(authenticatedEnd) { "نهاية الملف غير موثّقة" }
         sink.flush()
         return header.mimeType
     }
@@ -112,11 +140,11 @@ object VipxEncryptedMedia {
     private fun readHeader(input: DataInputStream): Header {
         val captured = java.io.ByteArrayOutputStream()
         val magic = ByteArray(MAGIC.size).also(input::readFully)
-        require(magic.contentEquals(MAGIC)) { "ليس ملف VIPXENC1" }
+        require(magic.contentEquals(MAGIC)) { "ليس ملف VIPXENC" }
         captured.write(magic)
         val version = input.readUnsignedByte()
         captured.write(version)
-        require(version == VERSION) { "إصدار الحاوية غير مدعوم: $version" }
+        require(version in 1..VERSION) { "إصدار الحاوية غير مدعوم: $version" }
         val chunkSize = input.readInt()
         require(chunkSize in MIN_CHUNK_SIZE..MAX_CHUNK_SIZE) { "حجم القطعة غير صالح" }
         captured.write(java.nio.ByteBuffer.allocate(4).putInt(chunkSize).array())
@@ -129,7 +157,7 @@ object VipxEncryptedMedia {
         require(mime.startsWith("image/") || mime.startsWith("video/")) { "الحاوية لا تحتوي صورة أو فيديو" }
         val salt = ByteArray(SALT_SIZE).also(input::readFully); captured.write(salt)
         val prefix = ByteArray(PREFIX_SIZE).also(input::readFully); captured.write(prefix)
-        return Header(chunkSize, mime, salt, prefix, captured.toByteArray())
+        return Header(version, chunkSize, mime, salt, prefix, captured.toByteArray())
     }
 
     private fun deriveKey(password: CharArray, salt: ByteArray): SecretKey {
