@@ -17,10 +17,6 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
-import androidx.media3.common.MediaItem
-import androidx.media3.common.Player
-import androidx.media3.exoplayer.ExoPlayer
-import androidx.media3.ui.PlayerView
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -43,8 +39,8 @@ class MediaCaptureActivity : ComponentActivity() {
         }.orEmpty()
 
         setContent {
-            var previewUri by remember { mutableStateOf<Uri?>(null) }
-            var previewMime by remember { mutableStateOf("") }
+            var previewUri by remember(sharedUris, sharedMime) { mutableStateOf(if (sharedMime.startsWith("image/")) sharedUris.firstOrNull() else null) }
+            var previewMime by remember(sharedMime) { mutableStateOf(if (sharedMime.startsWith("image/")) sharedMime else "") }
             var password by remember { mutableStateOf("") }
             var busy by remember { mutableStateOf(false) }
             var message by remember {
@@ -149,9 +145,6 @@ class MediaCaptureActivity : ComponentActivity() {
                                     enabled = password.isNotEmpty() && !busy,
                                     modifier = Modifier.fillMaxWidth()
                                 ) { Text(if (busy) "جارٍ التحقق…" else "فك التشفير وفتح") }
-                            } else if (sharedMime.startsWith("image/")) {
-                                previewUri = sharedUri
-                                previewMime = sharedMime
                             } else if (sharedMime.startsWith("video/")) {
                                 Button(onClick = { openSharedVideo(sharedUri) }, modifier = Modifier.fillMaxWidth()) {
                                     Text("تشغيل الفيديو المستلم")
