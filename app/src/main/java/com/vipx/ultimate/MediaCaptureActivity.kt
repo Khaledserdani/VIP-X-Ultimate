@@ -176,6 +176,10 @@ class MediaCaptureActivity : ComponentActivity() {
                                 update = { it.setImageURI(imageUri) },
                                 modifier = Modifier.fillMaxWidth().weight(1f)
                             )
+                        } else if (imageUri != null && previewMime.startsWith("video/")) {
+                            Button(onClick = { openSharedVideo(imageUri) }, modifier = Modifier.fillMaxWidth()) {
+                                Text("تشغيل الفيديو بعد فك التشفير")
+                            }
                         }
 
                         Text(message, color = Color(0xFF9FB2C7), fontSize = 11.sp)
@@ -193,8 +197,10 @@ class MediaCaptureActivity : ComponentActivity() {
     private fun openSharedVideo(uri: Uri) {
         val playIntent = Intent(this, PlayerActivity::class.java)
             .putExtra(PlayerActivity.EXTRA_STREAM_URL, uri.toString())
-            .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-            .setClipData(ClipData.newRawUri("VIP X shared media", uri))
+        if (uri.scheme == "content") {
+            playIntent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                .setClipData(ClipData.newRawUri("VIP X shared media", uri))
+        }
         startActivity(playIntent)
     }
 
