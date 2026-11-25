@@ -1,5 +1,11 @@
 name: Android validation
 
+# Keep only the newest validation for a feature branch. Push and PR events
+# share the same group, preventing duplicate emulator queues for one commit.
+concurrency:
+  group: android-validation-${{ github.event.pull_request.head.ref || github.ref_name }}
+  cancel-in-progress: true
+
 on:
   push:
     branches:
