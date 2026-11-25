@@ -11,6 +11,7 @@ android {
         applicationId = "com.vipx.ultimate"
         minSdk = 26
         targetSdk = 35
+        testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         versionCode = 13
         versionName = "2.6.0"
     }
@@ -54,4 +55,7 @@ dependencies {
     implementation("com.google.guava:guava:33.3.1-android")
     testImplementation("junit:junit:4.13.2")
     debugImplementation("androidx.compose.ui:ui-tooling")
+    androidTestImplementation("androidx.test:runner:1.6.2")
+    androidTestImplementation("androidx.test.ext:junit:1.2.1")
+    androidTestImplementation("androidx.test:core:1.6.1")
 }
