@@ -49,7 +49,15 @@ class PlayerActivity : ComponentActivity() {
             }
         }, mainExecutor)
 
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {\n            val params = PictureInPictureParams.Builder()\n                .setAspectRatio(Rational(16, 9))\n                .apply { if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) setAutoEnterEnabled(true) }\n                .build()\n            setPictureInPictureParams(params)\n        }\n\n        setContent {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            val params = PictureInPictureParams.Builder()
+                .setAspectRatio(Rational(16, 9))
+                .apply { if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) setAutoEnterEnabled(true) }
+                .build()
+            setPictureInPictureParams(params)
+        }
+
+        setContent {
             MaterialTheme(colorScheme = darkColorScheme()) {
                 val playerView = remember {
                     PlayerView(this).apply {
@@ -70,7 +78,16 @@ class PlayerActivity : ComponentActivity() {
         }
     }
 
-    override fun onUserLeaveHint() {\n        super.onUserLeaveHint()\n        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O && mediaController?.isPlaying == true) {\n            enterPictureInPictureMode(\n                PictureInPictureParams.Builder().setAspectRatio(Rational(16, 9)).build()\n            )\n        }\n    }\n\n    override fun onDestroy() {
+    override fun onUserLeaveHint() {
+        super.onUserLeaveHint()
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O && mediaController?.isPlaying == true) {
+            enterPictureInPictureMode(
+                PictureInPictureParams.Builder().setAspectRatio(Rational(16, 9)).build()
+            )
+        }
+    }
+
+    override fun onDestroy() {
         mediaController?.release()
         mediaController = null
         controllerFuture?.cancel(false)
