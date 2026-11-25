@@ -116,7 +116,7 @@ private fun LiveGridScreen() {
 private fun StreamPreview(url: String, drmEnabled: Boolean, licenseUrl: String, authorization: String, modifier: Modifier = Modifier) {
     val context = LocalContext.current
     var state by remember(url) { mutableStateOf("جارٍ التحميل…") }
-    val player = remember(url) {
+    val player = remember(url, drmEnabled, licenseUrl, authorization) {
         ExoPlayer.Builder(context).build().apply {
             volume = 0f
             repeatMode = Player.REPEAT_MODE_ONE
