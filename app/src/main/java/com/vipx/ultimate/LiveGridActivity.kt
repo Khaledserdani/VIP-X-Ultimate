@@ -53,12 +53,12 @@ private fun LiveGridScreen() {
     var url by remember { mutableStateOf("") }
     var drmEnabled by remember { mutableStateOf(preferences.getBoolean("drm_enabled", false)) }
     var licenseUrl by remember { mutableStateOf(preferences.getString("license_url", "").orEmpty()) }
-    var authorization by remember { mutableStateOf(preferences.getString("authorization", "").orEmpty()) }
+    var authorization by remember { mutableStateOf("") }
     fun persistDrmSettings() {
         preferences.edit()
             .putBoolean("drm_enabled", drmEnabled)
             .putString("license_url", licenseUrl)
-            .putString("authorization", authorization)
+            .remove("authorization")
             .apply()
     }
     var message by remember { mutableStateOf("أضف روابط بث HTTPS تملك حق الوصول إليها. الحد الحالي 4 معاينات متزامنة.") }
@@ -75,7 +75,7 @@ private fun LiveGridScreen() {
         if (drmEnabled) {
             OutlinedTextField(value = licenseUrl, onValueChange = { licenseUrl = it; persistDrmSettings() }, modifier = Modifier.fillMaxWidth(),
                 label = { Text("رابط ترخيص HTTPS") }, singleLine = true)
-            OutlinedTextField(value = authorization, onValueChange = { authorization = it; persistDrmSettings() }, modifier = Modifier.fillMaxWidth(),
+            OutlinedTextField(value = authorization, onValueChange = { authorization = it }, modifier = Modifier.fillMaxWidth(),
                 label = { Text("Authorization (اختياري)") }, singleLine = true)
             Text("استخدم بيانات الترخيص التي وفرها مزوّد المحتوى لهذا البث. لا تدخل بيانات سرية لا تملك حق استخدامها.", color = Color(0xFF9FB2C7), fontSize = 10.sp)
         }
