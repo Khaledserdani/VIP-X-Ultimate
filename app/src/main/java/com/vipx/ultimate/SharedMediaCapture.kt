@@ -28,6 +28,33 @@ object SharedMediaCapture {
         return candidates.asSequence().mapNotNull(::parse).firstOrNull()
     }
 
+    /**
+     * Accept only content:// items explicitly shared by another Android app.
+     * No filesystem scanning, private app storage access, or file:// imports.
+     */
+    fun sharedContentUris(intent: Intent?): List<Uri> {
+        if (intent == null) return emptyList()
+        val found = linkedSetOf<Uri>()
+        fun add(uri: Uri?) {
+            if (uri?.scheme == "content") found.add(uri)
+        }
+        when (intent.action) {
+            Intent.ACTION_SEND -> {
+                @Suppress("DEPRECATION")
+                add(intent.getParcelableExtra(Intent.EXTRA_STREAM))
+            }
+            Intent.ACTION_SEND_MULTIPLE -> {
+                @Suppress("DEPRECATION")
+                val items = intent.getParcelableArrayListExtra<Uri>(Intent.EXTRA_STREAM)
+                items.orEmpty().forEach(::add)
+            }
+        }
+        intent.clipData?.let { clip ->
+            for (index in 0 until clip.itemCount) add(clip.getItemAt(index).uri)
+        }
+        return found.toList()
+    }
+
     fun parse(raw: String): SharedMediaCandidate? {
         val cleaned = raw.trim().trimEnd('.', ',', ';', ')', ']', '}')
         val uri = runCatching { Uri.parse(cleaned) }.getOrNull() ?: return null
