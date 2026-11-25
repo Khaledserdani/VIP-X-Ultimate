@@ -48,6 +48,9 @@ private fun LiveGridScreen() {
         preferences.edit().putStringSet("stream_urls", streams.toSet()).apply()
     }
     var url by remember { mutableStateOf("") }
+    var drmEnabled by remember { mutableStateOf(false) }
+    var licenseUrl by remember { mutableStateOf("") }
+    var authorization by remember { mutableStateOf("") }
     var message by remember { mutableStateOf("أضف روابط بث HTTPS تملك حق الوصول إليها. الحد الحالي 4 معاينات متزامنة.") }
 
     Column(Modifier.fillMaxSize().background(GridBg).padding(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -55,15 +58,29 @@ private fun LiveGridScreen() {
         Text("معاينات تلقائية أثناء البقاء داخل VIP X. اختر أي نافذة لفتحها في المشغّل الكامل.", color = Color.White, fontSize = 12.sp)
         OutlinedTextField(value = url, onValueChange = { url = it }, modifier = Modifier.fillMaxWidth(),
             label = { Text("رابط بث مباشر HTTPS") }, singleLine = true)
+        Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+            Checkbox(checked = drmEnabled, onCheckedChange = { drmEnabled = it })
+            Text("هذه البثوث محمية بـ Widevine", color = Color.White, fontSize = 12.sp)
+        }
+        if (drmEnabled) {
+            OutlinedTextField(value = licenseUrl, onValueChange = { licenseUrl = it }, modifier = Modifier.fillMaxWidth(),
+                label = { Text("رابط ترخيص HTTPS") }, singleLine = true)
+            OutlinedTextField(value = authorization, onValueChange = { authorization = it }, modifier = Modifier.fillMaxWidth(),
+                label = { Text("Authorization (اختياري)") }, singleLine = true)
+            Text("استخدم بيانات الترخيص التي وفرها مزوّد المحتوى لهذا البث. لا تدخل بيانات سرية لا تملك حق استخدامها.", color = Color(0xFF9FB2C7), fontSize = 10.sp)
+        }
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             Button(onClick = {
                 val parsed = Uri.parse(url.trim())
-                if (parsed.scheme == "https" && !parsed.host.isNullOrBlank() && streams.size < 4 && !streams.contains(url.trim())) {
+                val license = Uri.parse(licenseUrl.trim())
+                val licenseValid = !drmEnabled || (license.scheme == "https" && !license.host.isNullOrBlank())
+                if (parsed.scheme == "https" && !parsed.host.isNullOrBlank() && licenseValid && streams.size < 4 && !streams.contains(url.trim())) {
                     streams.add(url.trim()); persistStreams(); url = ""; message = "تمت إضافة البث؛ بدأ التحميل تلقائياً."
                 } else {
                     message = when {
                         streams.size >= 4 -> "وصلت إلى الحد الآمن للمعاينات المتزامنة (4)."
                         streams.contains(url.trim()) -> "هذا الرابط موجود بالفعل."
+                        !licenseValid -> "أدخل رابط ترخيص Widevine صالحاً يبدأ بـ HTTPS."
                         else -> "الرابط غير صالح؛ استخدم HTTPS."
                     }
                 }
@@ -76,11 +93,15 @@ private fun LiveGridScreen() {
                 Card(colors = CardDefaults.cardColors(containerColor = GridPanel), shape = RoundedCornerShape(12.dp)) {
                     Column(Modifier.fillMaxWidth().padding(6.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
                         Text("بث ${index + 1}", color = GridAccent, fontSize = 12.sp)
-                        StreamPreview(stream, Modifier.fillMaxWidth().height(112.dp))
+                        StreamPreview(stream, drmEnabled, licenseUrl, authorization, Modifier.fillMaxWidth().height(112.dp))
                         Text(stream, color = Color.White, fontSize = 9.sp, maxLines = 1)
                         Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                             TextButton(onClick = {
-                                context.startActivity(Intent(context, PlayerActivity::class.java).putExtra(PlayerActivity.EXTRA_STREAM_URL, stream))
+                                context.startActivity(Intent(context, PlayerActivity::class.java)
+                                    .putExtra(PlayerActivity.EXTRA_STREAM_URL, stream)
+                                    .putExtra(PlayerActivity.EXTRA_DRM_ENABLED, drmEnabled)
+                                    .putExtra(PlayerActivity.EXTRA_DRM_LICENSE_URL, licenseUrl.trim())
+                                    .putExtra(PlayerActivity.EXTRA_DRM_AUTHORIZATION, authorization.trim()))
                             }) { Text("تكبير", fontSize = 11.sp) }
                             TextButton(onClick = { streams.remove(stream); persistStreams() }) { Text("إزالة", fontSize = 11.sp) }
                         }
@@ -92,7 +113,7 @@ private fun LiveGridScreen() {
 }
 
 @Composable
-private fun StreamPreview(url: String, modifier: Modifier = Modifier) {
+private fun StreamPreview(url: String, drmEnabled: Boolean, licenseUrl: String, authorization: String, modifier: Modifier = Modifier) {
     val context = LocalContext.current
     var state by remember(url) { mutableStateOf("جارٍ التحميل…") }
     val player = remember(url) {
@@ -112,7 +133,13 @@ private fun StreamPreview(url: String, modifier: Modifier = Modifier) {
                     state = "تعذر التشغيل: ${error.errorCodeName}"
                 }
             })
-            setMediaItem(MediaItem.fromUri(Uri.parse(url)))
+            val item = if (drmEnabled) {
+                val drm = MediaItem.DrmConfiguration.Builder(androidx.media3.common.C.WIDEVINE_UUID)
+                    .setLicenseUri(Uri.parse(licenseUrl.trim()))
+                if (authorization.isNotBlank()) drm.setLicenseRequestHeaders(mapOf("Authorization" to authorization.trim()))
+                MediaItem.Builder().setUri(Uri.parse(url)).setDrmConfiguration(drm.build()).build()
+            } else MediaItem.fromUri(Uri.parse(url))
+            setMediaItem(item)
             prepare()
             play()
         }
