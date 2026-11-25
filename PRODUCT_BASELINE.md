@@ -20,10 +20,10 @@ The current branch currently provides one HTTPS Media3 stream entry with HLS/DAS
 - System-wide effects may require OEM/system privileges unavailable to an ordinary app.
 
 ## Candidate capabilities (must be proven)
-1. In-app stream browser/library with navigation that does not leave VIP X.
-2. Multi-tile previews and controlled autoplay with bandwidth, decoder, battery, and lifecycle limits.
-3. Persistent selected-stream playback and PiP/floating playback.
-4. Widevine playback only with provider-authorized license servers; validate real protected DASH/HLS playback, provisioning, expiry, and renewal on target hardware.
+1. Expand the basic URL grid into a proper browsing/library experience without leaving VIP X.
+2. Validate multi-tile previews and controlled autoplay against decoder, bandwidth, battery, and lifecycle limits.
+3. Validate persistent selected-stream playback and PiP/floating playback.
+4. Extend Widevine configuration to the grid only where provider authorization and per-stream license metadata are available; validate protected playback on target hardware.
 5. Any cross-app display feature only when Android exposes a supported and user-approved mechanism.
 
 ## Acceptance gate
