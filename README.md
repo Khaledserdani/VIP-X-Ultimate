@@ -23,7 +23,7 @@ VIP X تطبيق Android شخصي مستقل. التطبيقات الأصلية 
 - Gradle Wrapper: 9.6.1 (with the official distribution SHA-256 pinned in gradle-wrapper.properties)
 - Kotlin / Compose Compiler: 2.3.21
 - Java toolchain: 17 أو أحدث
-- Android SDK Platform: API 35
+- Android SDK Platform: API 36 (required by AndroidX Media3 1.11.1)
 
 ملفات Gradle Wrapper الرسمية أصبحت ضمن المستودع، ويمكن تشغيل `./gradlew assembleDebug` من بيئة تطوير Android متوافقة. أول بناء يحتاج تنزيل Gradle وAndroid SDK والحزم من مستودعاتها، لذلك يحتاج اتصال إنترنت أثناء الإعداد.
 
