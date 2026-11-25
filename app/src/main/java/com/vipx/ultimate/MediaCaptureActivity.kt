@@ -18,6 +18,7 @@ class MediaCaptureActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         val candidate = SharedMediaCapture.fromIntent(intent)
+        val sourceApp = referrer?.host ?: "لم يحدده Android"
         setContent {
             MaterialTheme(colorScheme = darkColorScheme(
                 primary = Color(0xFF42E3C2),
@@ -35,6 +36,7 @@ class MediaCaptureActivity : ComponentActivity() {
                             Text("لم يصل رابط ويب قابل للاستيراد. ارجع إلى التطبيق الأصلي واختر مشاركة الرابط أو انسخه ثم أرسله إلى VIP X.", color = Color(0xFF9FB2C7))
                             Button(onClick = { finish() }) { Text("رجوع") }
                         } else {
+                            Text("التطبيق المصدر: $sourceApp", color = Color.White)
                             Text("المضيف: ${candidate.host}", color = Color.White)
                             Text("التعرّف: ${SharedMediaCapture.label(candidate.kind)}", color = Color(0xFF42E3C2))
                             Text(candidate.url, color = Color(0xFF9FB2C7), fontSize = 11.sp)
