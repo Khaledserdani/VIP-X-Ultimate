@@ -129,6 +129,19 @@ private fun LiveGridScreen() {
                         StreamPreview(entry.url, entry.drmEnabled, entry.licenseUrl, sessionAuthorization[entry.url].orEmpty(), Modifier.fillMaxWidth().height(112.dp))
                         Text(entry.url, color = Color.White, fontSize = 9.sp, maxLines = 1)
                         Text(if (entry.drmEnabled) "Widevine • ترخيص مستقل" else "بدون DRM", color = Color(0xFF9FB2C7), fontSize = 9.sp)
+                        if (entry.drmEnabled) {
+                            OutlinedTextField(
+                                value = sessionAuthorization[entry.url].orEmpty(),
+                                onValueChange = { value ->
+                                    if (value.isBlank()) sessionAuthorization.remove(entry.url)
+                                    else sessionAuthorization[entry.url] = value
+                                },
+                                modifier = Modifier.fillMaxWidth(),
+                                label = { Text("Authorization لهذه الجلسة", fontSize = 9.sp) },
+                                visualTransformation = PasswordVisualTransformation(),
+                                singleLine = true
+                            )
+                        }
                         Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                             TextButton(onClick = {
                                 context.startActivity(Intent(context, PlayerActivity::class.java)
