@@ -1,8 +1,12 @@
 package com.vipx.ultimate
 
+import android.content.ComponentName
+import android.content.Context
 import android.content.Intent
+import android.content.ServiceConnection
 import android.net.Uri
 import android.os.Bundle
+import android.os.IBinder
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.background
@@ -12,18 +16,14 @@ import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.itemsIndexed
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
-import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
-import androidx.lifecycle.Lifecycle
-import androidx.lifecycle.LifecycleEventObserver
-import androidx.lifecycle.compose.LocalLifecycleOwner
+import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
-import androidx.media3.common.MediaItem
 import androidx.media3.common.Player
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.ui.PlayerView
@@ -33,18 +33,59 @@ private val GridPanel = Color(0xFF122238)
 private val GridAccent = Color(0xFF42E3C2)
 
 class LiveGridActivity : ComponentActivity() {
+    private var playbackService by mutableStateOf<MultiStreamPlaybackService?>(null)
+    private var bound = false
+
+    private val connection = object : ServiceConnection {
+        override fun onServiceConnected(name: ComponentName?, binder: IBinder?) {
+            playbackService = (binder as? MultiStreamPlaybackService.LocalBinder)?.service()
+        }
+        override fun onServiceDisconnected(name: ComponentName?) {
+            playbackService = null
+        }
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        setContent { MaterialTheme(colorScheme = darkColorScheme(primary = GridAccent, background = GridBg, surface = GridPanel)) { LiveGridScreen() } }
+        setContent {
+            MaterialTheme(colorScheme = darkColorScheme(primary = GridAccent, background = GridBg, surface = GridPanel)) {
+                LiveGridScreen(
+                    service = playbackService,
+                    startPlaybackService = {
+                        val intent = Intent(this, MultiStreamPlaybackService::class.java)
+                        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) startForegroundService(intent)
+                        else startService(intent)
+                    }
+                )
+            }
+        }
+    }
+
+    override fun onStart() {
+        super.onStart()
+        bound = bindService(Intent(this, MultiStreamPlaybackService::class.java), connection, Context.BIND_AUTO_CREATE)
+    }
+
+    override fun onStop() {
+        if (bound) {
+            unbindService(connection)
+            bound = false
+        }
+        playbackService = null
+        // Deliberately do not stop playback: the foreground service owns all four players.
+        super.onStop()
     }
 }
 
 private data class StreamEntry(val url: String, val drmEnabled: Boolean, val licenseUrl: String)
 
 @Composable
-private fun LiveGridScreen() {
+private fun LiveGridScreen(
+    service: MultiStreamPlaybackService?,
+    startPlaybackService: () -> Unit
+) {
     val context = LocalContext.current
-    val preferences = remember { context.getSharedPreferences("vipx_stream_library", android.content.Context.MODE_PRIVATE) }
+    val preferences = remember { context.getSharedPreferences("vipx_stream_library", Context.MODE_PRIVATE) }
     val sessionAuthorization = remember { mutableStateMapOf<String, String>() }
     val streams = remember {
         mutableStateListOf<StreamEntry>().apply {
@@ -67,24 +108,42 @@ private fun LiveGridScreen() {
             }
         }
     }
+
     fun persistStreams() {
         val array = org.json.JSONArray()
         streams.forEach { entry ->
             array.put(org.json.JSONObject().put("url", entry.url)
                 .put("drmEnabled", entry.drmEnabled).put("licenseUrl", entry.licenseUrl))
         }
-        preferences.edit().putString("stream_entries_v2", array.toString()).remove("stream_urls")
-            .remove("drm_enabled").remove("license_url").remove("authorization").apply()
+        preferences.edit().putString("stream_entries_v2", array.toString())
+            .remove("stream_urls").remove("drm_enabled").remove("license_url").remove("authorization").apply()
     }
+
     var url by remember { mutableStateOf("") }
     var drmEnabled by remember { mutableStateOf(false) }
     var licenseUrl by remember { mutableStateOf("") }
     var authorization by remember { mutableStateOf("") }
-    var message by remember { mutableStateOf("أضف روابط بث HTTPS تملك حق الوصول إليها. إعداد DRM مستقل لكل بث.") }
+    var message by remember { mutableStateOf("أضف حتى أربعة بثوث؛ ستعمل معاً وتستمر عند تصفح التطبيق.") }
+
+    LaunchedEffect(service, streams.size) {
+        if (streams.isNotEmpty()) {
+            startPlaybackService()
+            service?.let { engine ->
+                streams.forEach { entry ->
+                    runCatching {
+                        engine.playStream(entry.url, entry.drmEnabled, entry.licenseUrl, sessionAuthorization[entry.url].orEmpty())
+                    }.onFailure { message = "تعذر تشغيل أحد البثوث: ${it.message}" }
+                }
+            }
+        }
+    }
 
     Column(Modifier.fillMaxSize().background(GridBg).padding(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-        Text("VIP X • شبكة البثوث", color = GridAccent, fontSize = 23.sp)
-        Text("المعاينات صامتة داخل الشبكة. لتشغيل بث واحد بالصوت أثناء التصفح أو خارج التطبيق، افتحه في المشغّل المستقل.", color = Color.White, fontSize = 12.sp)
+        Text("VIP X • أربعة بثوث متزامنة", color = GridAccent, fontSize = 23.sp)
+        Text(
+            "تعمل المعاينات الأربع بالتوازي داخل شبكة 2×2. تبقى جلسات التشغيل في خدمة مستقلة عند الانتقال إلى صفحات التطبيق أو تصغيره.",
+            color = Color.White, fontSize = 12.sp
+        )
         OutlinedTextField(value = url, onValueChange = { url = it }, modifier = Modifier.fillMaxWidth(),
             label = { Text("رابط بث مباشر HTTPS") }, singleLine = true)
         Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
@@ -95,130 +154,122 @@ private fun LiveGridScreen() {
             OutlinedTextField(value = licenseUrl, onValueChange = { licenseUrl = it }, modifier = Modifier.fillMaxWidth(),
                 label = { Text("رابط ترخيص HTTPS لهذا البث") }, singleLine = true)
             OutlinedTextField(value = authorization, onValueChange = { authorization = it }, modifier = Modifier.fillMaxWidth(),
-                label = { Text("Authorization لهذا البث (جلسة فقط)") }, visualTransformation = PasswordVisualTransformation(), singleLine = true)
-            Text("رابط الترخيص يُحفظ مع البث. Authorization يبقى في ذاكرة الجلسة فقط ولا يُكتب في التخزين.", color = Color(0xFF9FB2C7), fontSize = 10.sp)
+                label = { Text("Authorization لهذا البث (جلسة فقط)") },
+                visualTransformation = PasswordVisualTransformation(), singleLine = true)
+            Text("كل بث له رابط ترخيص وترويسة مصادقة مستقلان. لا نحفظ Authorization في التخزين.", color = Color(0xFF9FB2C7), fontSize = 10.sp)
         }
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             Button(onClick = {
-                val parsed = Uri.parse(url.trim())
-                val license = Uri.parse(licenseUrl.trim())
-                val licenseValid = !drmEnabled || (license.scheme == "https" && !license.host.isNullOrBlank())
-                if (parsed.scheme == "https" && !parsed.host.isNullOrBlank() && licenseValid && streams.size < 4 && streams.none { it.url == url.trim() }) {
-                    val cleanUrl = url.trim()
-                    streams.add(StreamEntry(cleanUrl, drmEnabled, if (drmEnabled) licenseUrl.trim() else ""))
-                    if (authorization.isNotBlank()) sessionAuthorization[cleanUrl] = authorization.trim()
-                    persistStreams(); url = ""; licenseUrl = ""; authorization = ""; drmEnabled = false
-                    message = "تمت إضافة البث بإعداداته الخاصة؛ بدأ التحميل تلقائياً."
-                } else {
-                    message = when {
-                        streams.size >= 4 -> "وصلت إلى الحد الحالي للمعاينات (4)."
-                        streams.any { it.url == url.trim() } -> "هذا الرابط موجود بالفعل."
-                        !licenseValid -> "أدخل رابط ترخيص HTTPS صالحاً لهذا البث."
-                        else -> "الرابط غير صالح؛ استخدم HTTPS."
+                val cleanUrl = url.trim()
+                val parsed = Uri.parse(cleanUrl)
+                val parsedLicense = Uri.parse(licenseUrl.trim())
+                val licenseValid = !drmEnabled || (parsedLicense.scheme == "https" && !parsedLicense.host.isNullOrBlank())
+                when {
+                    parsed.scheme != "https" || parsed.host.isNullOrBlank() -> message = "الرابط غير صالح؛ استخدم HTTPS."
+                    !licenseValid -> message = "أدخل رابط ترخيص Widevine عبر HTTPS."
+                    streams.size >= 4 -> message = "الأربعة بثوث مستخدمة بالفعل. احذف بثاً قبل إضافة آخر."
+                    streams.any { it.url == cleanUrl } -> message = "هذا البث موجود بالفعل."
+                    else -> {
+                        val entry = StreamEntry(cleanUrl, drmEnabled, if (drmEnabled) licenseUrl.trim() else "")
+                        streams.add(entry)
+                        if (authorization.isNotBlank()) sessionAuthorization[cleanUrl] = authorization.trim()
+                        persistStreams()
+                        startPlaybackService()
+                        service?.let {
+                            runCatching { it.playStream(entry.url, entry.drmEnabled, entry.licenseUrl, sessionAuthorization[entry.url].orEmpty()) }
+                                .onFailure { error -> message = "تعذر بدء البث: ${error.message}" }
+                        }
+                        url = ""; licenseUrl = ""; authorization = ""; drmEnabled = false
+                        message = "تمت إضافة البث؛ يجري تشغيله مع البثوث الأخرى."
                     }
                 }
             }, enabled = url.isNotBlank()) { Text("إضافة وتشغيل") }
-            OutlinedButton(onClick = { streams.clear(); sessionAuthorization.clear(); persistStreams(); message = "تم إيقاف جميع المعاينات." }) { Text("إيقاف الكل") }
+
+            OutlinedButton(onClick = {
+                service?.stopAll()
+                streams.clear()
+                sessionAuthorization.clear()
+                persistStreams()
+                message = "تم إيقاف البثوث الأربعة."
+            }) { Text("إيقاف الكل") }
         }
+
         Text(message, color = Color(0xFF9FB2C7), fontSize = 11.sp)
-        LazyVerticalGrid(columns = GridCells.Fixed(2), modifier = Modifier.weight(1f).fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        LazyVerticalGrid(
+            columns = GridCells.Fixed(2), modifier = Modifier.weight(1f).fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
             itemsIndexed(streams, key = { _, item -> item.url }) { index, entry ->
                 Card(colors = CardDefaults.cardColors(containerColor = GridPanel), shape = RoundedCornerShape(12.dp)) {
                     Column(Modifier.fillMaxWidth().padding(6.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
                         Text("بث ${index + 1}", color = GridAccent, fontSize = 12.sp)
-                        StreamPreview(entry.url, entry.drmEnabled, entry.licenseUrl, sessionAuthorization[entry.url].orEmpty(), Modifier.fillMaxWidth().height(112.dp))
+                        StreamPreview(entry, sessionAuthorization[entry.url].orEmpty(), service, Modifier.fillMaxWidth().height(116.dp))
                         Text(entry.url, color = Color.White, fontSize = 9.sp, maxLines = 1)
-                        Text(if (entry.drmEnabled) "Widevine • ترخيص مستقل" else "بدون DRM", color = Color(0xFF9FB2C7), fontSize = 9.sp)
-                        if (entry.drmEnabled) {
-                            OutlinedTextField(
-                                value = sessionAuthorization[entry.url].orEmpty(),
-                                onValueChange = { value ->
-                                    if (value.isBlank()) sessionAuthorization.remove(entry.url)
-                                    else sessionAuthorization[entry.url] = value
-                                },
-                                modifier = Modifier.fillMaxWidth(),
-                                label = { Text("Authorization لهذه الجلسة", fontSize = 9.sp) },
-                                visualTransformation = PasswordVisualTransformation(),
-                                singleLine = true
-                            )
-                        }
-                        Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                            TextButton(onClick = {
-                                context.startActivity(Intent(context, PlayerActivity::class.java)
-                                    .putExtra(PlayerActivity.EXTRA_STREAM_URL, entry.url)
-                                    .putExtra(PlayerActivity.EXTRA_DRM_ENABLED, entry.drmEnabled)
-                                    .putExtra(PlayerActivity.EXTRA_DRM_LICENSE_URL, entry.licenseUrl)
-                                    .putExtra(PlayerActivity.EXTRA_DRM_AUTHORIZATION, sessionAuthorization[entry.url].orEmpty()))
-                            }) { Text("تشغيل مستقل", fontSize = 11.sp) }
-                            TextButton(onClick = { streams.remove(entry); sessionAuthorization.remove(entry.url); persistStreams() }) { Text("إزالة", fontSize = 11.sp) }
-                        }
+                        Text(if (entry.drmEnabled) "Widevine • ترخيص مستقل" else "بث مباشر", color = Color(0xFF9FB2C7), fontSize = 9.sp)
+                        TextButton(onClick = {
+                            service?.stopStream(entry.url)
+                            streams.remove(entry)
+                            sessionAuthorization.remove(entry.url)
+                            persistStreams()
+                        }) { Text("إزالة وإيقاف", fontSize = 11.sp) }
                     }
                 }
             }
         }
+        Text(
+            "ملاحظة: معاينات الفيديو الأربع صامتة لتجنب خلط أربعة مسارات صوتية. يمكن إضافة اختيار بث الصوت لاحقاً. عدد الفيديوهات الفعلي يعتمد على قدرة الجهاز وتراخيص البث.",
+            color = Color.Gray, fontSize = 10.sp
+        )
     }
 }
 
 @Composable
-private fun StreamPreview(url: String, drmEnabled: Boolean, licenseUrl: String, authorization: String, modifier: Modifier = Modifier) {
-    val context = LocalContext.current
-    val lifecycleOwner = LocalLifecycleOwner.current
-    var state by remember(url, drmEnabled, licenseUrl, authorization) { mutableStateOf("جارٍ التحميل…") }
-    val player = remember(url, drmEnabled, licenseUrl, authorization) {
-        ExoPlayer.Builder(context).build().apply {
-            volume = 0f
-            repeatMode = Player.REPEAT_MODE_ONE
-            addListener(object : Player.Listener {
-                override fun onPlaybackStateChanged(playbackState: Int) {
-                    state = when (playbackState) {
-                        Player.STATE_BUFFERING -> "جارٍ التحميل…"
-                        Player.STATE_READY -> "مباشر"
-                        Player.STATE_ENDED -> "انتهى البث"
-                        else -> "في الانتظار"
-                    }
-                }
-                override fun onPlayerError(error: androidx.media3.common.PlaybackException) {
-                    state = "تعذر التشغيل: ${error.errorCodeName}"
-                }
-            })
-            val item = if (drmEnabled) {
-                val drm = MediaItem.DrmConfiguration.Builder(androidx.media3.common.C.WIDEVINE_UUID)
-                    .setLicenseUri(Uri.parse(licenseUrl.trim()))
-                if (authorization.isNotBlank()) drm.setLicenseRequestHeaders(mapOf("Authorization" to authorization.trim()))
-                MediaItem.Builder().setUri(Uri.parse(url)).setDrmConfiguration(drm.build()).build()
-            } else MediaItem.fromUri(Uri.parse(url))
-            setMediaItem(item)
-            prepare()
-            play()
-        }
-    }
-    DisposableEffect(player, lifecycleOwner) {
-        var resumeAfterStop = false
-        val observer = LifecycleEventObserver { _, event ->
-            when (event) {
-                Lifecycle.Event.ON_START -> {
-                    if (resumeAfterStop && player.playbackState != Player.STATE_IDLE && player.playbackState != Player.STATE_ENDED) {
-                        player.play()
-                    }
-                    resumeAfterStop = false
-                }
-                Lifecycle.Event.ON_STOP -> {
-                    resumeAfterStop = player.isPlaying
-                    player.pause()
-                }
-                else -> Unit
+private fun StreamPreview(
+    entry: StreamEntry,
+    authorization: String,
+    service: MultiStreamPlaybackService?,
+    modifier: Modifier = Modifier
+) {
+    var player by remember(entry.url, service) { mutableStateOf<ExoPlayer?>(null) }
+    var state by remember(entry.url, service) { mutableStateOf("بانتظار خدمة التشغيل…") }
+
+    LaunchedEffect(entry.url, service) {
+        if (service != null) {
+            runCatching {
+                service.playStream(entry.url, entry.drmEnabled, entry.licenseUrl, authorization)
+                player = service.playerFor(entry.url)
+                state = "يعمل ضمن الشبكة"
+            }.onFailure {
+                state = "تعذر التشغيل: ${it.message ?: "خطأ غير معروف"}"
             }
         }
-        lifecycleOwner.lifecycle.addObserver(observer)
-        onDispose {
-            lifecycleOwner.lifecycle.removeObserver(observer)
-            player.release()
-        }
     }
+
+    DisposableEffect(player) {
+        val listener = object : Player.Listener {
+            override fun onPlaybackStateChanged(playbackState: Int) {
+                state = when (playbackState) {
+                    Player.STATE_BUFFERING -> "جارٍ التحميل…"
+                    Player.STATE_READY -> "يعمل • مباشر"
+                    Player.STATE_ENDED -> "انتهى البث"
+                    else -> "في الانتظار"
+                }
+            }
+            override fun onPlayerError(error: androidx.media3.common.PlaybackException) {
+                state = "خطأ: ${error.errorCodeName}"
+            }
+        }
+        player?.addListener(listener)
+        onDispose { player?.removeListener(listener) }
+    }
+
     Column(modifier, verticalArrangement = Arrangement.spacedBy(2.dp)) {
-        AndroidView(factory = { PlayerView(it).apply { useController = false; this.player = player } },
-            modifier = Modifier.fillMaxWidth().height(88.dp), update = { it.player = player },
-            onRelease = { view -> view.player = null })
+        AndroidView(
+            factory = { PlayerView(it).apply { useController = false; this.player = player } },
+            modifier = Modifier.fillMaxWidth().height(88.dp),
+            update = { it.player = player },
+            onRelease = { it.player = null }
+        )
         Text(state, color = GridAccent, fontSize = 10.sp)
     }
 }
