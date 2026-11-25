@@ -50,10 +50,28 @@ class PlayerActivity : ComponentActivity() {
         }
 
         override fun onPlayerError(error: PlaybackException) {
-            val detail = error.cause?.message?.take(180)
+            val code = error.errorCodeName
+            val causeText = generateSequence(error as Throwable?) { it.cause }
+                .mapNotNull { it.message?.takeIf(String::isNotBlank) }
+                .firstOrNull()
+                ?.take(220)
+            val hint = when {
+                code.contains("DRM", ignoreCase = true) && code.contains("LICENSE", ignoreCase = true) ->
+                    "تحقق من رابط الترخيص وصلاحية الحساب وترويسات الطلب."
+                code.contains("DRM", ignoreCase = true) && code.contains("PROVISION", ignoreCase = true) ->
+                    "قد يحتاج الجهاز إلى تهيئة Widevine أو تحديث خدمات النظام."
+                code.contains("DRM", ignoreCase = true) ->
+                    "تحقق من توافق Widevine ومستوى حماية الجهاز وحقوق هذا المحتوى."
+                code.contains("PARSER", ignoreCase = true) ->
+                    "صيغة البث أو الحاوية غير متوافقة أو أن الرابط ليس ملف وسائط مباشراً."
+                code.contains("NETWORK", ignoreCase = true) ->
+                    "تحقق من الاتصال وإمكانية الوصول إلى خادم البث."
+                else -> null
+            }
             playbackMessage = buildString {
-                append("تعذر تشغيل البث: ${error.errorCodeName}")
-                if (detail != null) append(" • ").append(detail)
+                append("تعذر تشغيل البث: ").append(code)
+                if (hint != null) append("\\n").append(hint)
+                if (causeText != null) append("\\n").append(causeText)
             }
         }
     }
