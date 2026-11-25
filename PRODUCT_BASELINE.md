@@ -1,20 +1,25 @@
-# VIP X Ultimate — Cloud Platform Baseline
+# VIP X — Product Baseline
 
-## Android app
-- Local installed-app inventory and APK metadata inspection.
-- Arabic RTL cloud assistant screen.
-- HTTPS gateway configuration; only the gateway URL is persisted.
-- Bearer access token is held in memory only.
-- Sends recent chat context to a user-controlled gateway.
+## Product
+A personal Android companion dedicated to a Tango Live Grid and broadcast-viewing quality controls.
 
-## Cloud gateway
-- Cloudflare Worker template at `cloud/worker.js`.
-- Requires server-side `OPENAI_API_KEY` and `APP_ACCESS_TOKEN` secrets.
-- Proxies chat requests to an OpenAI-compatible Chat Completions API.
-- Validates bearer access, method, path, and message length.
+## Current implementation
+- Kotlin + Jetpack Compose.
+- Package: `com.vipx.ultimate`.
+- Tango package detection and launch.
+- Arabic RTL-friendly dark interface.
+- Adjustable grid columns, preview-slot count, and data-saver preference.
+- Explicit unavailable state until an authorized live-preview source exists.
 
-## Not yet live
-The Worker is source code only until deployed to a Cloudflare account and configured with valid provider credentials. No cloud AI call can succeed before that. API usage may incur provider charges.
+## Not included
+- Previous APK inspection and analysis features.
+- Previous AI chat/model-download features.
+- Cloud assistant, API gateway, remote server, or paid provider.
+- Accessibility scraping or overlay service.
+- Modifying or replacing Tango, bypassing subscriptions, DRM, or private APIs.
 
-## Platform boundaries
-The app does not unlock VIP subscriptions, bypass payment, or access private app data. It can inspect package metadata and APK files Android exposes to it.
+## Acceptance gate for Live Grid
+Do not claim multi-live support until two or more independent authorized live video sources play concurrently in separate grid tiles, survive scrolling/resource management, and open the selected original room on tap.
+
+## Cost and distribution
+Personal use only. No paid APIs or services, no cloud build pipeline, no APK publishing or distribution.
