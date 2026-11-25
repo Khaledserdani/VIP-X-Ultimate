@@ -20,8 +20,8 @@ VIP X تطبيق Android شخصي مستقل. التطبيقات الأصلية 
 
 ## بيئة البناء
 - Android Gradle Plugin: 9.3.1
-- Gradle Wrapper: 9.7.0
-- Kotlin / Compose Compiler: 2.4.21
+- Gradle Wrapper: 9.6.1 (with the official distribution SHA-256 pinned in gradle-wrapper.properties)
+- Kotlin / Compose Compiler: 2.3.21
 - Java toolchain: 17 أو أحدث
 - Android SDK Platform: API 35
 
