@@ -32,4 +32,4 @@ The app should perform useful work, not merely display device diagnostics. Desir
 For each claimed improvement, test at least two unrelated streaming apps with the same content/network/device conditions. Record objective measures where available and user-visible results. Do not claim universal enhancement until the same feature works consistently across those apps.
 
 ## Current status
-This is a product-direction correction, not a completed enhancement. The current Kotlin screen still contains legacy Tango-specific Live Grid and read-only diagnostics. No universal cross-app video/audio enhancement has yet been implemented or proven.
+This is a product-direction correction, not a completed enhancement. The current Kotlin screen has moved away from the legacy Tango Live Grid to a standalone Media3 player, a user-granted system-brightness control, and a local AES-GCM test screen. The player supports user-supplied HTTPS media URLs compatible with Media3 (including HLS/DASH modules); these functions do not process video/audio rendered by unrelated apps. No universal cross-app video/audio enhancement has yet been implemented or proven.
