@@ -7,6 +7,8 @@ import org.junit.Test
 import java.io.ByteArrayInputStream
 import java.io.ByteArrayOutputStream
 import java.io.EOFException
+import java.awt.image.BufferedImage
+import javax.imageio.ImageIO
 
 class VipxEncryptedMediaTest {
     @Test fun roundTripImageAndVideoPayload() {
@@ -17,6 +19,27 @@ class VipxEncryptedMediaTest {
         val mime = VipxEncryptedMedia.decrypt(ByteArrayInputStream(encrypted.toByteArray()), recovered, "test-pass".toCharArray())
         assertEquals("image/jpeg", mime)
         assertArrayEquals(payload, recovered.toByteArray())
+    }
+
+    @Test fun actualPngImageRoundTripsAndRemainsDecodable() {
+        val original = BufferedImage(24, 18, BufferedImage.TYPE_INT_ARGB)
+        for (y in 0 until original.height) for (x in 0 until original.width) {
+            original.setRGB(x, y, (0xFF shl 24) or ((x * 9) shl 16) or ((y * 13) shl 8) or ((x + y) * 3))
+        }
+        val imageBytes = ByteArrayOutputStream().also { check(ImageIO.write(original, "png", it)) }.toByteArray()
+        val encrypted = ByteArrayOutputStream()
+        VipxEncryptedMedia.encrypt(ByteArrayInputStream(imageBytes), encrypted, "png-test".toCharArray(), "image/png", 4096)
+        val recovered = ByteArrayOutputStream()
+        assertEquals("image/png", VipxEncryptedMedia.decrypt(
+            ByteArrayInputStream(encrypted.toByteArray()), recovered, "png-test".toCharArray()
+        ))
+        val decoded = ImageIO.read(ByteArrayInputStream(recovered.toByteArray()))
+        org.junit.Assert.assertNotNull("Decrypted file must be a real decodable PNG", decoded)
+        assertEquals(original.width, decoded.width)
+        assertEquals(original.height, decoded.height)
+        for (y in 0 until original.height) for (x in 0 until original.width) {
+            assertEquals(original.getRGB(x, y), decoded.getRGB(x, y))
+        }
     }
 
     @Test fun emptyMediaHasAuthenticatedEndMarker() {
