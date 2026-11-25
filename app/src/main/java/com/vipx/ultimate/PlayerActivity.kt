@@ -71,7 +71,7 @@ class PlayerActivity : ComponentActivity() {
             playbackMessage = buildString {
                 append("تعذر تشغيل البث: ").append(code)
                 if (hint != null) append("\n").append(hint)
-                if (causeText != null) append("\\n").append(causeText)
+                if (causeText != null) append("\n").append(causeText)
             }
         }
     }
