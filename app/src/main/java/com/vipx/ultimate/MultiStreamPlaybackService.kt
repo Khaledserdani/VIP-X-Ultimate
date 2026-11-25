@@ -28,6 +28,7 @@ class MultiStreamPlaybackService : Service() {
 
     private val binder = LocalBinder()
     private val players = linkedMapOf<String, ExoPlayer>()
+    private var audioStreamUrl: String? = null
 
     override fun onBind(intent: Intent?): IBinder = binder
 
@@ -71,9 +72,21 @@ class MultiStreamPlaybackService : Service() {
     @Synchronized
     fun playerFor(url: String): ExoPlayer? = players[url]
 
+    /** Route audible output from one selected stream while all four videos continue. */
+    @Synchronized
+    fun selectAudioStream(url: String?) {
+        require(url == null || players.containsKey(url)) { "البث الصوتي غير موجود" }
+        audioStreamUrl = url
+        players.forEach { (streamUrl, player) -> player.volume = if (streamUrl == url) 1f else 0f }
+    }
+
+    @Synchronized
+    fun selectedAudioStream(): String? = audioStreamUrl
+
     @Synchronized
     fun stopStream(url: String) {
         players.remove(url)?.release()
+        if (audioStreamUrl == url) audioStreamUrl = null
         if (players.isEmpty()) {
             stopForeground(STOP_FOREGROUND_REMOVE)
             stopSelf()
@@ -84,6 +97,7 @@ class MultiStreamPlaybackService : Service() {
     fun stopAll() {
         players.values.forEach { it.release() }
         players.clear()
+        audioStreamUrl = null
         stopForeground(STOP_FOREGROUND_REMOVE)
         stopSelf()
     }
