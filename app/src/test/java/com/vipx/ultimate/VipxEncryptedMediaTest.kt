@@ -6,6 +6,7 @@ import org.junit.Assert.fail
 import org.junit.Test
 import java.io.ByteArrayInputStream
 import java.io.ByteArrayOutputStream
+import java.io.EOFException
 
 class VipxEncryptedMediaTest {
     @Test fun roundTripImageAndVideoPayload() {
@@ -16,6 +17,16 @@ class VipxEncryptedMediaTest {
         val mime = VipxEncryptedMedia.decrypt(ByteArrayInputStream(encrypted.toByteArray()), recovered, "test-pass".toCharArray())
         assertEquals("image/jpeg", mime)
         assertArrayEquals(payload, recovered.toByteArray())
+    }
+
+    @Test fun emptyMediaHasAuthenticatedEndMarker() {
+        val encrypted = ByteArrayOutputStream()
+        VipxEncryptedMedia.encrypt(ByteArrayInputStream(ByteArray(0)), encrypted, "empty-pass".toCharArray(), "video/mp4")
+        val recovered = ByteArrayOutputStream()
+        assertEquals("video/mp4", VipxEncryptedMedia.decrypt(
+            ByteArrayInputStream(encrypted.toByteArray()), recovered, "empty-pass".toCharArray()
+        ))
+        assertArrayEquals(ByteArray(0), recovered.toByteArray())
     }
 
     @Test fun wrongPasswordIsRejected() {
@@ -36,5 +47,28 @@ class VipxEncryptedMediaTest {
             VipxEncryptedMedia.decrypt(ByteArrayInputStream(damaged), ByteArrayOutputStream(), "secret".toCharArray())
             fail("Tampered ciphertext must fail authentication")
         } catch (_: javax.crypto.AEADBadTagException) { }
+    }
+
+    @Test fun removingAuthenticatedEndMarkerIsRejected() {
+        val encrypted = ByteArrayOutputStream()
+        VipxEncryptedMedia.encrypt(ByteArrayInputStream(ByteArray(20_000) { it.toByte() }), encrypted, "secret".toCharArray(), "video/mp4", 4096)
+        val complete = encrypted.toByteArray()
+        // The final record is a 4-byte zero length plus a 16-byte GCM tag.
+        val truncated = complete.copyOf(complete.size - 20)
+        try {
+            VipxEncryptedMedia.decrypt(ByteArrayInputStream(truncated), ByteArrayOutputStream(), "secret".toCharArray())
+            fail("Removing the authenticated end marker must fail")
+        } catch (_: EOFException) { }
+    }
+
+    @Test fun partialEndMarkerIsRejected() {
+        val encrypted = ByteArrayOutputStream()
+        VipxEncryptedMedia.encrypt(ByteArrayInputStream("video".toByteArray()), encrypted, "secret".toCharArray(), "video/mp4")
+        val complete = encrypted.toByteArray()
+        val truncated = complete.copyOf(complete.size - 1)
+        try {
+            VipxEncryptedMedia.decrypt(ByteArrayInputStream(truncated), ByteArrayOutputStream(), "secret".toCharArray())
+            fail("Truncated end marker must fail")
+        } catch (_: EOFException) { }
     }
 }
