@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
+import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.runtime.*
 import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.unit.LayoutDirection
@@ -117,7 +118,7 @@ private fun VipHome(
                             placeholder = { Text("https://license-provider.example/...") }, singleLine = true)
                         OutlinedTextField(value = authorization, onValueChange = { authorization = it },
                             modifier = Modifier.fillMaxWidth(), label = { Text("Authorization header (اختياري)") },
-                            placeholder = { Text("Bearer …") }, singleLine = true)
+                            placeholder = { Text("Bearer …") }, visualTransformation = PasswordVisualTransformation(), singleLine = true)
                         Text("أدخل بيانات ترخيص صادرة لك من مزوّد المحتوى. لا تُحفظ هذه القيم في التطبيق أو المستودع، ولا يمكن تشغيل المحتوى المحمي دون خادم ترخيص صالح.", color = VipMuted, fontSize = 11.sp)
                     }
                     Button(
