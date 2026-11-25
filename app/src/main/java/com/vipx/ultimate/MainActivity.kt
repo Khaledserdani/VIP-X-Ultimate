@@ -1,6 +1,8 @@
 package com.vipx.ultimate
 
 import android.content.Intent
+import android.net.ConnectivityManager
+import android.net.NetworkCapabilities
 import android.net.Uri
 import android.os.Bundle
 import androidx.activity.ComponentActivity
@@ -29,6 +31,35 @@ private val Accent = Color(0xFF42E3C2)
 private val Muted = Color(0xFF9FB2C7)
 private const val TANGO_PACKAGE = "com.sgiggle.production"
 
+private data class NetworkStatus(
+    val connection: String,
+    val validated: Boolean,
+    val downKbps: Int,
+    val upKbps: Int,
+    val metered: Boolean
+)
+
+private fun readNetworkStatus(context: android.content.Context): NetworkStatus {
+    val manager = context.getSystemService(ConnectivityManager::class.java)
+    val network = manager.activeNetwork
+        ?: return NetworkStatus("غير متصل", false, 0, 0, true)
+    val caps = manager.getNetworkCapabilities(network)
+        ?: return NetworkStatus("غير معروف", false, 0, 0, manager.isActiveNetworkMetered)
+    val connection = when {
+        caps.hasTransport(NetworkCapabilities.TRANSPORT_WIFI) -> "Wi-Fi"
+        caps.hasTransport(NetworkCapabilities.TRANSPORT_CELLULAR) -> "بيانات الهاتف"
+        caps.hasTransport(NetworkCapabilities.TRANSPORT_ETHERNET) -> "Ethernet"
+        else -> "اتصال آخر"
+    }
+    return NetworkStatus(
+        connection = connection,
+        validated = caps.hasCapability(NetworkCapabilities.NET_CAPABILITY_VALIDATED),
+        downKbps = caps.linkDownstreamBandwidthKbps,
+        upKbps = caps.linkUpstreamBandwidthKbps,
+        metered = manager.isActiveNetworkMetered
+    )
+}
+
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -55,6 +86,7 @@ private fun LiveGridHome() {
     var previewLimit by rememberSaveable { mutableIntStateOf(4) }
     var dataSaver by rememberSaveable { mutableStateOf(false) }
     var message by rememberSaveable { mutableStateOf("") }
+    var network by remember { mutableStateOf(readNetworkStatus(context)) }
     val tangoIntent = remember(context) {
         context.packageManager.getLaunchIntentForPackage(TANGO_PACKAGE)
     }
@@ -123,8 +155,24 @@ private fun LiveGridHome() {
                             Text("توفير البيانات", color = Color.White, fontSize = 13.sp)
                             Text("يُستخدم عند توفر مصدر معاينات فعلي", color = Muted, fontSize = 10.sp)
                         }
-                        Switch(checked = dataSaver, onCheckedChange = { dataSaver = it })
+                        Switch(checked = dataSaver, onCheckedChange = { enabled -> dataSaver = enabled; if (enabled) previewLimit = 2 })
                     }
+                }
+            }
+
+            Card(colors = CardDefaults.cardColors(containerColor = Panel), shape = RoundedCornerShape(18.dp)) {
+                Column(Modifier.fillMaxWidth().padding(13.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text("حالة الاتصال", color = Color.White, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
+                        TextButton(onClick = { network = readNetworkStatus(context) }) { Text("تحديث") }
+                    }
+                    Text(
+                        "${network.connection} • " + if (network.validated) "إنترنت متحقق" else "الإنترنت غير متحقق",
+                        color = if (network.validated) Accent else Color(0xFFFFD27A),
+                        fontSize = 12.sp
+                    )
+                    Text("تقدير النظام: تنزيل ${network.downKbps} kbps • رفع ${network.upKbps} kbps", color = Muted, fontSize = 10.sp)
+                    Text(if (network.metered) "الشبكة محسوبة البيانات" else "الشبكة غير محسوبة البيانات", color = Muted, fontSize = 10.sp)
                 }
             }
 
