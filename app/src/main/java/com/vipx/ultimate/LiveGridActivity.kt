@@ -124,6 +124,9 @@ private fun LiveGridScreen(
     var licenseUrl by remember { mutableStateOf("") }
     var authorization by remember { mutableStateOf("") }
     var message by remember { mutableStateOf("أضف حتى أربعة بثوث؛ ستعمل معاً وتستمر عند تصفح التطبيق.") }
+    var audibleStream by remember { mutableStateOf<String?>(service?.selectedAudioStream()) }
+
+    LaunchedEffect(service) { audibleStream = service?.selectedAudioStream() }
 
     LaunchedEffect(service, streams.size) {
         if (streams.isNotEmpty()) {
@@ -195,6 +198,7 @@ private fun LiveGridScreen(
         }
 
         Text(message, color = Color(0xFF9FB2C7), fontSize = 11.sp)
+        Text(if (audibleStream == null) "الصوت: مكتوم • اختر بثاً لسماع صوته" else "الصوت يخرج من: ${streams.indexOfFirst { it.url == audibleStream } + 1}", color = GridAccent, fontSize = 11.sp)
         LazyVerticalGrid(
             columns = GridCells.Fixed(2), modifier = Modifier.weight(1f).fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)
@@ -207,7 +211,12 @@ private fun LiveGridScreen(
                         Text(entry.url, color = Color.White, fontSize = 9.sp, maxLines = 1)
                         Text(if (entry.drmEnabled) "Widevine • ترخيص مستقل" else "بث مباشر", color = Color(0xFF9FB2C7), fontSize = 9.sp)
                         TextButton(onClick = {
+                            service?.selectAudioStream(entry.url)
+                            audibleStream = entry.url
+                        }) { Text(if (audibleStream == entry.url) "الصوت مفعّل" else "اسمع هذا البث", fontSize = 11.sp) }
+                        TextButton(onClick = {
                             service?.stopStream(entry.url)
+                            if (audibleStream == entry.url) audibleStream = null
                             streams.remove(entry)
                             sessionAuthorization.remove(entry.url)
                             persistStreams()
