@@ -39,7 +39,10 @@ class MediaCaptureActivity : ComponentActivity() {
                             Text("التطبيق المصدر: $sourceApp", color = Color.White)
                             Text("المضيف: ${candidate.host}", color = Color.White)
                             Text("التعرّف: ${SharedMediaCapture.label(candidate.kind)}", color = Color(0xFF42E3C2))
-                            Text(candidate.url, color = Color(0xFF9FB2C7), fontSize = 11.sp)
+                            Text(SharedMediaCapture.safeDisplay(candidate.url), color = Color(0xFF9FB2C7), fontSize = 11.sp)
+                            Text(
+                                "قد يحتوي الرابط الأصلي على رمز وصول مخفي. عند إضافته إلى شبكة 2×2 سيُحفظ داخل مساحة VIP X الخاصة. لا تشارك الرابط مع الآخرين.", color = Color(0xFFFFD180), fontSize = 11.sp
+                            )
                             Text(
                                 "هذا رابط شاركه التطبيق أو المستخدم. لا يعني ذلك أنه رابط البث الداخلي أو أن المحتوى غير محمي. لا يستخرج VIP X مفاتيح DRM أو يتجاوز قيود التطبيق.",
                                 color = Color(0xFF9FB2C7), fontSize = 12.sp
