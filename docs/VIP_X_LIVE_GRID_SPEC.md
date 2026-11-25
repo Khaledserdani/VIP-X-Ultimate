@@ -2,9 +2,9 @@
 
 ## Product goal
 
-Add a real multi-preview live-broadcast browsing mode to the existing VIP X Android app. The user should be able to browse a grid of live rooms and watch multiple live previews at once without entering each room. Selecting a tile opens that room in the original Tango app when a supported deep link or official navigation route exists.
+VIP X is a standalone Android companion dedicated to a real multi-preview live-broadcast browsing mode for Tango. The user should be able to browse a grid of live rooms and watch multiple live previews at once without entering each room. Selecting a tile opens that room in the original Tango app when a supported deep link or official navigation route exists.
 
-This is a focused feature, not a chat assistant, screen reader, or generic device monitor.
+This is the entire product direction. The previous assistant, APK-analysis, cloud, and accessibility features are excluded; only reusable general engineering practices may carry over.
 
 ## Two product pillars
 
@@ -15,7 +15,7 @@ This is a focused feature, not a chat assistant, screen reader, or generic devic
 
 - VIP X cannot directly inspect or modify Tango's private process memory, internal databases, or protected network traffic.
 - MediaProjection captures the device display after explicit Android user consent; it does not create independent streams for rooms that Tango is not already rendering.
-- Accessibility may assist with user-authorized navigation, but it is not a source of hidden video streams and must not automate actions that bypass access controls.
+- VIP X does not use an Accessibility service to scrape Tango or control its private UI.
 - Android Picture-in-Picture can keep one supported activity visible; it does not by itself provide simultaneous playback of many Tango rooms.
 - Do not claim multi-live playback until a supported source for each concurrent preview is verified.
 
@@ -25,7 +25,11 @@ Before implementing playback, test these routes in order:
 
 1. **Host-provided live previews:** determine whether Tango's visible live-discovery feed itself plays multiple preview videos concurrently. If yes, VIP X may provide an enhanced browsing surface around those supported previews, subject to app/API behavior.
 2. **Official SDK/API/deep links:** check for documented public interfaces that provide authorized live preview streams or room metadata. Use only documented interfaces and user-authorized access.
-3. **Fallback if neither exists:** provide an enhanced live-room discovery grid using the preview images/metadata Tango makes available, plus one-at-a-time opening in Tango. Clearly label this as thumbnails, not simultaneous live video.
+3. **Fallback if neither exists:** provide an enhanced live-room discovery grid using preview images/metadata that Tango visibly and legitimately exposes, plus one-at-a-time opening in Tango. Clearly label this as thumbnails, not simultaneous live video.
+
+### Public API finding (25 November 2026)
+
+Tango's public August 2026 announcement describes API access for agencies, third-party providers, and power users, with creator-approved access for chat automation, media-vault operations, starting a creator's stream, and webhooks. The public announcement does not document a viewer-facing endpoint for discovering arbitrary live rooms or obtaining concurrent viewer preview URLs. Therefore this API is not yet accepted as a Live Grid video source. Revisit only if official technical documentation confirms viewer preview access within the user's no-cost and no-account-risk constraints.
 
 Do not reverse engineer private stream endpoints, extract session tokens, defeat DRM/access controls, impersonate clients, or conceal automation to avoid account enforcement.
 
@@ -50,7 +54,7 @@ Do not reverse engineer private stream endpoints, extract session tokens, defeat
 
 ## Implementation sequence
 
-1. Inspect the existing app navigation and add a dedicated Live Grid screen shell.
+1. Replace the previous app experience with a dedicated VIP X Live Grid screen shell.
 2. Implement tile model, layout controls, loading/error/preview-type states using mock data only in UI tests.
 3. Perform a manual compatibility investigation of Tango's actual live-discovery UI and public integration surface.
 4. Select the supported preview provider based on evidence.
