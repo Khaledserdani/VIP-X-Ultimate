@@ -84,7 +84,7 @@ private fun LiveGridScreen() {
 
     Column(Modifier.fillMaxSize().background(GridBg).padding(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
         Text("VIP X • شبكة البثوث", color = GridAccent, fontSize = 23.sp)
-        Text("معاينات تلقائية أثناء البقاء داخل VIP X. إعداد الترخيص يخص الرابط الذي تضيفه الآن.", color = Color.White, fontSize = 12.sp)
+        Text("المعاينات صامتة داخل الشبكة. لتشغيل بث واحد بالصوت أثناء التصفح أو خارج التطبيق، افتحه في المشغّل المستقل.", color = Color.White, fontSize = 12.sp)
         OutlinedTextField(value = url, onValueChange = { url = it }, modifier = Modifier.fillMaxWidth(),
             label = { Text("رابط بث مباشر HTTPS") }, singleLine = true)
         Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
@@ -149,7 +149,7 @@ private fun LiveGridScreen() {
                                     .putExtra(PlayerActivity.EXTRA_DRM_ENABLED, entry.drmEnabled)
                                     .putExtra(PlayerActivity.EXTRA_DRM_LICENSE_URL, entry.licenseUrl)
                                     .putExtra(PlayerActivity.EXTRA_DRM_AUTHORIZATION, sessionAuthorization[entry.url].orEmpty()))
-                            }) { Text("تكبير", fontSize = 11.sp) }
+                            }) { Text("تشغيل مستقل", fontSize = 11.sp) }
                             TextButton(onClick = { streams.remove(entry); sessionAuthorization.remove(entry.url); persistStreams() }) { Text("إزالة", fontSize = 11.sp) }
                         }
                     }
