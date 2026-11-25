@@ -50,6 +50,7 @@ class MainActivity : ComponentActivity() {
                         )
                     },
                     openCryptoLab = { startActivity(Intent(this, CryptoLabActivity::class.java)) },
+                    openMediaLibrary = { startActivity(Intent(this, MediaLibraryActivity::class.java)) },
                     openLiveGrid = { startActivity(Intent(this, LiveGridActivity::class.java)) },
                     openStream = { url, drm, license, authorization ->
                         startActivity(Intent(this, PlayerActivity::class.java)
@@ -70,6 +71,7 @@ private fun VipHome(
     requestSettings: () -> Unit,
     applyBrightness: (Float) -> Unit,
     openCryptoLab: () -> Unit,
+    openMediaLibrary: () -> Unit,
     openLiveGrid: () -> Unit,
     openStream: (String, Boolean, String, String) -> Unit
 ) {
@@ -167,6 +169,16 @@ private fun VipHome(
                         colors = ButtonDefaults.buttonColors(containerColor = VipAccent, contentColor = VipBg)
                     ) { Text(if (permissionGranted) "تطبيق السطوع" else "منح إذن السطوع", fontWeight = FontWeight.Bold) }
                     Text(message, color = VipMuted, fontSize = 12.sp)
+                }
+            }
+
+            Card(colors = CardDefaults.cardColors(containerColor = VipPanel)) {
+                Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Text("الصور والفيديوهات", color = Color.White, fontWeight = FontWeight.Bold)
+                    Text("افتح الصور ومقاطع الفيديو من الهاتف واعرضها أو شغّلها داخل VIP X دون مغادرة التطبيق.", color = VipMuted, fontSize = 12.sp)
+                    Button(onClick = openMediaLibrary, modifier = Modifier.fillMaxWidth()) {
+                        Text("فتح مكتبة الصور والفيديو")
+                    }
                 }
             }
 
