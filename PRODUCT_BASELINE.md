@@ -14,14 +14,14 @@ A standalone Android app centered on in-app video/live-stream browsing and playb
 - Up to four user-supplied HTTPS stream URLs are saved locally and shown in a two-column grid.
 - Each tile creates its own Media3 ExoPlayer, starts muted, repeats, and exposes loading/ready/error state.
 - Grid players pause when the grid Activity stops and release when their composable is disposed.
-- Grid Widevine enabled flag and license URL are saved locally; Authorization header is kept in the current screen session and is not persisted.
+- Each grid entry stores its own Widevine enabled flag and license URL in an ordered JSON list; Authorization is held in an in-memory map keyed by stream URL for the current grid-screen session only and is not persisted.
 - Tapping a tile opens the full Media3 player backed by MediaSessionService and passes the current DRM settings.
 - Full player accepts HTTPS stream and license URLs, optional Authorization header, and has PiP configuration.
 - HLS/DASH Media3 modules are dependencies. This is a URL-based stream grid, not yet a general web browser or content discovery engine.
 
 ## Known limitations / outstanding work
-- One shared DRM license URL and one session-only Authorization value currently apply to all grid tiles. Per-stream DRM configuration is not implemented.
-- Authorization is passed in Activity intents to the full player; avoid logging it and keep its lifetime short.
+- Per-stream DRM configuration is implemented for grid entries. The license URL and DRM-enabled flag are stored per entry; the Authorization header is session-only and is lost when the grid screen/process is recreated. Existing legacy URL entries are migrated using the former shared DRM settings when loaded.
+- Authorization is passed in Activity intents to the full player for the selected stream; avoid logging it and keep its lifetime short. It is not written to preferences or the per-stream JSON.
 - The four-player cap is a UI limit, not proof that every device can decode four streams. Device decoder, memory, bandwidth, battery, and thermal limits remain untested.
 - Grid previews are Activity/composable-scoped. They pause in background and are released when the screen is disposed; they do not persist as a multi-stream background service.
 - Full-player PiP and MediaSessionService integration are configured but require target-device verification.
