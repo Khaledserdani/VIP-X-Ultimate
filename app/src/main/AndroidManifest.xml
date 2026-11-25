@@ -9,6 +9,9 @@
         android:supportsRtl="true"
         android:theme="@android:style/Theme.Material.Light.NoActionBar">
         <activity
+            android:name=".MediaLibraryActivity"
+            android:exported="false" />
+        <activity
             android:name=".LiveGridActivity"
             android:exported="false" />
         <activity
