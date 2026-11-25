@@ -49,7 +49,8 @@ class MultiStreamPlaybackService : Service() {
     fun playStream(url: String, drmEnabled: Boolean, licenseUrl: String, authorization: String) {
         require(url.startsWith("https://")) { "يجب استخدام HTTPS للبث" }
         require(players.size < MAX_STREAMS || players.containsKey(url)) { "الحد الأقصى أربعة بثوث متزامنة" }
-        val player = players.getOrPut(url) { ExoPlayer.Builder(this).build() }
+        if (players.containsKey(url)) return // keep an already-running stream alive when the grid is reopened
+        val player = ExoPlayer.Builder(this).build().also { players[url] = it }
         player.volume = 0f // four concurrent previews; audio focus is reserved for explicit foreground player
         player.repeatMode = Player.REPEAT_MODE_OFF
         val uri = Uri.parse(url)
