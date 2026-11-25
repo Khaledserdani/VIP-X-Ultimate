@@ -136,7 +136,7 @@ class MediaCaptureActivity : ComponentActivity() {
                                             } catch (error: Exception) {
                                                 message = "فشل فك التشفير أو التحقق: ${error.message ?: error.javaClass.simpleName}"
                                             } finally {
-                                                secret.fill('\\u0000')
+                                                secret.fill('\u0000')
                                                 password = ""
                                                 busy = false
                                             }
