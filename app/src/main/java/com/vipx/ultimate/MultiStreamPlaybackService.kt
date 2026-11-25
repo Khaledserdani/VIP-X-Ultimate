@@ -48,25 +48,34 @@ class MultiStreamPlaybackService : Service() {
 
     @Synchronized
     fun playStream(url: String, drmEnabled: Boolean, licenseUrl: String, authorization: String) {
-        require(url.startsWith("https://")) { "يجب استخدام HTTPS للبث" }
+        val uri = Uri.parse(url)
+        require(uri.scheme == "https" && !uri.host.isNullOrBlank()) { "يجب استخدام رابط بث HTTPS صالح" }
         require(players.size < MAX_STREAMS || players.containsKey(url)) { "الحد الأقصى أربعة بثوث متزامنة" }
         if (players.containsKey(url)) return // keep an already-running stream alive when the grid is reopened
-        val player = ExoPlayer.Builder(this).build().also { players[url] = it }
-        player.volume = 0f // four concurrent previews; audio focus is reserved for explicit foreground player
-        player.repeatMode = Player.REPEAT_MODE_OFF
-        val uri = Uri.parse(url)
+        val license = if (drmEnabled) Uri.parse(licenseUrl) else null
+        require(!drmEnabled || (license?.scheme == "https" && !license.host.isNullOrBlank())) {
+            "رابط ترخيص Widevine غير صالح"
+        }
         val item = if (drmEnabled) {
-            val license = Uri.parse(licenseUrl)
-            require(license.scheme == "https" && !license.host.isNullOrBlank()) { "رابط ترخيص Widevine غير صالح" }
-            val drm = MediaItem.DrmConfiguration.Builder(C.WIDEVINE_UUID).setLicenseUri(license)
+            val drm = MediaItem.DrmConfiguration.Builder(C.WIDEVINE_UUID).setLicenseUri(license!!)
             if (authorization.isNotBlank()) drm.setLicenseRequestHeaders(mapOf("Authorization" to authorization))
             MediaItem.Builder().setUri(uri).setDrmConfiguration(drm.build()).build()
         } else MediaItem.fromUri(uri)
-        player.setMediaItem(item)
-        player.prepare()
-        player.playWhenReady = true
-        startAsForeground()
-        updateNotification()
+        val player = ExoPlayer.Builder(this).build()
+        try {
+            player.volume = 0f // previews stay muted until the user selects one audio stream
+            player.repeatMode = Player.REPEAT_MODE_OFF
+            player.setMediaItem(item)
+            players[url] = player
+            player.prepare()
+            player.playWhenReady = true
+            startAsForeground()
+            updateNotification()
+        } catch (error: Throwable) {
+            players.remove(url)
+            player.release()
+            throw error
+        }
     }
 
     @Synchronized
