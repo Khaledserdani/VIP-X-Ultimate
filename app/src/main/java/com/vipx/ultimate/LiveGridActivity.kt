@@ -63,7 +63,7 @@ private fun LiveGridScreen() {
             OutlinedButton(onClick = { streams.clear(); message = "تم إيقاف جميع المعاينات." }) { Text("إيقاف الكل") }
         }
         Text(message, color = Color(0xFF9FB2C7), fontSize = 11.sp)
-        LazyVerticalGrid(columns = GridCells.Fixed(2), modifier = Modifier.fillMaxSize(), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        LazyVerticalGrid(columns = GridCells.Fixed(2), modifier = Modifier.weight(1f).fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             itemsIndexed(streams, key = { _, item -> item }) { index, stream ->
                 Card(colors = CardDefaults.cardColors(containerColor = GridPanel), shape = RoundedCornerShape(12.dp)) {
                     Column(Modifier.fillMaxWidth().padding(6.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
