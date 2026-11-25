@@ -45,7 +45,11 @@ class MainActivity : ComponentActivity() {
                         (value * 255f).toInt().coerceIn(20, 255)
                     )
                 },
-                openCryptoLab = { startActivity(Intent(this, CryptoLabActivity::class.java)) }
+                openCryptoLab = { startActivity(Intent(this, CryptoLabActivity::class.java)) },
+                openStream = { url ->
+                    startActivity(Intent(this, PlayerActivity::class.java)
+                        .putExtra(PlayerActivity.EXTRA_STREAM_URL, url))
+                }
             ) }
         }
     }
@@ -56,11 +60,14 @@ private fun VipHome(
     canWriteSettings: () -> Boolean,
     requestSettings: () -> Unit,
     applyBrightness: (Float) -> Unit,
-    openCryptoLab: () -> Unit
+    openCryptoLab: () -> Unit,
+    openStream: (String) -> Unit
 ) {
     var brightness by remember { mutableFloatStateOf(0.75f) }
     var permissionGranted by remember { mutableStateOf(canWriteSettings()) }
     var message by remember { mutableStateOf("تحكم في سطوع الشاشة على مستوى النظام بعد منح الإذن.") }
+    var streamUrl by remember { mutableStateOf("") }
+    var streamMessage by remember { mutableStateOf("ألصق رابط بث تملك حق مشاهدته.") }
 
     Surface(modifier = Modifier.fillMaxSize(), color = VipBg) {
         Column(
@@ -69,18 +76,45 @@ private fun VipHome(
         ) {
             Text("VIP X", color = VipAccent, fontSize = 14.sp, fontWeight = FontWeight.ExtraBold)
             Text("مساعد المشاهدة", color = Color.White, fontSize = 28.sp, fontWeight = FontWeight.Black)
-            Text("أدوات فعلية ومجانية لتحسين تجربة المشاهدة ضمن صلاحيات Android.", color = VipMuted, fontSize = 14.sp)
+            Text("مشغّل بث مستقل وأدوات مجانية ضمن صلاحيات Android.", color = VipMuted, fontSize = 14.sp)
+
+            Card(colors = CardDefaults.cardColors(containerColor = VipPanel)) {
+                Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Text("مشغّل البث • تشغيل أثناء التصفح", color = Color.White, fontWeight = FontWeight.Bold)
+                    Text("يدعم روابط وسائط مباشرة وصيغ HLS/DASH المتوافقة. بعد بدء التشغيل يمكنك الرجوع لتطبيق آخر ويستمر الصوت عبر خدمة الوسائط وإشعار التحكم.", color = VipMuted, fontSize = 12.sp)
+                    OutlinedTextField(
+                        value = streamUrl,
+                        onValueChange = { streamUrl = it },
+                        modifier = Modifier.fillMaxWidth(),
+                        label = { Text("رابط البث المصرّح به") },
+                        placeholder = { Text("https://…") },
+                        singleLine = true
+                    )
+                    Button(
+                        onClick = {
+                            val parsed = Uri.parse(streamUrl.trim())
+                            if (parsed.scheme in listOf("https", "http") && !parsed.host.isNullOrBlank()) {
+                                streamMessage = "يتم فتح المشغّل…"
+                                openStream(streamUrl.trim())
+                            } else {
+                                streamMessage = "أدخل رابطاً صحيحاً يبدأ بـ https:// أو http://"
+                            }
+                        },
+                        enabled = streamUrl.isNotBlank(),
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = ButtonDefaults.buttonColors(containerColor = VipAccent, contentColor = VipBg)
+                    ) { Text("تشغيل البث", fontWeight = FontWeight.Bold) }
+                    Text(streamMessage, color = VipMuted, fontSize = 12.sp)
+                    Text("البث المحمي يحتاج ترخيص DRM صالحاً من مزوّد المحتوى؛ لا يتم تجاوز الحماية أو استخراج مفاتيح التطبيقات الأخرى.", color = VipMuted, fontSize = 11.sp)
+                }
+            }
 
             Card(colors = CardDefaults.cardColors(containerColor = VipPanel)) {
                 Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                     Text("سطوع الشاشة العام", color = Color.White, fontWeight = FontWeight.Bold)
                     Text("يؤثر على شاشة الهاتف حتى عند الانتقال إلى تطبيق فيديو آخر. لا يغيّر دقة الفيديو أو جودته من الخادم.", color = VipMuted, fontSize = 12.sp)
                     Text("${(brightness * 100).toInt()}%", color = VipAccent, fontSize = 22.sp, fontWeight = FontWeight.Bold)
-                    Slider(
-                        value = brightness,
-                        onValueChange = { brightness = it },
-                        valueRange = 0.08f..1f
-                    )
+                    Slider(value = brightness, onValueChange = { brightness = it }, valueRange = 0.08f..1f)
                     Button(
                         onClick = {
                             permissionGranted = canWriteSettings()
@@ -114,7 +148,7 @@ private fun VipHome(
             }
 
             Text(
-                "مهم: VIP X لا يعترض فيديو التطبيقات الأخرى ولا يكسر DRM. كل ميزة تُضاف يجب أن تعمل فعلياً وتُختبر قبل وصفها بأنها تحسين.",
+                "مهم: VIP X لا يعترض فيديو التطبيقات الأخرى ولا يكسر DRM. التشغيل الخلفي يعمل للمحتوى الذي يفتحه المشغّل نفسه، وفق قيود Android ومزوّد البث.",
                 color = VipMuted, fontSize = 11.sp
             )
         }
