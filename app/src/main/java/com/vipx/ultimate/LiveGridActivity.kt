@@ -12,6 +12,7 @@ import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.itemsIndexed
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
+import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -76,7 +77,7 @@ private fun LiveGridScreen() {
             OutlinedTextField(value = licenseUrl, onValueChange = { licenseUrl = it; persistDrmSettings() }, modifier = Modifier.fillMaxWidth(),
                 label = { Text("رابط ترخيص HTTPS") }, singleLine = true)
             OutlinedTextField(value = authorization, onValueChange = { authorization = it }, modifier = Modifier.fillMaxWidth(),
-                label = { Text("Authorization (اختياري)") }, singleLine = true)
+                label = { Text("Authorization (اختياري)") }, visualTransformation = PasswordVisualTransformation(), singleLine = true)
             Text("استخدم بيانات الترخيص التي وفرها مزوّد المحتوى لهذا البث. لا تدخل بيانات سرية لا تملك حق استخدامها.", color = Color(0xFF9FB2C7), fontSize = 10.sp)
         }
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
