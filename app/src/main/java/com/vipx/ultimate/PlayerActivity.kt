@@ -66,15 +66,22 @@ class PlayerActivity : ComponentActivity() {
         val token = SessionToken(this, android.content.ComponentName(this, PlaybackService::class.java))
         controllerFuture = MediaController.Builder(this, token).buildAsync()
         controllerFuture?.addListener({
+            if (isFinishing || isDestroyed) return@addListener
             try {
                 val controller = controllerFuture?.get() ?: return@addListener
+                if (isFinishing || isDestroyed) {
+                    controller.release()
+                    return@addListener
+                }
                 mediaController = controller
                 controller.addListener(playerListener)
                 controller.setMediaItem(MediaItem.fromUri(parsedUri))
                 controller.prepare()
                 controller.play()
             } catch (_: Exception) {
-                playbackMessage = "تعذر الاتصال بخدمة تشغيل الوسائط."
+                if (!isFinishing && !isDestroyed) {
+                    playbackMessage = "تعذر الاتصال بخدمة تشغيل الوسائط."
+                }
             }
         }, mainExecutor)
 
