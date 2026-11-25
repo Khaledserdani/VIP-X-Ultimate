@@ -51,6 +51,7 @@ class LiveGridActivity : ComponentActivity() {
             MaterialTheme(colorScheme = darkColorScheme(primary = GridAccent, background = GridBg, surface = GridPanel)) {
                 LiveGridScreen(
                     service = playbackService,
+                    importedStreamUrl = intent.getStringExtra(EXTRA_IMPORTED_STREAM_URL),
                     startPlaybackService = {
                         val intent = Intent(this, MultiStreamPlaybackService::class.java)
                         if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) startForegroundService(intent)
@@ -59,6 +60,10 @@ class LiveGridActivity : ComponentActivity() {
                 )
             }
         }
+    }
+
+    companion object {
+        const val EXTRA_IMPORTED_STREAM_URL = "com.vipx.ultimate.IMPORTED_STREAM_URL"
     }
 
     override fun onStart() {
@@ -82,6 +87,7 @@ private data class StreamEntry(val url: String, val drmEnabled: Boolean, val lic
 @Composable
 private fun LiveGridScreen(
     service: MultiStreamPlaybackService?,
+    importedStreamUrl: String?,
     startPlaybackService: () -> Unit
 ) {
     val context = LocalContext.current
@@ -117,6 +123,18 @@ private fun LiveGridScreen(
         }
         preferences.edit().putString("stream_entries_v2", array.toString())
             .remove("stream_urls").remove("drm_enabled").remove("license_url").remove("authorization").apply()
+    }
+
+    LaunchedEffect(importedStreamUrl) {
+        val candidate = importedStreamUrl?.let(SharedMediaCapture::parse)
+        if (candidate != null && streams.none { it.url == candidate.url } && streams.size < 4) {
+            streams.add(StreamEntry(candidate.url, false, ""))
+            persistStreams()
+            message = "تم استيراد الرابط إلى الشبكة: ${SharedMediaCapture.label(candidate.kind)}"
+            startPlaybackService()
+        } else if (candidate != null && streams.size >= 4 && streams.none { it.url == candidate.url }) {
+            message = "الشبكة ممتلئة. احذف بثاً أولاً ثم أعد استيراد الرابط."
+        }
     }
 
     var url by remember { mutableStateOf("") }
