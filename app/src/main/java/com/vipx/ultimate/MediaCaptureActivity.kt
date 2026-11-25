@@ -200,6 +200,17 @@ class MediaCaptureActivity : ComponentActivity() {
         if (uri.scheme == "content") {
             playIntent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
                 .setClipData(ClipData.newRawUri("VIP X shared media", uri))
+        } else if (uri.scheme == "file") {
+            // Transfer ownership of a decrypted cache file to PlaybackService.
+            // The capture screen may be destroyed while playback continues.
+            val candidate = runCatching { File(uri.path.orEmpty()).canonicalFile }.getOrNull()
+            val cache = runCatching { cacheDir.canonicalFile }.getOrNull()
+            if (candidate != null && cache != null &&
+                candidate.parentFile == cache && candidate.name.startsWith("vipx-shared-") &&
+                decryptedPreviewFile?.canonicalFile == candidate
+            ) {
+                decryptedPreviewFile = null
+            }
         }
         startActivity(playIntent)
     }
