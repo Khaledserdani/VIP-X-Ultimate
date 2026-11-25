@@ -170,7 +170,6 @@ private fun ChoiceButton(label: String, selected: Boolean, onClick: () -> Unit) 
             contentColor = if (selected) Background else Color.White,
             containerColor = if (selected) Accent else Color.Transparent
         ),
-        border = ButtonDefaults.outlinedButtonBorder
     ) {
         Text(label, fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal)
     }
