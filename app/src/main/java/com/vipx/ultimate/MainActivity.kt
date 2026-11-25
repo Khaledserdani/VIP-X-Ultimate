@@ -49,9 +49,12 @@ class MainActivity : ComponentActivity() {
                         )
                     },
                     openCryptoLab = { startActivity(Intent(this, CryptoLabActivity::class.java)) },
-                    openStream = { url ->
+                    openStream = { url, drm, license, authorization ->
                         startActivity(Intent(this, PlayerActivity::class.java)
-                            .putExtra(PlayerActivity.EXTRA_STREAM_URL, url))
+                            .putExtra(PlayerActivity.EXTRA_STREAM_URL, url)
+                            .putExtra(PlayerActivity.EXTRA_DRM_ENABLED, drm)
+                            .putExtra(PlayerActivity.EXTRA_DRM_LICENSE_URL, license)
+                            .putExtra(PlayerActivity.EXTRA_DRM_AUTHORIZATION, authorization))
                     }
                 ) }
             }
@@ -65,13 +68,16 @@ private fun VipHome(
     requestSettings: () -> Unit,
     applyBrightness: (Float) -> Unit,
     openCryptoLab: () -> Unit,
-    openStream: (String) -> Unit
+    openStream: (String, Boolean, String, String) -> Unit
 ) {
     var brightness by remember { mutableFloatStateOf(0.75f) }
     var permissionGranted by remember { mutableStateOf(canWriteSettings()) }
     var message by remember { mutableStateOf("تحكم في سطوع الشاشة على مستوى النظام بعد منح الإذن.") }
     var streamUrl by remember { mutableStateOf("") }
     var streamMessage by remember { mutableStateOf("ألصق رابط بث تملك حق مشاهدته.") }
+    var drmEnabled by remember { mutableStateOf(false) }
+    var licenseUrl by remember { mutableStateOf("") }
+    var authorization by remember { mutableStateOf("") }
 
     Surface(modifier = Modifier.fillMaxSize(), color = VipBg) {
         Column(
@@ -94,14 +100,29 @@ private fun VipHome(
                         placeholder = { Text("https://…") },
                         singleLine = true
                     )
+                    Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+                        Checkbox(checked = drmEnabled, onCheckedChange = { drmEnabled = it })
+                        Text("تشغيل محتوى محمي بترخيص Widevine", color = Color.White, fontSize = 12.sp)
+                    }
+                    if (drmEnabled) {
+                        OutlinedTextField(value = licenseUrl, onValueChange = { licenseUrl = it },
+                            modifier = Modifier.fillMaxWidth(), label = { Text("رابط خادم الترخيص HTTPS") },
+                            placeholder = { Text("https://license-provider.example/...") }, singleLine = true)
+                        OutlinedTextField(value = authorization, onValueChange = { authorization = it },
+                            modifier = Modifier.fillMaxWidth(), label = { Text("Authorization header (اختياري)") },
+                            placeholder = { Text("Bearer …") }, singleLine = true)
+                        Text("أدخل بيانات ترخيص صادرة لك من مزوّد المحتوى. لا تُحفظ هذه القيم في التطبيق أو المستودع، ولا يمكن تشغيل المحتوى المحمي دون خادم ترخيص صالح.", color = VipMuted, fontSize = 11.sp)
+                    }
                     Button(
                         onClick = {
                             val parsed = Uri.parse(streamUrl.trim())
-                            if (parsed.scheme == "https" && !parsed.host.isNullOrBlank()) {
+                            val license = Uri.parse(licenseUrl.trim())
+                            if (parsed.scheme == "https" && !parsed.host.isNullOrBlank() &&
+                                (!drmEnabled || (license.scheme == "https" && !license.host.isNullOrBlank()))) {
                                 streamMessage = "يتم فتح المشغّل…"
-                                openStream(streamUrl.trim())
+                                openStream(streamUrl.trim(), drmEnabled, licenseUrl.trim(), authorization.trim())
                             } else {
-                                streamMessage = "أدخل رابطاً صحيحاً يبدأ بـ https://"
+                                streamMessage = if (drmEnabled) "تحقق من رابط البث ورابط ترخيص HTTPS." else "أدخل رابطاً صحيحاً يبدأ بـ https://"
                             }
                         },
                         enabled = streamUrl.isNotBlank(),
