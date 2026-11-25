@@ -4,9 +4,11 @@ on:
   push:
     branches:
       - feature/vipx-live-grid
+      - feature/vipx-media-capture-engine
   pull_request:
     branches:
       - feature/vipx-live-grid
+      - feature/vipx-media-capture-engine
   workflow_dispatch:
 
 permissions:
