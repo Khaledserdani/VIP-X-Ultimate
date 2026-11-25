@@ -49,6 +49,7 @@ class MainActivity : ComponentActivity() {
                         )
                     },
                     openCryptoLab = { startActivity(Intent(this, CryptoLabActivity::class.java)) },
+                    openLiveGrid = { startActivity(Intent(this, LiveGridActivity::class.java)) },
                     openStream = { url, drm, license, authorization ->
                         startActivity(Intent(this, PlayerActivity::class.java)
                             .putExtra(PlayerActivity.EXTRA_STREAM_URL, url)
@@ -68,6 +69,7 @@ private fun VipHome(
     requestSettings: () -> Unit,
     applyBrightness: (Float) -> Unit,
     openCryptoLab: () -> Unit,
+    openLiveGrid: () -> Unit,
     openStream: (String, Boolean, String, String) -> Unit
 ) {
     var brightness by remember { mutableFloatStateOf(0.75f) }
@@ -90,6 +92,11 @@ private fun VipHome(
 
             Card(colors = CardDefaults.cardColors(containerColor = VipPanel)) {
                 Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Text("شبكة البثوث والمعاينات التلقائية", color = Color.White, fontWeight = FontWeight.Bold)
+                    Text("أضف حتى 4 روابط بث متاحة لك لتشغيل معايناتها داخل شبكة واحدة.", color = VipMuted, fontSize = 12.sp)
+                    Button(onClick = openLiveGrid, modifier = Modifier.fillMaxWidth()) {
+                        Text("فتح شبكة البثوث", fontWeight = FontWeight.Bold)
+                    }
                     Text("مشغّل البث • تشغيل أثناء التصفح", color = Color.White, fontWeight = FontWeight.Bold)
                     Text("يدعم روابط وسائط مباشرة وصيغ HLS/DASH المتوافقة. بعد بدء التشغيل يمكنك الرجوع لتطبيق آخر ويستمر الصوت عبر خدمة الوسائط وإشعار التحكم.", color = VipMuted, fontSize = 12.sp)
                     OutlinedTextField(
