@@ -111,7 +111,10 @@ private fun VipHome(
                         singleLine = true
                     )
                     Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
-                        Checkbox(checked = drmEnabled, onCheckedChange = { drmEnabled = it })
+                        Checkbox(checked = drmEnabled, onCheckedChange = {
+                            drmEnabled = it
+                            if (!it) authorization = ""
+                        })
                         Text("تشغيل محتوى محمي بترخيص Widevine", color = Color.White, fontSize = 12.sp)
                     }
                     if (drmEnabled) {
@@ -130,7 +133,9 @@ private fun VipHome(
                             if (parsed.scheme == "https" && !parsed.host.isNullOrBlank() &&
                                 (!drmEnabled || (license.scheme == "https" && !license.host.isNullOrBlank()))) {
                                 streamMessage = "يتم فتح المشغّل…"
-                                openStream(streamUrl.trim(), drmEnabled, licenseUrl.trim(), authorization.trim())
+                                val sessionAuthorization = authorization.trim()
+                                authorization = ""
+                                openStream(streamUrl.trim(), drmEnabled, licenseUrl.trim(), sessionAuthorization)
                             } else {
                                 streamMessage = if (drmEnabled) "تحقق من رابط البث ورابط ترخيص HTTPS." else "أدخل رابطاً صحيحاً يبدأ بـ https://"
                             }
