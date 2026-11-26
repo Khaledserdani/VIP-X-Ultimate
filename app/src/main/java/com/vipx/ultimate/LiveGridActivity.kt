@@ -53,9 +53,10 @@ class LiveGridActivity : ComponentActivity() {
                 LiveGridScreen(
                     service = playbackService,
                     startPlaybackService = {
-                        val intent = Intent(this, MultiStreamPlaybackService::class.java)
-                        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) startForegroundService(intent)
-                        else startService(intent)
+                        // The service promotes itself after playStream adds a real player.
+                        // Starting it as foreground here could leave an empty playback notification
+                        // when the protected stream is waiting for fresh session credentials.
+                        startService(Intent(this, MultiStreamPlaybackService::class.java))
                     }
                 )
             }
