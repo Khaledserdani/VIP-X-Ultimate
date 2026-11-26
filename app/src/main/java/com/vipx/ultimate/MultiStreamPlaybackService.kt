@@ -79,6 +79,9 @@ class MultiStreamPlaybackService : Service() {
     }
 
     @Synchronized
+    fun activeStreamUrls(): List<String> = players.keys.toList()
+
+    @Synchronized
     fun playerFor(url: String): ExoPlayer? = players[url]
 
     /** Route audible output from one selected stream while all four videos continue. */
