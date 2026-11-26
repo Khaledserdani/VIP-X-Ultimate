@@ -66,10 +66,10 @@ class MediaLibraryActivity : ComponentActivity() {
             .filter { it.scheme == "content" }
             .take(20)
             .mapNotNull { uri ->
-                val resolvedMime = contentResolver.getType(uri)
+                val resolvedMime = contentResolver.getType(uri).orEmpty()
                 val mime = when {
-                    resolvedMime?.startsWith("image/") == true || resolvedMime?.startsWith("video/") == true -> resolvedMime
-                    resolvedMime.isNullOrBlank() -> source.type?.takeIf {
+                    resolvedMime.startsWith("image/") || resolvedMime.startsWith("video/") -> resolvedMime
+                    resolvedMime.isBlank() -> source.type?.takeIf {
                         it.startsWith("image/") || it.startsWith("video/")
                     }.orEmpty()
                     else -> ""
