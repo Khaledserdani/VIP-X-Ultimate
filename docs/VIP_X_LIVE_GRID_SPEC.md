@@ -15,7 +15,7 @@ VIP X is an in-app video/live-stream browsing and playback experience. The user 
 ## Limitations
 - This is a user-managed URL grid, not a general browser, search engine, or automatic stream discovery feature.
 - DRM configuration is shared across tiles. Independent per-stream license URLs/headers are not yet supported.
-- Authorization headers are passed through an Activity intent to the full player. The encrypted local vault retains provider-issued values for up to 8 hours; expired or corrupt entries are removed when read or pruned.
+- Authorization headers are passed through an Activity intent to the full player. The encrypted local vault retains provider-issued values for up to 8 hours; expired or corrupt entries are removed when read or pruned; legacy 24-hour records are capped to 8 hours from their original save time and migrated on successful read.
 - Four simultaneous players may exceed device decoder, memory, network, battery, or thermal capacity. The UI cap is not a device capability guarantee.
 - Grid playback is not persistent in the background. It pauses when the Activity stops and releases when the screen is disposed.
 - No provider-issued license or protected test stream has been provided; actual Widevine playback is unverified.
