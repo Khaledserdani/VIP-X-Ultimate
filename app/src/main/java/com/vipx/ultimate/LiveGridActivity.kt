@@ -248,8 +248,13 @@ private fun LiveGridScreen(
                         Text(if (entry.drmEnabled) "Widevine • ترخيص مستقل" else "بث مباشر", color = Color(0xFF9FB2C7), fontSize = 9.sp)
                         TextButton(onClick = {
                             val nextAudio = if (audibleStream == entry.url) null else entry.url
-                            service?.selectAudioStream(nextAudio)
-                            audibleStream = nextAudio
+                            val accepted = service?.selectAudioStream(nextAudio) == true
+                            if (accepted) {
+                                audibleStream = nextAudio
+                            } else {
+                                audibleStream = null
+                                message = "لم يمنح النظام تركيز الصوت الآن؛ أوقف الصوت في التطبيق الآخر ثم أعد المحاولة."
+                            }
                         }) {
                             Text(if (audibleStream == entry.url) "كتم هذا البث" else "اسمع هذا البث", fontSize = 11.sp)
                         }
