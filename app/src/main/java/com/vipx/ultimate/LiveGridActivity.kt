@@ -269,7 +269,18 @@ private fun StreamPreview(
                 state = "خطأ: ${error.errorCodeName}"
             }
         }
-        player?.addListener(listener)
+        player?.let { activePlayer ->
+            activePlayer.addListener(listener)
+            // A player may already be READY before this composable attaches.
+            state = when {
+                activePlayer.playerError != null -> "خطأ: ${activePlayer.playerError?.errorCodeName}"
+                activePlayer.playbackState == Player.STATE_BUFFERING -> "جارٍ التحميل…"
+                activePlayer.playbackState == Player.STATE_READY && activePlayer.isPlaying -> "يعمل • مباشر"
+                activePlayer.playbackState == Player.STATE_READY -> "جاهز • ينتظر التشغيل"
+                activePlayer.playbackState == Player.STATE_ENDED -> "انتهى البث"
+                else -> "في الانتظار"
+            }
+        }
         onDispose { player?.removeListener(listener) }
     }
 
