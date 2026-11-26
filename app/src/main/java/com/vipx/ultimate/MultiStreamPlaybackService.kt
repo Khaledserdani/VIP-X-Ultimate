@@ -40,6 +40,8 @@ class MultiStreamPlaybackService : Service() {
     // Every UI PlayerView is registered here so it can be detached synchronously
     // before its ExoPlayer is released, including Compose grid previews.
     private val attachedPlayerViews = linkedMapOf<String, MutableSet<PlayerView>>()
+    private val gridPlayerViews = linkedMapOf<String, MutableSet<PlayerView>>()
+    private var gridVisible = false
     private var audioStreamUrl: String? = null
     private var audioManager: AudioManager? = null
     private var audioFocusRequest: AudioFocusRequest? = null
@@ -176,6 +178,35 @@ class MultiStreamPlaybackService : Service() {
     }
 
     @Synchronized
+    fun attachGridPlayerView(url: String, view: PlayerView) {
+        gridPlayerViews.getOrPut(url) { linkedSetOf() }.add(view)
+        attachedPlayerViews.getOrPut(url) { linkedSetOf() }.add(view)
+        view.player = players[url]
+        updatePlaybackState(url)
+    }
+
+    @Synchronized
+    fun detachGridPlayerView(url: String, view: PlayerView) {
+        gridPlayerViews[url]?.let { views ->
+            views.remove(view)
+            if (views.isEmpty()) gridPlayerViews.remove(url)
+        }
+        attachedPlayerViews[url]?.let { views ->
+            views.remove(view)
+            if (views.isEmpty()) attachedPlayerViews.remove(url)
+        }
+        view.player = null
+        updatePlaybackState(url)
+    }
+
+    @Synchronized
+    fun setGridVisible(visible: Boolean) {
+        if (gridVisible == visible) return
+        gridVisible = visible
+        updateAllPlaybackStates()
+    }
+
+    @Synchronized
     fun detachPlayerView(url: String, view: PlayerView) {
         attachedPlayerViews[url]?.let { views ->
             views.remove(view)
@@ -187,12 +218,17 @@ class MultiStreamPlaybackService : Service() {
 
     private fun detachPlayerViews(url: String) {
         attachedPlayerViews.remove(url)?.forEach { view -> view.player = null }
+        gridPlayerViews.remove(url)
         updatePlaybackState(url)
     }
 
     private fun updatePlaybackState(url: String) {
         val player = players[url] ?: return
-        val hasVisibleOutput = attachedPlayerViews[url]?.isNotEmpty() == true
+        val hasVisibleOutput = gridPlayerViews[url]?.isNotEmpty() == true && gridVisible ||
+            attachedPlayerViews[url].orEmpty().any { view ->
+                // Floating overlay PlayerViews remain active independently of the grid Activity.
+                view !in gridPlayerViews[url].orEmpty()
+            }
         val selectedAudibleStream = url == audioStreamUrl && hasAudioFocus
         // Keep visible previews running and preserve explicitly selected audio.
         // Pause hidden, muted previews to avoid needless decoding/network buffering.
@@ -206,6 +242,7 @@ class MultiStreamPlaybackService : Service() {
     private fun detachAllPlayerViews() {
         attachedPlayerViews.values.flatten().forEach { view -> view.player = null }
         attachedPlayerViews.clear()
+        gridPlayerViews.clear()
     }
 
     /** Route audible output from one selected stream while visible previews continue. */
