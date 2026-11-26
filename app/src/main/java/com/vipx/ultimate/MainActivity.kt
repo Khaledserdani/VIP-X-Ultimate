@@ -17,6 +17,7 @@ import androidx.compose.material3.*
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.runtime.*
 import androidx.compose.ui.platform.LocalLayoutDirection
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -100,6 +101,7 @@ private fun VipHome(
     openLiveGrid: () -> Unit,
     openStream: (String, Boolean, String, String) -> Unit
 ) {
+    val context = LocalContext.current
     var brightness by remember { mutableFloatStateOf(0.75f) }
     var permissionGranted by remember { mutableStateOf(canWriteSettings()) }
     var message by remember { mutableStateOf("تحكم في سطوع الشاشة على مستوى النظام بعد منح الإذن.") }
