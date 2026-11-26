@@ -29,10 +29,14 @@ class FloatingStreamsOverlayService : Service() {
     private val playbackConnection = object : ServiceConnection {
         override fun onServiceConnected(name: ComponentName?, binder: IBinder?) {
             playbackService = (binder as? MultiStreamPlaybackService.LocalBinder)?.service()
+            if (playbackService == null) {
+                stopSelf()
+                return
+            }
             showOverlay()
         }
         override fun onServiceDisconnected(name: ComponentName?) {
-            detachPlayers()
+            removeOverlay()
             playbackService = null
         }
     }
@@ -51,6 +55,7 @@ class FloatingStreamsOverlayService : Service() {
         if (!isBound) {
             isBound = bindService(Intent(this, MultiStreamPlaybackService::class.java),
                 playbackConnection, Context.BIND_AUTO_CREATE)
+            if (!isBound) stopSelf()
         } else showOverlay()
         return START_NOT_STICKY
     }
