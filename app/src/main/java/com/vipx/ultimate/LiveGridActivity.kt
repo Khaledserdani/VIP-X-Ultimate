@@ -133,10 +133,22 @@ private fun LiveGridScreen(
         if (streams.isNotEmpty()) {
             startPlaybackService()
             service?.let { engine ->
+                var needsFreshDrmAuthorization = false
                 streams.forEach { entry ->
-                    runCatching {
-                        engine.playStream(entry.url, entry.drmEnabled, entry.licenseUrl, sessionAuthorization[entry.url].orEmpty())
-                    }.onFailure { message = "تعذر تشغيل أحد البثوث؛ تحقق من الرابط والترخيص والاتصال." }
+                    // A persisted stream entry is configuration, not a persisted login.
+                    // Never silently retry a protected stream after process recreation
+                    // without the user re-entering its session-only Authorization value.
+                    if (entry.drmEnabled && !engine.activeStreamUrls().contains(entry.url) &&
+                        sessionAuthorization[entry.url].isNullOrBlank()) {
+                        needsFreshDrmAuthorization = true
+                    } else {
+                        runCatching {
+                            engine.playStream(entry.url, entry.drmEnabled, entry.licenseUrl, sessionAuthorization[entry.url].orEmpty())
+                        }.onFailure { message = "تعذر تشغيل أحد البثوث؛ تحقق من الرابط والترخيص والاتصال." }
+                    }
+                }
+                if (needsFreshDrmAuthorization) {
+                    message = "استُرجعت إعدادات البث؛ البث المحمي يحتاج مصادقة جديدة. أزل البث المحمي ثم أضفه مجدداً مع بيانات Authorization الصالحة."
                 }
             }
         }
