@@ -94,6 +94,17 @@ class MediaLibraryActivity : ComponentActivity() {
                     clearDecryptedCache = {
                         decryptedPreviewFile?.delete()
                         decryptedPreviewFile = null
+                    },
+                    onShowFloatingMedia = { uri, mime ->
+                        val overlayIntent = Intent(this, FloatingMediaOverlayService::class.java)
+                            .putExtra(FloatingMediaOverlayService.EXTRA_URI, uri.toString())
+                            .putExtra(FloatingMediaOverlayService.EXTRA_MIME, mime)
+                            .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                        if (mime.startsWith("video/") && android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
+                            startForegroundService(overlayIntent)
+                        } else {
+                            startService(overlayIntent)
+                        }
                     }
                 )
             }
@@ -114,7 +125,8 @@ private fun MediaLibraryScreen(
     inspectEncrypted: (Uri) -> String,
     decryptToPrivateCache: (Uri, CharArray) -> Pair<Uri, String>,
     encryptToDocument: (Uri, Uri, CharArray) -> Unit,
-    clearDecryptedCache: () -> Unit
+    clearDecryptedCache: () -> Unit,
+    onShowFloatingMedia: (Uri, String) -> Unit
 ) {
     var selectedUri by remember { mutableStateOf<Uri?>(null) }
     var selectedMime by remember { mutableStateOf("") }
@@ -277,6 +289,14 @@ private fun MediaLibraryScreen(
             }
 
             Text(message, color = Color.White)
+            val floatingUri = selectedUri
+            if (floatingUri != null && (selectedMime.startsWith("image/") || selectedMime.startsWith("video/"))) {
+                OutlinedButton(
+                    onClick = { onShowFloatingMedia(floatingUri, selectedMime) },
+                    enabled = !busy,
+                    modifier = Modifier.fillMaxWidth()
+                ) { Text("عرض في نافذة عائمة فوق التطبيقات") }
+            }
             val uri = selectedUri
             if (uri != null && selectedMime.startsWith("image/")) {
                 AndroidView(
