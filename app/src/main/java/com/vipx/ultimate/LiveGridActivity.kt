@@ -153,7 +153,7 @@ private fun LiveGridScreen(
             service?.let { engine ->
                 var needsFreshDrmAuthorization = false
                 streams.forEach { entry ->
-                    // Protected credentials are restored only from the encrypted 24-hour vault.
+                    // Protected credentials are restored only from the encrypted 8-hour vault.
                     if (entry.drmEnabled && !engine.activeStreamUrls().contains(entry.url) &&
                         sessionAuthorization[entry.url].isNullOrBlank()) {
                         needsFreshDrmAuthorization = true
