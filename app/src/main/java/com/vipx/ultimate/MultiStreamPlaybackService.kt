@@ -27,8 +27,9 @@ import androidx.media3.ui.PlayerView
 
 /**
  * Owns up to four independent stream players.
- * Players are not tied to an Activity lifecycle, so navigation/backgrounding
- * does not destroy active playback. Access remains in-process only.
+ * Player instances are not tied to an Activity lifecycle. When the grid is hidden,
+ * muted previews are paused; a selected audible stream or a visible floating
+ * PlayerView can keep its stream active. Access remains in-process only.
  */
 class MultiStreamPlaybackService : Service() {
     inner class LocalBinder : Binder() {
