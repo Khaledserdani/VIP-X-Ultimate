@@ -33,7 +33,7 @@ class MediaRuntimeInstrumentedTest {
             extractor.setDataSource(mediaFile.absolutePath)
             val videoTrack = (0 until extractor.trackCount).firstOrNull {
                 extractor.getTrackFormat(it).getString(MediaFormat.KEY_MIME)?.startsWith("video/") == true
-            } ?: fail("Android MediaExtractor could not find a video track")
+            } ?: throw AssertionError("Android MediaExtractor could not find a video track")
             extractor.selectTrack(videoTrack)
             val format = extractor.getTrackFormat(videoTrack)
             val mimeType = format.getString(MediaFormat.KEY_MIME)!!
