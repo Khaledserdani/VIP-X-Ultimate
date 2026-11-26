@@ -93,17 +93,17 @@ class MultiStreamPlaybackService : Service() {
             if (authorization.isNotBlank()) drm.setLicenseRequestHeaders(mapOf("Authorization" to authorization))
             MediaItem.Builder().setUri(uri).setDrmConfiguration(drm.build()).build()
         } else MediaItem.fromUri(uri)
-        // Four simultaneous previews must not each use the default long buffer.
-        // Bound each player's media buffer to 12 MiB and 12 seconds to reduce
-        // aggregate memory pressure while retaining a short startup buffer.
+        // Each of the four independent players gets a smaller target buffer.
+        // This is a LoadControl target, not a hard process-memory cap.
         val loadControl = DefaultLoadControl.Builder()
             .setBufferDurationsMs(
-                1_500,  // minimum buffer
-                12_000, // maximum buffer
-                500,    // buffer required to start playback
-                1_500   // buffer required after rebuffering
+                1_000, // minimum buffer
+                8_000, // maximum buffer
+                500,   // buffer required to start playback
+                1_000  // buffer required after rebuffering
             )
-            .setTargetBufferBytes(12 * 1024 * 1024)
+            .setTargetBufferBytes(8 * 1024 * 1024)
+            .setBackBuffer(0, false)
             .setPrioritizeTimeOverSizeThresholds(true)
             .build()
         val player = ExoPlayer.Builder(this)
@@ -172,6 +172,7 @@ class MultiStreamPlaybackService : Service() {
     fun attachPlayerView(url: String, view: PlayerView) {
         attachedPlayerViews.getOrPut(url) { linkedSetOf() }.add(view)
         view.player = players[url]
+        updatePlaybackState(url)
     }
 
     @Synchronized
@@ -181,10 +182,25 @@ class MultiStreamPlaybackService : Service() {
             if (views.isEmpty()) attachedPlayerViews.remove(url)
         }
         view.player = null
+        updatePlaybackState(url)
     }
 
     private fun detachPlayerViews(url: String) {
         attachedPlayerViews.remove(url)?.forEach { view -> view.player = null }
+        updatePlaybackState(url)
+    }
+
+    private fun updatePlaybackState(url: String) {
+        val player = players[url] ?: return
+        val hasVisibleOutput = attachedPlayerViews[url]?.isNotEmpty() == true
+        val selectedAudibleStream = url == audioStreamUrl && hasAudioFocus
+        // Keep visible previews running and preserve explicitly selected audio.
+        // Pause hidden, muted previews to avoid needless decoding/network buffering.
+        player.playWhenReady = hasVisibleOutput || selectedAudibleStream
+    }
+
+    private fun updateAllPlaybackStates() {
+        players.keys.toList().forEach(::updatePlaybackState)
     }
 
     private fun detachAllPlayerViews() {
@@ -200,6 +216,7 @@ class MultiStreamPlaybackService : Service() {
             audioStreamUrl = null
             applyPreviewVolumes()
             abandonPreviewAudioFocus()
+            updateAllPlaybackStates()
             notifyAudioSelectionChanged()
             return true
         }
@@ -211,6 +228,7 @@ class MultiStreamPlaybackService : Service() {
         }
         audioStreamUrl = url
         applyPreviewVolumes()
+        updateAllPlaybackStates()
         notifyAudioSelectionChanged()
         return true
     }
@@ -242,6 +260,7 @@ class MultiStreamPlaybackService : Service() {
                 hasAudioFocus = true
                 audioDucked = false
                 applyPreviewVolumes()
+                updateAllPlaybackStates()
             }
             AudioManager.AUDIOFOCUS_LOSS_TRANSIENT_CAN_DUCK -> {
                 audioDucked = true
@@ -250,6 +269,7 @@ class MultiStreamPlaybackService : Service() {
             AudioManager.AUDIOFOCUS_LOSS_TRANSIENT -> {
                 hasAudioFocus = false
                 applyPreviewVolumes()
+                updateAllPlaybackStates()
             }
             AudioManager.AUDIOFOCUS_LOSS -> {
                 hasAudioFocus = false
@@ -258,6 +278,7 @@ class MultiStreamPlaybackService : Service() {
                 audioDucked = false
                 applyPreviewVolumes()
                 abandonPreviewAudioFocus()
+                updateAllPlaybackStates()
                 notifyAudioSelectionChanged()
             }
         }
