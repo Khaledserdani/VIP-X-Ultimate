@@ -173,4 +173,37 @@ class VipxEncryptedMediaTest {
         assertArrayEquals(payload, recovered.toByteArray())
     }
 
+
+    @Test fun staleCacheCleanupRemovesOnlyOldVipxOwnedFiles() {
+        val directory = createTempDir(prefix = "vipx-cache-test-")
+        try {
+            val now = 2_000_000_000_000L
+            val oldShared = File(directory, "vipx-shared-old.mp4").apply {
+                writeBytes(byteArrayOf(1))
+                setLastModified(now - 15L * 24L * 60L * 60L * 1000L)
+            }
+            val recentDecrypted = File(directory, "vipx-dec-recent.png").apply {
+                writeBytes(byteArrayOf(2))
+                setLastModified(now - 2L * 24L * 60L * 60L * 1000L)
+            }
+            val unrelated = File(directory, "user-photo.jpg").apply {
+                writeBytes(byteArrayOf(3))
+                setLastModified(now - 30L * 24L * 60L * 60L * 1000L)
+            }
+
+            val removed = VipxMediaCacheMaintenance.cleanupStale(
+                directory,
+                nowMillis = now,
+                maxAgeMillis = 14L * 24L * 60L * 60L * 1000L
+            )
+
+            assertEquals(1, removed)
+            assertEquals(false, oldShared.exists())
+            assertEquals(true, recentDecrypted.exists())
+            assertEquals(true, unrelated.exists())
+        } finally {
+            directory.deleteRecursively()
+        }
+    }
+
 }
