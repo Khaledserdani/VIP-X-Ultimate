@@ -173,6 +173,13 @@ class MultiStreamPlaybackService : Service() {
     @Synchronized
     fun attachPlayerView(url: String, view: PlayerView) {
         attachedPlayerViews.getOrPut(url) { linkedSetOf() }.add(view)
+        // A Media3 video renderer has one active output surface per player. When the
+        // floating window takes ownership, detach the grid surface rather than
+        // competing with it; the grid surface is restored when the overlay detaches.
+        gridPlayerViews[url].orEmpty().forEach { gridView -> gridView.player = null }
+        attachedPlayerViews[url].orEmpty().filter { it !== view }.forEach { other ->
+            if (other !in gridPlayerViews[url].orEmpty()) other.player = null
+        }
         view.player = players[url]
         updatePlaybackState(url)
     }
@@ -181,8 +188,24 @@ class MultiStreamPlaybackService : Service() {
     fun attachGridPlayerView(url: String, view: PlayerView) {
         gridPlayerViews.getOrPut(url) { linkedSetOf() }.add(view)
         attachedPlayerViews.getOrPut(url) { linkedSetOf() }.add(view)
-        view.player = players[url]
+        if (hasFloatingPlayerView(url)) {
+            view.player = null
+        } else {
+            gridPlayerViews[url].orEmpty().filter { it !== view }.forEach { other -> other.player = null }
+            view.player = if (gridVisible) players[url] else null
+        }
         updatePlaybackState(url)
+    }
+
+    private fun hasFloatingPlayerView(url: String): Boolean =
+        attachedPlayerViews[url].orEmpty().any { view -> view !in gridPlayerViews[url].orEmpty() }
+
+    private fun restoreGridOutputIfAvailable(url: String) {
+        if (!gridVisible || hasFloatingPlayerView(url)) return
+        val player = players[url]
+        gridPlayerViews[url].orEmpty().forEachIndexed { index, view ->
+            view.player = if (index == 0) player else null
+        }
     }
 
     @Synchronized
@@ -196,6 +219,7 @@ class MultiStreamPlaybackService : Service() {
             if (views.isEmpty()) attachedPlayerViews.remove(url)
         }
         view.player = null
+        restoreGridOutputIfAvailable(url)
         updatePlaybackState(url)
     }
 
@@ -203,6 +227,10 @@ class MultiStreamPlaybackService : Service() {
     fun setGridVisible(visible: Boolean) {
         if (gridVisible == visible) return
         gridVisible = visible
+        players.keys.toList().forEach { url ->
+            if (visible) restoreGridOutputIfAvailable(url)
+            else gridPlayerViews[url].orEmpty().forEach { view -> view.player = null }
+        }
         updateAllPlaybackStates()
     }
 
@@ -213,6 +241,7 @@ class MultiStreamPlaybackService : Service() {
             if (views.isEmpty()) attachedPlayerViews.remove(url)
         }
         view.player = null
+        restoreGridOutputIfAvailable(url)
         updatePlaybackState(url)
     }
 
