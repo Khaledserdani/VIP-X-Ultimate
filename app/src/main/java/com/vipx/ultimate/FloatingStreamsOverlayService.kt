@@ -66,6 +66,9 @@ class FloatingStreamsOverlayService : Service() {
         val engine = playbackService ?: return
         val urls = engine.activeStreamUrls().take(MultiStreamPlaybackService.MAX_STREAMS)
         if (urls.isEmpty()) {
+            // Detach PlayerViews immediately; onDestroy may run after the playback
+            // service releases the now-removed players.
+            removeOverlay()
             stopSelf()
             return
         }
