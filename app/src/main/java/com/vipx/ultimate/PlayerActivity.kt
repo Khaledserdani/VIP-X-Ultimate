@@ -90,6 +90,7 @@ class PlayerActivity : ComponentActivity() {
         val drmEnabled = intent.getBooleanExtra(EXTRA_DRM_ENABLED, false)
         val licenseUrl = intent.getStringExtra(EXTRA_DRM_LICENSE_URL)?.trim().orEmpty()
         var authorization = intent.getStringExtra(EXTRA_DRM_AUTHORIZATION)?.trim().orEmpty()
+        if (drmEnabled && authorization.isBlank()) authorization = AuthorizationVault.load(this, streamUrl).orEmpty()
         // Do not leave the temporary credential attached to the Activity's Intent.
         intent.removeExtra(EXTRA_DRM_AUTHORIZATION)
         val parsedLicenseUri = if (drmEnabled) Uri.parse(licenseUrl) else null
