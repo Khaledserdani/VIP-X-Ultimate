@@ -2,6 +2,7 @@ package com.vipx.ultimate
 
 import android.content.Intent
 import android.net.Uri
+import android.provider.DocumentsContract
 import android.os.Bundle
 import android.webkit.MimeTypeMap
 import android.widget.ImageView
@@ -146,14 +147,20 @@ class MediaLibraryActivity : ComponentActivity() {
                         require(mime.startsWith("image/") || mime.startsWith("video/")) {
                             "يمكن تشفير الصور والفيديوهات فقط"
                         }
-                        val input = contentResolver.openInputStream(sourceUri)
-                            ?: throw IllegalStateException("تعذر قراءة الملف الأصلي")
-                        val output = contentResolver.openOutputStream(destinationUri, "wt")
-                            ?: throw IllegalStateException("تعذر إنشاء ملف VIPXENC")
-                        input.use { source ->
-                            output.use { sink ->
-                                VipxEncryptedMedia.encrypt(source, sink, password, mime)
+                        try {
+                            val input = contentResolver.openInputStream(sourceUri)
+                                ?: throw IllegalStateException("تعذر قراءة الملف الأصلي")
+                            input.use { source ->
+                                val output = contentResolver.openOutputStream(destinationUri, "wt")
+                                    ?: throw IllegalStateException("تعذر إنشاء ملف VIPXENC")
+                                output.use { sink ->
+                                    VipxEncryptedMedia.encrypt(source, sink, password, mime)
+                                }
                             }
+                        } catch (error: Exception) {
+                            // SAF providers may leave a partial destination after a failed write.
+                            runCatching { DocumentsContract.deleteDocument(contentResolver, destinationUri) }
+                            throw error
                         }
                     },
                     clearDecryptedCache = {
@@ -280,15 +287,18 @@ private fun MediaLibraryScreen(
             encryptedSource = uri
             password = ""
             onPersistPermission(uri)
-            encryptedMime = try {
-                inspectEncrypted(uri)
-            } catch (error: Exception) {
-                ""
-            }
-            message = if (encryptedMime.startsWith("image/") || encryptedMime.startsWith("video/")) {
-                "ملف VIPXENC صالح مبدئياً • النوع: $encryptedMime. أدخل كلمة المرور لفكّه."
-            } else {
-                "لم يتم التعرف على حاوية VIPXENC صالحة أو أن ترويسة الملف تالفة."
+            busy = true
+            message = "يجري فحص ترويسة VIPXENC في الخلفية…"
+            scope.launch {
+                encryptedMime = withContext(Dispatchers.IO) {
+                    runCatching { inspectEncrypted(uri) }.getOrDefault("")
+                }
+                message = if (encryptedMime.startsWith("image/") || encryptedMime.startsWith("video/")) {
+                    "ملف VIPXENC صالح مبدئياً • النوع: $encryptedMime. أدخل كلمة المرور لفكّه."
+                } else {
+                    "لم يتم التعرف على حاوية VIPXENC صالحة أو أن ترويسة الملف تالفة."
+                }
+                busy = false
             }
         }
     }
