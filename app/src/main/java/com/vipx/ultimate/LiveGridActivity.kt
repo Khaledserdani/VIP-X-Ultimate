@@ -36,12 +36,15 @@ private val GridAccent = Color(0xFF42E3C2)
 class LiveGridActivity : ComponentActivity() {
     private var playbackService by mutableStateOf<MultiStreamPlaybackService?>(null)
     private var bound = false
+    private var activityStarted = false
 
     private val connection = object : ServiceConnection {
         override fun onServiceConnected(name: ComponentName?, binder: IBinder?) {
             playbackService = (binder as? MultiStreamPlaybackService.LocalBinder)?.service()
+            playbackService?.setGridVisible(activityStarted)
         }
         override fun onServiceDisconnected(name: ComponentName?) {
+            playbackService?.setGridVisible(false)
             playbackService = null
         }
     }
@@ -65,10 +68,13 @@ class LiveGridActivity : ComponentActivity() {
 
     override fun onStart() {
         super.onStart()
+        activityStarted = true
         bound = bindService(Intent(this, MultiStreamPlaybackService::class.java), connection, Context.BIND_AUTO_CREATE)
     }
 
     override fun onStop() {
+        activityStarted = false
+        playbackService?.setGridVisible(false)
         if (bound) {
             unbindService(connection)
             bound = false
@@ -381,11 +387,11 @@ private fun StreamPreview(
         AndroidView(
             factory = { PlayerView(it).apply {
                 useController = false
-                service?.attachPlayerView(entry.url, this)
+                service?.attachGridPlayerView(entry.url, this)
             } },
             modifier = Modifier.fillMaxWidth().height(88.dp),
-            update = { view -> service?.attachPlayerView(entry.url, view) },
-            onRelease = { view -> service?.detachPlayerView(entry.url, view) }
+            update = { view -> service?.attachGridPlayerView(entry.url, view) },
+            onRelease = { view -> service?.detachGridPlayerView(entry.url, view) }
         )
         Text(state, color = GridAccent, fontSize = 10.sp)
     }
