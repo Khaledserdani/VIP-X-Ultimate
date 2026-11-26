@@ -3,6 +3,7 @@ package com.vipx.ultimate
 import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
+import android.app.PendingIntent
 import android.app.Service
 import android.content.Intent
 import android.graphics.PixelFormat
@@ -91,6 +92,12 @@ class FloatingMediaOverlayService : Service() {
             val channel = NotificationChannel(CHANNEL_ID, "نافذة وسائط VIP X", NotificationManager.IMPORTANCE_LOW)
             getSystemService(NotificationManager::class.java).createNotificationChannel(channel)
         }
+        val closeIntent = PendingIntent.getService(
+            this,
+            NOTIFICATION_ID,
+            Intent(this, FloatingMediaOverlayService::class.java).setAction(ACTION_CLOSE),
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
         val notification: Notification = NotificationCompat.Builder(this, CHANNEL_ID)
             .setSmallIcon(android.R.drawable.ic_media_play)
             .setContentTitle("VIP X • تشغيل عائم")
@@ -98,6 +105,7 @@ class FloatingMediaOverlayService : Service() {
             .setOngoing(true)
             .setOnlyAlertOnce(true)
             .setCategory(NotificationCompat.CATEGORY_TRANSPORT)
+            .addAction(android.R.drawable.ic_menu_close_clear_cancel, "إغلاق الفيديو", closeIntent)
             .build()
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
             startForeground(NOTIFICATION_ID, notification,
