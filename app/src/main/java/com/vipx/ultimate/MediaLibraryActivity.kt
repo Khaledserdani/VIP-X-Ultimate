@@ -52,26 +52,31 @@ class MediaLibraryActivity : ComponentActivity() {
                             ?: throw IllegalStateException("تعذر قراءة الملف")
                     },
                     decryptToPrivateCache = { uri, password ->
-                        val input = contentResolver.openInputStream(uri)
-                            ?: throw IllegalStateException("تعذر فتح الملف المشفر")
                         val outputFile = File.createTempFile("vipx-dec-", ".tmp", cacheDir)
+                        var finalFile: File? = null
                         try {
+                            val input = contentResolver.openInputStream(uri)
+                                ?: throw IllegalStateException("تعذر فتح الملف المشفر")
                             val mime = input.use { source ->
                                 outputFile.outputStream().buffered().use { sink ->
                                     VipxEncryptedMedia.decrypt(source, sink, password)
                                 }
                             }
                             val extension = MimeTypeMap.getSingleton().getExtensionFromMimeType(mime) ?: "media"
-                            val finalFile = File(cacheDir, "vipx-dec-${System.nanoTime()}.$extension")
-                            if (!outputFile.renameTo(finalFile)) {
-                                outputFile.copyTo(finalFile, overwrite = true)
+                            val completedFile = File(cacheDir, "vipx-dec-${System.nanoTime()}.$extension")
+                            finalFile = completedFile
+                            if (!outputFile.renameTo(completedFile)) {
+                                outputFile.copyTo(completedFile, overwrite = true)
                                 outputFile.delete()
                             }
+                            // The final plaintext file is published only after authenticated
+                            // decryption (including the v2 end marker) has succeeded.
                             decryptedPreviewFile?.delete()
-                            decryptedPreviewFile = finalFile
-                            Pair(Uri.fromFile(finalFile), mime)
+                            decryptedPreviewFile = completedFile
+                            Pair(Uri.fromFile(completedFile), mime)
                         } catch (error: Exception) {
                             outputFile.delete()
+                            finalFile?.delete()
                             throw error
                         }
                     },
@@ -174,17 +179,22 @@ private fun MediaLibraryScreen(
             selectedUri = null
             selectedMime = ""
             encryptedSource = uri
+            encryptedMime = ""
             password = ""
             onPersistPermission(uri)
-            encryptedMime = try {
-                inspectEncrypted(uri)
-            } catch (error: Exception) {
-                ""
-            }
-            message = if (encryptedMime.startsWith("image/") || encryptedMime.startsWith("video/")) {
-                "ملف VIPXENC صالح مبدئياً • النوع: $encryptedMime. أدخل كلمة المرور لفكّه."
-            } else {
-                "لم يتم التعرف على حاوية VIPXENC صالحة أو أن ترويسة الملف تالفة."
+            busy = true
+            message = "يجري فحص ترويسة ملف VIPXENC…"
+            scope.launch {
+                val inspectedMime = withContext(Dispatchers.IO) {
+                    runCatching { inspectEncrypted(uri) }.getOrDefault("")
+                }
+                encryptedMime = inspectedMime
+                message = if (inspectedMime.startsWith("image/") || inspectedMime.startsWith("video/")) {
+                    "ترويسة VIPXENC مقروءة مبدئياً • النوع: $inspectedMime. أدخل كلمة المرور للتحقق الكامل."
+                } else {
+                    "لم يتم التعرف على حاوية VIPXENC صالحة أو أن ترويسة الملف تالفة."
+                }
+                busy = false
             }
         }
     }
