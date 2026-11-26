@@ -3,6 +3,7 @@ package com.vipx.ultimate
 import android.content.Intent
 import android.net.Uri
 import android.os.Bundle
+import android.provider.DocumentsContract
 import android.webkit.MimeTypeMap
 import android.widget.ImageView
 import androidx.activity.ComponentActivity
@@ -90,10 +91,16 @@ class MediaLibraryActivity : ComponentActivity() {
                             ?: throw IllegalStateException("تعذر قراءة الملف الأصلي")
                         val output = contentResolver.openOutputStream(destinationUri, "wt")
                             ?: throw IllegalStateException("تعذر إنشاء ملف VIPXENC")
-                        input.use { source ->
-                            output.use { sink ->
-                                VipxEncryptedMedia.encrypt(source, sink, password, mime)
+                        try {
+                            input.use { source ->
+                                output.use { sink ->
+                                    VipxEncryptedMedia.encrypt(source, sink, password, mime)
+                                }
                             }
+                        } catch (error: Exception) {
+                            // SAF providers may leave a partial destination after a failed write.
+                            runCatching { DocumentsContract.deleteDocument(contentResolver, destinationUri) }
+                            throw error
                         }
                     },
                     clearDecryptedCache = {
