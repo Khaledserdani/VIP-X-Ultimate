@@ -17,7 +17,9 @@ object AuthorizationVault {
     private const val PREFS = "vipx_authorization_vault"
     private const val KEY_ALIAS = "vipx_authorization_aes_gcm_v1"
     private const val ENTRY_PREFIX = "entry_"
+    private const val ENTRY_VERSION = "2"
     private const val TTL_MILLIS = 8L * 60L * 60L * 1000L
+    private const val LEGACY_TTL_REDUCTION_MILLIS = 16L * 60L * 60L * 1000L
     private const val GCM_TAG_BITS = 128
 
     @Synchronized
@@ -31,6 +33,7 @@ object AuthorizationVault {
         cipher.updateAAD(streamUrl.toByteArray(Charsets.UTF_8))
         val encrypted = cipher.doFinal(authorization.toByteArray(Charsets.UTF_8))
         val value = listOf(
+            ENTRY_VERSION,
             (System.currentTimeMillis() + TTL_MILLIS).toString(),
             Base64.encodeToString(cipher.iv, Base64.NO_WRAP),
             Base64.encodeToString(encrypted, Base64.NO_WRAP)
@@ -44,19 +47,39 @@ object AuthorizationVault {
         val key = entryKey(streamUrl)
         val stored = prefs.getString(key, null) ?: return null
         return try {
-            val parts = stored.split(':', limit = 3)
-            require(parts.size == 3)
-            val expiresAt = parts[0].toLong()
+            val parts = stored.split(':', limit = 4)
+            val isCurrentVersion = parts.size == 4 && parts[0] == ENTRY_VERSION
+            val isLegacyVersion = parts.size == 3
+            require(isCurrentVersion || isLegacyVersion)
+            val expiresAt = if (isCurrentVersion) {
+                parts[1].toLong()
+            } else {
+                parts[0].toLong() - LEGACY_TTL_REDUCTION_MILLIS
+            }
             if (System.currentTimeMillis() >= expiresAt) {
                 prefs.edit().remove(key).apply()
                 return null
             }
-            val iv = Base64.decode(parts[1], Base64.NO_WRAP)
-            val encrypted = Base64.decode(parts[2], Base64.NO_WRAP)
+            val ivIndex = if (isCurrentVersion) 2 else 1
+            val encryptedIndex = if (isCurrentVersion) 3 else 2
+            val iv = Base64.decode(parts[ivIndex], Base64.NO_WRAP)
+            val encrypted = Base64.decode(parts[encryptedIndex], Base64.NO_WRAP)
             val cipher = Cipher.getInstance("AES/GCM/NoPadding")
             cipher.init(Cipher.DECRYPT_MODE, getOrCreateKey(), GCMParameterSpec(GCM_TAG_BITS, iv))
             cipher.updateAAD(streamUrl.toByteArray(Charsets.UTF_8))
-            cipher.doFinal(encrypted).toString(Charsets.UTF_8).takeIf { it.isNotBlank() }
+            val authorization = cipher.doFinal(encrypted).toString(Charsets.UTF_8).takeIf { it.isNotBlank() }
+            if (authorization != null && isLegacyVersion) {
+                prefs.edit().putString(
+                    key,
+                    listOf(
+                        ENTRY_VERSION,
+                        expiresAt.toString(),
+                        parts[1],
+                        parts[2]
+                    ).joinToString(":")
+                ).apply()
+            }
+            authorization
         } catch (_: Exception) {
             prefs.edit().remove(key).apply()
             null
@@ -80,11 +103,20 @@ object AuthorizationVault {
         val now = System.currentTimeMillis()
         prefs.all.forEach { (key, value) ->
             if (key.startsWith(ENTRY_PREFIX)) {
-                val expiresAt = (value as? String)?.substringBefore(':')?.toLongOrNull()
+                val expiresAt = (value as? String)?.let(::storedExpiryMillis)
                 if (expiresAt == null || now >= expiresAt) editor.remove(key)
             }
         }
         editor.apply()
+    }
+
+    private fun storedExpiryMillis(stored: String): Long? {
+        val parts = stored.split(':', limit = 4)
+        return when {
+            parts.size == 4 && parts[0] == ENTRY_VERSION -> parts[1].toLongOrNull()
+            parts.size == 3 -> parts[0].toLongOrNull()?.minus(LEGACY_TTL_REDUCTION_MILLIS)
+            else -> null
+        }
     }
 
     private fun preferences(context: Context) =
