@@ -14,6 +14,7 @@ import javax.crypto.SecretKeyFactory
 import javax.crypto.spec.GCMParameterSpec
 import javax.crypto.spec.PBEKeySpec
 import javax.crypto.spec.SecretKeySpec
+import java.io.File
 
 /**
  * VIPXENC authenticated chunk container.
@@ -22,6 +23,36 @@ import javax.crypto.spec.SecretKeySpec
  * when complete encrypted chunks are removed. v1 remains readable for
  * compatibility, but new encryption always writes v2.
  */
+
+/**
+ * Removes only old app-owned temporary media files left behind by process death.
+ * Recently created files are preserved because playback or preview may still own them.
+ */
+object VipxMediaCacheMaintenance {
+    private const val DEFAULT_MAX_AGE_MILLIS = 14L * 24L * 60L * 60L * 1000L
+    private val OWNED_PREFIXES = listOf("vipx-dec-", "vipx-shared-")
+
+    fun cleanupStale(
+        cacheDir: File,
+        nowMillis: Long = System.currentTimeMillis(),
+        maxAgeMillis: Long = DEFAULT_MAX_AGE_MILLIS
+    ): Int {
+        require(maxAgeMillis > 0) { "مدة الاحتفاظ غير صالحة" }
+        var removed = 0
+        cacheDir.listFiles()
+            ?.filter { file ->
+                file.isFile &&
+                    OWNED_PREFIXES.any(file.name::startsWith) &&
+                    nowMillis >= file.lastModified() &&
+                    nowMillis - file.lastModified() >= maxAgeMillis
+            }
+            ?.forEach { file ->
+                if (runCatching { file.delete() }.getOrDefault(false)) removed++
+            }
+        return removed
+    }
+}
+
 object VipxEncryptedMedia {
     private val MAGIC = byteArrayOf(0x56, 0x49, 0x50, 0x58, 0x45, 0x4E, 0x43, 0x31)
     private const val VERSION = 2
