@@ -57,10 +57,6 @@ class PlayerActivity : ComponentActivity() {
 
         override fun onPlayerError(error: PlaybackException) {
             val code = error.errorCodeName
-            val causeText = generateSequence(error as Throwable?) { it.cause }
-                .mapNotNull { it.message?.takeIf(String::isNotBlank) }
-                .firstOrNull()
-                ?.take(220)
             val hint = when {
                 code.contains("DRM", ignoreCase = true) && code.contains("LICENSE", ignoreCase = true) ->
                     "تحقق من رابط الترخيص وصلاحية الحساب وترويسات الطلب."
@@ -77,7 +73,6 @@ class PlayerActivity : ComponentActivity() {
             playbackMessage = buildString {
                 append("تعذر تشغيل البث: ").append(code)
                 if (hint != null) append("\n").append(hint)
-                if (causeText != null) append("\n").append(causeText)
             }
         }
     }
@@ -94,7 +89,9 @@ class PlayerActivity : ComponentActivity() {
 
         val drmEnabled = intent.getBooleanExtra(EXTRA_DRM_ENABLED, false)
         val licenseUrl = intent.getStringExtra(EXTRA_DRM_LICENSE_URL)?.trim().orEmpty()
-        val authorization = intent.getStringExtra(EXTRA_DRM_AUTHORIZATION)?.trim().orEmpty()
+        var authorization = intent.getStringExtra(EXTRA_DRM_AUTHORIZATION)?.trim().orEmpty()
+        // Do not leave the temporary credential attached to the Activity's Intent.
+        intent.removeExtra(EXTRA_DRM_AUTHORIZATION)
         val parsedLicenseUri = if (drmEnabled) Uri.parse(licenseUrl) else null
         if (drmEnabled && (parsedLicenseUri?.scheme != "https" || parsedLicenseUri.host.isNullOrBlank())) {
             playbackMessage = "رابط ترخيص Widevine غير صالح؛ يلزم HTTPS."
@@ -127,6 +124,8 @@ class PlayerActivity : ComponentActivity() {
                 } else {
                     MediaItem.fromUri(parsedUri)
                 }
+                // Keep the credential only long enough to build this in-memory DRM request.
+                authorization = ""
                 controller.setMediaItem(mediaItem)
                 controller.prepare()
                 controller.play()
