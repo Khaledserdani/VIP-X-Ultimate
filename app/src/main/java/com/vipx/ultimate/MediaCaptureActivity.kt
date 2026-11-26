@@ -54,7 +54,7 @@ class MediaCaptureActivity : ComponentActivity() {
                         val encryptedMime = runCatching {
                             contentResolver.openInputStream(uri)?.use { VipxEncryptedMedia.inspect(it).mimeType }
                         }.getOrNull().orEmpty()
-                        if (currentIsEncrypted && (currentMime.startsWith("image/") || currentMime.startsWith("video/"))) {
+                        if (encryptedMime.startsWith("image/") || encryptedMime.startsWith("video/")) {
                             Pair(encryptedMime, true)
                         } else {
                             Pair(providerMime, false)
@@ -109,15 +109,29 @@ class MediaCaptureActivity : ComponentActivity() {
                                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                                     OutlinedButton(
                                         onClick = {
-                                            selectedIndex = (selectedIndex - 1).coerceAtLeast(0)
+                                            val nextIndex = (selectedIndex - 1).coerceAtLeast(0)
+                                            selectedIndex = nextIndex
                                             clearCurrentPreview()
+                                            previewUri = sharedUris.getOrNull(nextIndex)?.takeIf {
+                                                itemMimes.getOrNull(nextIndex)?.startsWith("image/") == true &&
+                                                    encryptedItems.getOrNull(nextIndex) != true
+                                            }
+                                            previewMime = itemMimes.getOrNull(nextIndex).orEmpty()
+                                            password = ""
                                         },
                                         enabled = selectedIndex > 0 && !busy
                                     ) { Text("السابق") }
                                     OutlinedButton(
                                         onClick = {
-                                            selectedIndex = (selectedIndex + 1).coerceAtMost(sharedUris.lastIndex)
+                                            val nextIndex = (selectedIndex + 1).coerceAtMost(sharedUris.lastIndex)
+                                            selectedIndex = nextIndex
                                             clearCurrentPreview()
+                                            previewUri = sharedUris.getOrNull(nextIndex)?.takeIf {
+                                                itemMimes.getOrNull(nextIndex)?.startsWith("image/") == true &&
+                                                    encryptedItems.getOrNull(nextIndex) != true
+                                            }
+                                            previewMime = itemMimes.getOrNull(nextIndex).orEmpty()
+                                            password = ""
                                         },
                                         enabled = selectedIndex < sharedUris.lastIndex && !busy
                                     ) { Text("التالي") }
@@ -130,7 +144,7 @@ class MediaCaptureActivity : ComponentActivity() {
                                 color = Color(0xFF9FB2C7), fontSize = 12.sp
                             )
 
-                            if (encryptedMime.startsWith("image/") || encryptedMime.startsWith("video/")) {
+                            if (currentIsEncrypted && (currentMime.startsWith("image/") || currentMime.startsWith("video/"))) {
                                 OutlinedTextField(
                                     value = password,
                                     onValueChange = { password = it },
