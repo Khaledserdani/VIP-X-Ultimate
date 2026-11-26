@@ -30,7 +30,7 @@ import java.io.File
  */
 object VipxMediaCacheMaintenance {
     private const val DEFAULT_MAX_AGE_MILLIS = 14L * 24L * 60L * 60L * 1000L
-    private val OWNED_PREFIXES = listOf("vipx-dec-", "vipx-shared-")
+    private val OWNED_PREFIXES = listOf("vipx-dec-", "vipx-shared-", "vipx-player-")
 
     fun cleanupStale(
         cacheDir: File,
