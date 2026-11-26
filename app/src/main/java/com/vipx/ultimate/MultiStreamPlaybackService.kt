@@ -46,11 +46,8 @@ class MultiStreamPlaybackService : Service() {
             stopAll()
             return START_NOT_STICKY
         }
-        try {
-            startAsForeground()
-        } catch (_: Exception) {
-            stopSelfResult(startId)
-        }
+        // Promote only after playStream has installed a real player; a bound/empty service
+        // must not leave a misleading foreground notification running.
         return START_NOT_STICKY
     }
 
