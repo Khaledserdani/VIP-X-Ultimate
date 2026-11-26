@@ -111,4 +111,39 @@ class VipxEncryptedMediaTest {
             fail("Truncated end marker must fail")
         } catch (_: EOFException) { }
     }
+
+    @Test fun trailingBytesAfterAuthenticatedEndAreRejected() {
+        val encrypted = ByteArrayOutputStream()
+        VipxEncryptedMedia.encrypt(ByteArrayInputStream("valid media".toByteArray()), encrypted,
+            "secret".toCharArray(), "image/png", 4096)
+        val damaged = encrypted.toByteArray() + byteArrayOf(0x55)
+        try {
+            VipxEncryptedMedia.decrypt(ByteArrayInputStream(damaged), ByteArrayOutputStream(), "secret".toCharArray())
+            fail("Trailing bytes after the authenticated terminator must fail")
+        } catch (_: IllegalArgumentException) { }
+    }
+
+    @Test fun unsupportedMimeHeaderIsRejected() {
+        val encrypted = ByteArrayOutputStream()
+        VipxEncryptedMedia.encrypt(ByteArrayInputStream("data".toByteArray()), encrypted,
+            "secret".toCharArray(), "image/png", 4096)
+        val damaged = encrypted.toByteArray()
+        damaged[15] = 'x'.code.toByte()
+        try {
+            VipxEncryptedMedia.inspect(ByteArrayInputStream(damaged))
+            fail("A non-image/video MIME type must be rejected")
+        } catch (_: IllegalArgumentException) { }
+    }
+
+    @Test fun encryptedChunkTruncationIsRejected() {
+        val encrypted = ByteArrayOutputStream()
+        VipxEncryptedMedia.encrypt(ByteArrayInputStream(ByteArray(9000) { it.toByte() }), encrypted,
+            "secret".toCharArray(), "video/mp4", 4096)
+        val complete = encrypted.toByteArray()
+        val truncated = complete.copyOf(complete.size - 24)
+        try {
+            VipxEncryptedMedia.decrypt(ByteArrayInputStream(truncated), ByteArrayOutputStream(), "secret".toCharArray())
+            fail("Truncated ciphertext record must fail")
+        } catch (_: EOFException) { }
+    }
 }
