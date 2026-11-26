@@ -50,7 +50,7 @@ class MultiStreamPlaybackService : Service() {
     private var focusRequestActive = false
     private var audioDucked = false
     private var isForeground = false
-    private var streamsChangedListener: (() -> Unit)? = null
+    private val streamsChangedListeners = linkedSetOf<() -> Unit>()
     private var audioSelectionChangedListener: ((String?) -> Unit)? = null
 
     override fun onBind(intent: Intent?): IBinder = binder
@@ -152,12 +152,17 @@ class MultiStreamPlaybackService : Service() {
     }
 
     @Synchronized
-    fun setStreamsChangedListener(listener: (() -> Unit)?) {
-        streamsChangedListener = listener
+    fun addStreamsChangedListener(listener: () -> Unit) {
+        streamsChangedListeners.add(listener)
+    }
+
+    @Synchronized
+    fun removeStreamsChangedListener(listener: () -> Unit) {
+        streamsChangedListeners.remove(listener)
     }
 
     private fun notifyStreamsChanged() {
-        streamsChangedListener?.invoke()
+        streamsChangedListeners.toList().forEach { listener -> listener() }
     }
 
     private fun notifyAudioSelectionChanged() {
@@ -472,7 +477,7 @@ class MultiStreamPlaybackService : Service() {
         abandonPreviewAudioFocus()
         audioFocusRequest = null
         audioManager = null
-        streamsChangedListener = null
+        streamsChangedListeners.clear()
         audioSelectionChangedListener = null
         detachAllPlayerViews()
         remainingPlayers.forEach { it.release() }
