@@ -216,6 +216,10 @@ private fun LiveGridScreen(
                             audibleStream = entry.url
                         }) { Text(if (audibleStream == entry.url) "الصوت مفعّل" else "اسمع هذا البث", fontSize = 11.sp) }
                         TextButton(onClick = {
+                            // Transfer this tile to the full player instead of decoding the same
+                            // stream twice in two independent services.
+                            service?.stopStream(entry.url)
+                            if (audibleStream == entry.url) audibleStream = null
                             context.startActivity(
                                 Intent(context, PlayerActivity::class.java)
                                     .putExtra(PlayerActivity.EXTRA_STREAM_URL, entry.url)
