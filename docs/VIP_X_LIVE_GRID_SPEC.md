@@ -8,14 +8,14 @@ VIP X is an in-app video/live-stream browsing and playback experience. The user 
 - URLs are stored locally in SharedPreferences.
 - A two-column grid creates one muted Media3 ExoPlayer per tile, with repeat enabled and visible loading/ready/error text.
 - Players pause when the grid screen receives lifecycle stop and release when their composables are disposed.
-- Widevine can be enabled for the grid. A shared HTTPS license URL is persisted; Authorization is session-only and not persisted.
+- Widevine can be enabled for the grid. A shared HTTPS license URL is persisted; provider-issued Authorization is stored locally in AuthorizationVault for up to 8 hours, encrypted with AES-GCM using a non-exportable Android Keystore key and indexed by a SHA-256 digest of the stream URL.
 - Selecting a tile launches the full PlayerActivity and passes its URL and current DRM settings.
 - The full player uses MediaController/MediaSessionService and has PiP configuration.
 
 ## Limitations
 - This is a user-managed URL grid, not a general browser, search engine, or automatic stream discovery feature.
 - DRM configuration is shared across tiles. Independent per-stream license URLs/headers are not yet supported.
-- Authorization headers are passed through an Activity intent to the full player; they are not stored in preferences.
+- Authorization headers are passed through an Activity intent to the full player. The encrypted local vault retains provider-issued values for up to 8 hours; expired or corrupt entries are removed when read or pruned.
 - Four simultaneous players may exceed device decoder, memory, network, battery, or thermal capacity. The UI cap is not a device capability guarantee.
 - Grid playback is not persistent in the background. It pauses when the Activity stops and releases when the screen is disposed.
 - No provider-issued license or protected test stream has been provided; actual Widevine playback is unverified.
