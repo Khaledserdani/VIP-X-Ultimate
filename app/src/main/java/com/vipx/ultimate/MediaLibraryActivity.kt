@@ -82,6 +82,7 @@ class MediaLibraryActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        VipxMediaCacheMaintenance.cleanupStale(cacheDir)
         // Activity destruction is not guaranteed after process death. Prune only
         // old decrypted previews so recent files from another Activity remain safe.
         val staleBefore = System.currentTimeMillis() - 24L * 60L * 60L * 1000L
