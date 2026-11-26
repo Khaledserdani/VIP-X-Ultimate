@@ -48,13 +48,8 @@ class FloatingMediaOverlayService : Service() {
             stopSelfResult(startId)
             return START_NOT_STICKY
         }
-        if (!android.provider.Settings.canDrawOverlays(this)) {
-            stopSelfResult(startId)
-            return START_NOT_STICKY
-        }
-
-        // Accept ownership only after the new request has passed basic validation.
-        // A rejected replacement must not delete a file still owned by the caller.
+        // Accept ownership only after the new request and transferred file pass
+        // basic validation. Invalid requests must not delete caller-owned files.
         val incomingOwnedFile = if (
             intent?.getBooleanExtra(EXTRA_TRANSFER_FILE_OWNERSHIP, false) == true &&
             uri.scheme == "file" && !uri.path.isNullOrBlank()
@@ -63,13 +58,16 @@ class FloatingMediaOverlayService : Service() {
         } else null
 
         try {
+            transferredSourceFile?.delete()
+            transferredSourceFile = incomingOwnedFile
+            if (!android.provider.Settings.canDrawOverlays(this)) {
+                stopSelfResult(startId)
+                return START_NOT_STICKY
+            }
             removeOverlay()
             releasePlayer()
             copiedFile?.delete()
             copiedFile = null
-            transferredSourceFile?.delete()
-            transferredSourceFile = incomingOwnedFile
-
             if (mime.startsWith("video/")) {
                 startPlaybackForeground()
             } else if (isForeground) {
