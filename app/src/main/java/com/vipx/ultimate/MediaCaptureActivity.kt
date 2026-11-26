@@ -316,7 +316,7 @@ class MediaCaptureActivity : ComponentActivity() {
                 lifecycleScope.launch {
                     var playbackFile: File? = null
                     try {
-                        playbackFile = withContext(Dispatchers.IO) {
+                        val readyFile = withContext(Dispatchers.IO) {
                             val source = candidate!!
                             val extension = source.extension.takeIf { it.isNotBlank() }?.let { ".$it" } ?: ".media"
                             val target = File(cacheDir, "vipx-player-${System.nanoTime()}$extension")
@@ -328,9 +328,10 @@ class MediaCaptureActivity : ComponentActivity() {
                                 throw error
                             }
                         }
+                        playbackFile = readyFile
                         startActivity(
                             Intent(this@MediaCaptureActivity, PlayerActivity::class.java)
-                                .putExtra(PlayerActivity.EXTRA_STREAM_URL, Uri.fromFile(playbackFile).toString())
+                                .putExtra(PlayerActivity.EXTRA_STREAM_URL, Uri.fromFile(readyFile).toString())
                         )
                     } catch (error: Exception) {
                         playbackFile?.delete()
