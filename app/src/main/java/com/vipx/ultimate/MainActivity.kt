@@ -32,6 +32,16 @@ private val VipMuted = Color(0xFF9FB2C7)
 
 class MainActivity : ComponentActivity() {
     private var pendingNotificationAction: (() -> Unit)? = null
+    private var incomingSharedUrl by mutableStateOf("")
+
+    private fun extractSharedHttpsUrl(source: Intent?): String? {
+        if (source?.action != Intent.ACTION_SEND || source.type != "text/plain") return null
+        val sharedText = source.getCharSequenceExtra(Intent.EXTRA_TEXT)?.toString().orEmpty()
+        val candidate = Regex("https://[^\\s<>\\\"']+", RegexOption.IGNORE_CASE)
+            .find(sharedText)?.value?.trimEnd('.', ',', ';', ')', ']', '}') ?: return null
+        val uri = Uri.parse(candidate)
+        return candidate.takeIf { uri.scheme == "https" && !uri.host.isNullOrBlank() }
+    }
 
     private val notificationPermissionLauncher =
         registerForActivityResult(ActivityResultContracts.RequestPermission()) {
@@ -52,6 +62,7 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        incomingSharedUrl = extractSharedHttpsUrl(intent).orEmpty()
         window.statusBarColor = android.graphics.Color.rgb(7, 17, 31)
         window.navigationBarColor = android.graphics.Color.rgb(7, 17, 31)
         setContent {
@@ -60,6 +71,7 @@ class MainActivity : ComponentActivity() {
                     primary = VipAccent, background = VipBg, surface = VipPanel,
                     onBackground = Color.White, onSurface = Color.White
                 )) { VipHome(
+                    sharedStreamUrl = incomingSharedUrl,
                     canWriteSettings = { Settings.System.canWrite(this) },
                     requestSettings = {
                         val intent = Intent(Settings.ACTION_MANAGE_WRITE_SETTINGS,
@@ -89,10 +101,17 @@ class MainActivity : ComponentActivity() {
             }
         }
     }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        incomingSharedUrl = extractSharedHttpsUrl(intent).orEmpty()
+    }
 }
 
 @Composable
 private fun VipHome(
+    sharedStreamUrl: String,
     canWriteSettings: () -> Boolean,
     requestSettings: () -> Unit,
     applyBrightness: (Float) -> Unit,
@@ -105,8 +124,10 @@ private fun VipHome(
     var brightness by remember { mutableFloatStateOf(0.75f) }
     var permissionGranted by remember { mutableStateOf(canWriteSettings()) }
     var message by remember { mutableStateOf("تحكم في سطوع الشاشة على مستوى النظام بعد منح الإذن.") }
-    var streamUrl by remember { mutableStateOf("") }
-    var streamMessage by remember { mutableStateOf("ألصق رابط بث تملك حق مشاهدته.") }
+    var streamUrl by remember(sharedStreamUrl) { mutableStateOf(sharedStreamUrl) }
+    var streamMessage by remember(sharedStreamUrl) {
+        mutableStateOf(if (sharedStreamUrl.isNotBlank()) "استلم VIP X رابطاً مشاركاً؛ تحقق منه ثم اضغط تشغيل." else "ألصق رابط بث تملك حق مشاهدته.")
+    }
     var drmEnabled by remember { mutableStateOf(false) }
     var licenseUrl by remember { mutableStateOf("") }
     var authorization by remember { mutableStateOf("") }
