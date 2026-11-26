@@ -7,6 +7,7 @@ import org.junit.Test
 import java.io.ByteArrayInputStream
 import java.io.ByteArrayOutputStream
 import java.io.EOFException
+import java.io.File
 import java.awt.image.BufferedImage
 import javax.imageio.ImageIO
 
