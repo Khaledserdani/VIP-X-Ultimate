@@ -359,10 +359,13 @@ private fun StreamPreview(
             }
         }
         AndroidView(
-            factory = { PlayerView(it).apply { useController = false; this.player = player } },
+            factory = { PlayerView(it).apply {
+                useController = false
+                service?.attachPlayerView(entry.url, this)
+            } },
             modifier = Modifier.fillMaxWidth().height(88.dp),
-            update = { it.player = player },
-            onRelease = { it.player = null }
+            update = { view -> service?.attachPlayerView(entry.url, view) },
+            onRelease = { view -> service?.detachPlayerView(entry.url, view) }
         )
         Text(state, color = GridAccent, fontSize = 10.sp)
     }
