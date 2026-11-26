@@ -44,6 +44,7 @@ class MultiStreamPlaybackService : Service() {
     private var audioManager: AudioManager? = null
     private var audioFocusRequest: AudioFocusRequest? = null
     private var hasAudioFocus = false
+    private var focusRequestActive = false
     private var audioDucked = false
     private var isForeground = false
     private var streamsChangedListener: (() -> Unit)? = null
@@ -193,39 +194,42 @@ class MultiStreamPlaybackService : Service() {
 
     /** Route audible output from one selected stream while all four videos continue. */
     @Synchronized
-    fun selectAudioStream(url: String?) {
+    fun selectAudioStream(url: String?): Boolean {
         require(url == null || players.containsKey(url)) { "البث الصوتي غير موجود" }
         if (url == null) {
             audioStreamUrl = null
             applyPreviewVolumes()
             abandonPreviewAudioFocus()
             notifyAudioSelectionChanged()
-            return
+            return true
         }
         if (!requestPreviewAudioFocus()) {
             audioStreamUrl = null
             applyPreviewVolumes()
             notifyAudioSelectionChanged()
-            return
+            return false
         }
         audioStreamUrl = url
         applyPreviewVolumes()
         notifyAudioSelectionChanged()
+        return true
     }
 
     private fun requestPreviewAudioFocus(): Boolean {
         val manager = audioManager ?: return false
         val request = audioFocusRequest ?: return false
-        if (hasAudioFocus) return true
+        if (focusRequestActive) return hasAudioFocus
         val result = manager.requestAudioFocus(request)
-        hasAudioFocus = result == AudioManager.AUDIOFOCUS_REQUEST_GRANTED
+        focusRequestActive = result == AudioManager.AUDIOFOCUS_REQUEST_GRANTED
+        hasAudioFocus = focusRequestActive
         return hasAudioFocus
     }
 
     private fun abandonPreviewAudioFocus() {
-        if (hasAudioFocus) {
+        if (focusRequestActive) {
             audioFocusRequest?.let { audioManager?.abandonAudioFocusRequest(it) }
         }
+        focusRequestActive = false
         hasAudioFocus = false
         audioDucked = false
     }
@@ -234,6 +238,7 @@ class MultiStreamPlaybackService : Service() {
     private fun onAudioFocusChanged(change: Int) {
         when (change) {
             AudioManager.AUDIOFOCUS_GAIN -> {
+                focusRequestActive = true
                 hasAudioFocus = true
                 audioDucked = false
                 applyPreviewVolumes()
@@ -248,6 +253,7 @@ class MultiStreamPlaybackService : Service() {
             }
             AudioManager.AUDIOFOCUS_LOSS -> {
                 hasAudioFocus = false
+                focusRequestActive = false
                 audioStreamUrl = null
                 audioDucked = false
                 applyPreviewVolumes()
