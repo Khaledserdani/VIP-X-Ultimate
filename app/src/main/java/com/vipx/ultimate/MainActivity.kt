@@ -1,10 +1,14 @@
 package com.vipx.ultimate
 
+import android.Manifest
 import android.content.Intent
+import android.content.pm.PackageManager
+import android.os.Build
 import android.net.Uri
 import android.os.Bundle
 import android.provider.Settings
 import androidx.activity.ComponentActivity
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
@@ -26,6 +30,25 @@ private val VipAccent = Color(0xFF42E3C2)
 private val VipMuted = Color(0xFF9FB2C7)
 
 class MainActivity : ComponentActivity() {
+    private var pendingNotificationAction: (() -> Unit)? = null
+
+    private val notificationPermissionLauncher =
+        registerForActivityResult(ActivityResultContracts.RequestPermission()) {
+            // Playback remains available if notifications are denied.
+            pendingNotificationAction?.invoke()
+            pendingNotificationAction = null
+        }
+
+    private fun runWithNotificationPermission(action: () -> Unit) {
+        if (Build.VERSION.SDK_INT < 33 ||
+            checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED) {
+            action()
+            return
+        }
+        pendingNotificationAction = action
+        notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         window.statusBarColor = android.graphics.Color.rgb(7, 17, 31)
@@ -50,14 +73,16 @@ class MainActivity : ComponentActivity() {
                         )
                     },
                     openCryptoLab = { startActivity(Intent(this, CryptoLabActivity::class.java)) },
-                    openMediaLibrary = { startActivity(Intent(this, MediaLibraryActivity::class.java)) },
-                    openLiveGrid = { startActivity(Intent(this, LiveGridActivity::class.java)) },
+                    openMediaLibrary = { runWithNotificationPermission { startActivity(Intent(this, MediaLibraryActivity::class.java)) } },
+                    openLiveGrid = { runWithNotificationPermission { startActivity(Intent(this, LiveGridActivity::class.java)) } },
                     openStream = { url, drm, license, authorization ->
-                        startActivity(Intent(this, PlayerActivity::class.java)
-                            .putExtra(PlayerActivity.EXTRA_STREAM_URL, url)
-                            .putExtra(PlayerActivity.EXTRA_DRM_ENABLED, drm)
-                            .putExtra(PlayerActivity.EXTRA_DRM_LICENSE_URL, license)
-                            .putExtra(PlayerActivity.EXTRA_DRM_AUTHORIZATION, authorization))
+                        runWithNotificationPermission {
+                            startActivity(Intent(this, PlayerActivity::class.java)
+                                .putExtra(PlayerActivity.EXTRA_STREAM_URL, url)
+                                .putExtra(PlayerActivity.EXTRA_DRM_ENABLED, drm)
+                                .putExtra(PlayerActivity.EXTRA_DRM_LICENSE_URL, license)
+                                .putExtra(PlayerActivity.EXTRA_DRM_AUTHORIZATION, authorization))
+                        }
                     }
                 ) }
             }
