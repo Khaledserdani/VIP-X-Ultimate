@@ -131,7 +131,7 @@ private fun LiveGridScreen(
     var drmEnabled by remember { mutableStateOf(false) }
     var licenseUrl by remember { mutableStateOf("") }
     var authorization by remember { mutableStateOf("") }
-    var message by remember { mutableStateOf("أضف حتى أربعة بثوث؛ ستعمل معاً وتستمر عند تصفح التطبيق.") }
+    var message by remember { mutableStateOf("أضف حتى أربعة بثوث لتشغيلها معاً داخل شبكة المعاينات.") }
     var audibleStream by remember { mutableStateOf<String?>(service?.selectedAudioStream()) }
 
     LaunchedEffect(Unit) {
