@@ -106,10 +106,6 @@ class FloatingMediaOverlayService : Service() {
             try {
                 original.copyTo(copy, overwrite = true)
                 copiedFile = copy
-                if (original == transferredSourceFile) {
-                    original.delete()
-                    transferredSourceFile = null
-                }
                 Uri.fromFile(copy)
             } catch (_: Exception) {
                 copy.delete()
@@ -204,6 +200,8 @@ class FloatingMediaOverlayService : Service() {
         root = container
         try {
             windowManager?.addView(container, params)
+            transferredSourceFile?.delete()
+            transferredSourceFile = null
         } catch (_: SecurityException) {
             root = null
             stopSelf()
