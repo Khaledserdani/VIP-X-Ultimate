@@ -342,7 +342,10 @@ private fun StreamPreview(
     }
 
     Column(modifier, verticalArrangement = Arrangement.spacedBy(2.dp)) {
-        if (state.startsWith("خطأ:") || state.startsWith("تعذر التشغيل:")) {
+        if (state.startsWith("خطأ:") ||
+            state.startsWith("تعذر التشغيل:") ||
+            state.startsWith("تعذر تشغيل البث") ||
+            state.startsWith("تعذر بدء المحاولة")) {
             TextButton(onClick = {
                 runCatching {
                     service?.playStream(entry.url, entry.drmEnabled, entry.licenseUrl, authorization)
