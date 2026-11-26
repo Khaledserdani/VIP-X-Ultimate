@@ -74,7 +74,11 @@ object AuthorizationVault {
             cipher.updateAAD(streamUrl.toByteArray(Charsets.UTF_8))
             val authorization = cipher.doFinal(encrypted).toString(Charsets.UTF_8)
                 .takeIf { it.isNotBlank() && isValidAuthorization(it) }
-            if (authorization != null && isLegacyVersion) {
+            if (authorization == null) {
+                prefs.edit().remove(key).apply()
+                return null
+            }
+            if (isLegacyVersion) {
                 prefs.edit().putString(
                     key,
                     listOf(
