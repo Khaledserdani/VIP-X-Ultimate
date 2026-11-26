@@ -62,6 +62,7 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        VipxMediaCacheMaintenance.cleanupStale(cacheDir)
         incomingSharedUrl = extractSharedHttpsUrl(intent).orEmpty()
         window.statusBarColor = android.graphics.Color.rgb(7, 17, 31)
         window.navigationBarColor = android.graphics.Color.rgb(7, 17, 31)
