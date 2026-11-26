@@ -25,6 +25,7 @@ class FloatingStreamsOverlayService : Service() {
     private var overlayRoot: LinearLayout? = null
     private var playbackService: MultiStreamPlaybackService? = null
     private var isBound = false
+    private val streamsChangedListener: () -> Unit = { showOverlay() }
 
     private val playbackConnection = object : ServiceConnection {
         override fun onServiceConnected(name: ComponentName?, binder: IBinder?) {
@@ -33,11 +34,11 @@ class FloatingStreamsOverlayService : Service() {
                 stopSelf()
                 return
             }
-            playbackService?.setStreamsChangedListener { showOverlay() }
+            playbackService?.addStreamsChangedListener(streamsChangedListener)
             showOverlay()
         }
         override fun onServiceDisconnected(name: ComponentName?) {
-            playbackService?.setStreamsChangedListener(null)
+            playbackService?.removeStreamsChangedListener(streamsChangedListener)
             removeOverlay()
             playbackService = null
         }
