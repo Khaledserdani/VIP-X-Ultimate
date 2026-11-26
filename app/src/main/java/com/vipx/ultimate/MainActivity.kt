@@ -151,7 +151,7 @@ private fun VipHome(
                         OutlinedTextField(value = authorization, onValueChange = { authorization = it },
                             modifier = Modifier.fillMaxWidth(), label = { Text("Authorization header (اختياري)") },
                             placeholder = { Text("Bearer …") }, visualTransformation = PasswordVisualTransformation(), singleLine = true)
-                        Text("أدخل بيانات ترخيص صادرة لك من مزوّد المحتوى. لا تُحفظ هذه القيم في التطبيق أو المستودع، ولا يمكن تشغيل المحتوى المحمي دون خادم ترخيص صالح.", color = VipMuted, fontSize = 11.sp)
+                        Text("تُحفظ Authorization مشفّرة محلياً لمدة 24 ساعة، ولا تُحفظ في المستودع أو تُرسل إلى خادم VIP X. يلزم ترخيص صالح من مزوّد المحتوى.", color = VipMuted, fontSize = 11.sp)
                     }
                     Button(
                         onClick = {
