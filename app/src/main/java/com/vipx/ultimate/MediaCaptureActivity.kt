@@ -119,7 +119,7 @@ class MediaCaptureActivity : ComponentActivity() {
                                             previewMime = itemMimes.getOrNull(nextIndex).orEmpty()
                                             password = ""
                                         },
-                                        enabled = selectedIndex > 0 && !busy
+                                        enabled = selectedIndex > 0 && !busy && !checkingItems
                                     ) { Text("السابق") }
                                     OutlinedButton(
                                         onClick = {
@@ -133,12 +133,22 @@ class MediaCaptureActivity : ComponentActivity() {
                                             previewMime = itemMimes.getOrNull(nextIndex).orEmpty()
                                             password = ""
                                         },
-                                        enabled = selectedIndex < sharedUris.lastIndex && !busy
+                                        enabled = selectedIndex < sharedUris.lastIndex && !busy && !checkingItems
                                     ) { Text("التالي") }
                                 }
                             }
                             Text("نوع المشاركة: ${if (currentIsEncrypted) "VIPXENC مشفّر • $currentMime" else currentMime.ifBlank { "غير محدد" }}",
                                 color = Color(0xFF42E3C2))
+                            Text(
+                                when {
+                                    checkingItems -> "حالة العنصر: قيد الفحص"
+                                    currentIsEncrypted -> "حالة العنصر: مشفّر • يتطلب كلمة المرور"
+                                    currentMime.startsWith("image/") -> "حالة العنصر: صورة جاهزة للمعاينة"
+                                    currentMime.startsWith("video/") -> "حالة العنصر: فيديو جاهز للتشغيل"
+                                    else -> "حالة العنصر: النوع غير مدعوم أو غير معروف"
+                                },
+                                color = Color(0xFF9FB2C7), fontSize = 12.sp
+                            )
                             Text(
                                 "يصل المحتوى عبر إذن مشاركة مؤقت من التطبيق المصدر. لا نفتح مجلدات التطبيق ولا نحاول استخراج مفاتيح محادثاته.",
                                 color = Color(0xFF9FB2C7), fontSize = 12.sp
