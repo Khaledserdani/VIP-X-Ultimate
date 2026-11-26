@@ -30,37 +30,48 @@ class MediaCaptureActivity : ComponentActivity() {
         val candidate = SharedMediaCapture.fromIntent(intent)
         val sharedUris = SharedMediaCapture.sharedContentUris(intent)
         val sourceApp = referrer?.host ?: "تطبيق مشاركة على Android"
-        val sharedMime = sharedUris.firstOrNull()?.let { contentResolver.getType(it) }
-            ?: intent.type.orEmpty()
         setContent {
-            var previewUri by remember(sharedUris, sharedMime) { mutableStateOf(if (sharedMime.startsWith("image/")) sharedUris.firstOrNull() else null) }
-            var previewMime by remember(sharedMime) { mutableStateOf(if (sharedMime.startsWith("image/")) sharedMime else "") }
-            var encryptedMime by remember { mutableStateOf("") }
-            var checkingEncrypted by remember { mutableStateOf(sharedUris.isNotEmpty()) }
+            var previewUri by remember { mutableStateOf<Uri?>(null) }
+            var previewMime by remember { mutableStateOf("") }
+            var itemMimes by remember { mutableStateOf<List<String>>(emptyList()) }
+            var encryptedItems by remember { mutableStateOf<List<Boolean>>(emptyList()) }
+            var selectedIndex by remember { mutableIntStateOf(0) }
+            var checkingItems by remember { mutableStateOf(sharedUris.isNotEmpty()) }
             var password by remember { mutableStateOf("") }
             var busy by remember { mutableStateOf(false) }
             var message by remember {
                 mutableStateOf("استقبل VIP X مشاركة من تطبيق آخر. لا يتم تفتيش ذاكرة الهاتف.")
             }
             val scope = rememberCoroutineScope()
-            val sharedUri = sharedUris.firstOrNull()
+            val sharedUri = sharedUris.getOrNull(selectedIndex)
+            val currentMime = itemMimes.getOrNull(selectedIndex).orEmpty()
+            val currentIsEncrypted = encryptedItems.getOrNull(selectedIndex) == true
 
             LaunchedEffect(sharedUris) {
-                val uri = sharedUri
-                if (uri != null) {
-                    val inspectedMime = withContext(Dispatchers.IO) {
-                        runCatching {
+                val inspected = withContext(Dispatchers.IO) {
+                    sharedUris.map { uri ->
+                        val providerMime = contentResolver.getType(uri).orEmpty()
+                        val encryptedMime = runCatching {
                             contentResolver.openInputStream(uri)?.use { VipxEncryptedMedia.inspect(it).mimeType }
                         }.getOrNull().orEmpty()
-                    }
-                    encryptedMime = inspectedMime
-                    message = if (inspectedMime.startsWith("image/") || inspectedMime.startsWith("video/")) {
-                        "تمت قراءة ترويسة VIPXENC مبدئياً. أدخل كلمة المرور للتحقق الكامل."
-                    } else {
-                        "استقبل VIP X مشاركة من تطبيق آخر. لا يتم تفتيش ذاكرة الهاتف."
+                        if (currentIsEncrypted && (currentMime.startsWith("image/") || currentMime.startsWith("video/"))) {
+                            Pair(encryptedMime, true)
+                        } else {
+                            Pair(providerMime, false)
+                        }
                     }
                 }
-                checkingEncrypted = false
+                itemMimes = inspected.map { it.first }
+                encryptedItems = inspected.map { it.second }
+                previewUri = if (inspected.firstOrNull()?.first?.startsWith("image/") == true &&
+                    inspected.firstOrNull()?.second == false) sharedUris.firstOrNull() else null
+                previewMime = if (previewUri != null) inspected.first().first else ""
+                checkingItems = false
+                message = if (sharedUris.size > 1) {
+                    "استُقبلت ${sharedUris.size} عناصر. افحصها بالتتابع من هنا."
+                } else {
+                    "استقبل VIP X مشاركة من تطبيق آخر. لا يتم تفتيش ذاكرة الهاتف."
+                }
             }
 
             MaterialTheme(colorScheme = darkColorScheme(
@@ -90,11 +101,29 @@ class MediaCaptureActivity : ComponentActivity() {
                             }, modifier = Modifier.fillMaxWidth()) { Text("أضف الرابط إلى شبكة 2×2") }
                         } else if (sharedUri != null) {
                             Text("المصدر: $sourceApp", color = Color.White)
-                            Text("عدد العناصر المستلمة: ${sharedUris.size}", color = Color(0xFF9FB2C7))
-                            if (checkingEncrypted) {
-                                Text("يجري فحص ترويسة الملف في الخلفية…", color = Color(0xFF9FB2C7), fontSize = 12.sp)
+                            Text("العنصر ${selectedIndex + 1} من ${sharedUris.size}", color = Color(0xFF9FB2C7))
+                            if (checkingItems) {
+                                Text("يجري فحص عناصر المشاركة بالتتابع في الخلفية…", color = Color(0xFF9FB2C7), fontSize = 12.sp)
                             }
-                            Text("نوع المشاركة: ${if (encryptedMime.isNotBlank()) "VIPXENC مشفّر • $encryptedMime" else sharedMime.ifBlank { "غير محدد" }}",
+                            if (sharedUris.size > 1) {
+                                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                    OutlinedButton(
+                                        onClick = {
+                                            selectedIndex = (selectedIndex - 1).coerceAtLeast(0)
+                                            clearCurrentPreview()
+                                        },
+                                        enabled = selectedIndex > 0 && !busy
+                                    ) { Text("السابق") }
+                                    OutlinedButton(
+                                        onClick = {
+                                            selectedIndex = (selectedIndex + 1).coerceAtMost(sharedUris.lastIndex)
+                                            clearCurrentPreview()
+                                        },
+                                        enabled = selectedIndex < sharedUris.lastIndex && !busy
+                                    ) { Text("التالي") }
+                                }
+                            }
+                            Text("نوع المشاركة: ${if (currentIsEncrypted) "VIPXENC مشفّر • $currentMime" else currentMime.ifBlank { "غير محدد" }}",
                                 color = Color(0xFF42E3C2))
                             Text(
                                 "يصل المحتوى عبر إذن مشاركة مؤقت من التطبيق المصدر. لا نفتح مجلدات التطبيق ولا نحاول استخراج مفاتيح محادثاته.",
@@ -161,7 +190,7 @@ class MediaCaptureActivity : ComponentActivity() {
                                     enabled = password.isNotEmpty() && !busy,
                                     modifier = Modifier.fillMaxWidth()
                                 ) { Text(if (busy) "جارٍ التحقق…" else "فك التشفير وفتح") }
-                            } else if (sharedMime.startsWith("video/")) {
+                            } else if (currentMime.startsWith("video/")) {
                                 Button(onClick = { openSharedVideo(sharedUri) }, modifier = Modifier.fillMaxWidth()) {
                                     Text("تشغيل الفيديو المستلم")
                                 }
@@ -172,8 +201,8 @@ class MediaCaptureActivity : ComponentActivity() {
                                 )
                             }
 
-                            if (sharedUris.size > 1) {
-                                Text("لضمان عدم خلط الملفات، أرسل كل صورة أو فيديو منفرداً من التطبيق المصدر حالياً.", color = Color(0xFFFFD180), fontSize = 11.sp)
+                            if (sharedUris.size > 1 && !checkingItems) {
+                                Text("كل عنصر يُعرض ويُعالج بشكل مستقل؛ انتقل بين العناصر دون خلط ملفاتها.", color = Color(0xFF9FB2C7), fontSize = 11.sp)
                             }
                         } else {
                             Text(
@@ -208,6 +237,11 @@ class MediaCaptureActivity : ComponentActivity() {
                 }
             }
         }
+    }
+
+    private fun clearCurrentPreview() {
+        decryptedPreviewFile?.delete()
+        decryptedPreviewFile = null
     }
 
     private fun openSharedVideo(uri: Uri) {
