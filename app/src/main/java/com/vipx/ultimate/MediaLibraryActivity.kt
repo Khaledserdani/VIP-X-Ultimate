@@ -173,8 +173,8 @@ class MediaLibraryActivity : ComponentActivity() {
                                 .putExtra(FloatingMediaOverlayService.EXTRA_URI, uri.toString())
                                 .putExtra(FloatingMediaOverlayService.EXTRA_MIME, mime)
                                 .putExtra(FloatingMediaOverlayService.EXTRA_TRANSFER_FILE_OWNERSHIP, transferDecryptedFile)
-                                .setClipData(android.content.ClipData.newRawUri("VIP X media", uri))
                                 .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                                .setClipData(android.content.ClipData.newRawUri("VIP X media", uri))
                             try {
                                 if (mime.startsWith("video/") && android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
                                     startForegroundService(overlayIntent)
