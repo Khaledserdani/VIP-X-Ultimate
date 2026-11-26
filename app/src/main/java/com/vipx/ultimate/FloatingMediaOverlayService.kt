@@ -52,8 +52,18 @@ class FloatingMediaOverlayService : Service() {
         }
         removeOverlay()
         releasePlayer()
-        if (mime.startsWith("video/")) startPlaybackForeground()
-        showMedia(uri, mime)
+        copiedFile?.delete()
+        copiedFile = null
+        try {
+            if (mime.startsWith("video/")) startPlaybackForeground()
+            showMedia(uri, mime)
+        } catch (_: Exception) {
+            removeOverlay()
+            releasePlayer()
+            copiedFile?.delete()
+            copiedFile = null
+            stopSelf()
+        }
         return START_NOT_STICKY
     }
 
