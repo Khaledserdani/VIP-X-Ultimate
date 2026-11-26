@@ -84,8 +84,9 @@ object VipxEncryptedMedia {
                 count += n
             }
             if (count == 0) break
-            require(totalPlainBytes <= maxPlaintextBytes - count.toLong()) {
-                "حجم الملف يتجاوز الحد الأقصى المسموح به"
+            if (totalPlainBytes > maxPlaintextBytes - count.toLong()) {
+                buffer.fill(0, 0, count)
+                throw IllegalArgumentException("حجم الملف يتجاوز الحد الأقصى المسموح به")
             }
             require(index < 0xFFFF_FFFFL) { "الملف أكبر من حد صيغة VIPXENC" }
             val plainChunk = buffer.copyOf(count)
@@ -110,6 +111,11 @@ object VipxEncryptedMedia {
         sink.flush()
     }
 
+    /**
+     * Decrypts to [output]. Callers must supply a temporary/unpublished destination and
+     * publish it only after this method returns successfully: authenticated v2 end-of-file
+     * validation happens after plaintext chunks have been streamed to the output.
+     */
     fun decrypt(input: InputStream, output: OutputStream, password: CharArray,
                 maxPlaintextBytes: Long = MAX_PLAINTEXT_BYTES): String {
         require(password.isNotEmpty()) { "كلمة المرور فارغة" }
