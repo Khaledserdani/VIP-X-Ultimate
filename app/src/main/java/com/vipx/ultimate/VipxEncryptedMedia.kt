@@ -42,7 +42,7 @@ object VipxMediaCacheMaintenance {
         cacheDir.listFiles()
             ?.filter { file ->
                 file.isFile &&
-                    OWNED_PREFIXES.any(file.name::startsWith) &&
+                    OWNED_PREFIXES.any { prefix -> file.name.startsWith(prefix) } &&
                     nowMillis >= file.lastModified() &&
                     nowMillis - file.lastModified() >= maxAgeMillis
             }
