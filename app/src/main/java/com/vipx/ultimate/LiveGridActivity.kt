@@ -230,18 +230,17 @@ private fun LiveGridScreen(
                         val saved = runCatching { AuthorizationVault.save(context, cleanUrl, credential) }
                         service?.stopStream(cleanUrl)
                         startPlaybackService()
+                        var restartFailed = false
                         service?.let { engine ->
                             runCatching {
                                 engine.playStream(cleanUrl, true, licenseUrl.trim(), credential)
-                            }.onFailure {
-                                message = "حُدّثت بيانات الترخيص، لكن تعذر إعادة تشغيل البث الآن."
-                            }
+                            }.onFailure { restartFailed = true }
                         }
                         authorization = ""
-                        message = if (saved.isSuccess) {
-                            "تم تحديث بيانات الترخيص لهذا البث وإعادة تشغيله."
-                        } else {
-                            "تم تحديث بيانات الترخيص للجلسة الحالية، لكن تعذر حفظها بأمان؛ أدخلها مجدداً بعد إغلاق التطبيق."
+                        message = when {
+                            restartFailed -> "حُدّثت بيانات الترخيص، لكن تعذر إعادة تشغيل البث الآن."
+                            saved.isFailure -> "تم تحديث بيانات الترخيص للجلسة الحالية، لكن تعذر حفظها بأمان؛ أدخلها مجدداً بعد إغلاق التطبيق."
+                            else -> "تم تحديث بيانات الترخيص لهذا البث وإعادة تشغيله."
                         }
                     }
                     streams.any { it.url == cleanUrl } -> message = "هذا البث موجود بالفعل؛ لتحديثه اختر Widevine وأدخل رابط الترخيص نفسه وبيانات Authorization الجديدة."
