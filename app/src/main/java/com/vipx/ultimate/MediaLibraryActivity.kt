@@ -10,7 +10,9 @@ import androidx.activity.compose.setContent
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -34,21 +36,45 @@ private val MediaAccent = Color(0xFF42E3C2)
 class MediaLibraryActivity : ComponentActivity() {
     private var decryptedPreviewFile: File? = null
 
-    private fun readSharedMedia(source: Intent): Pair<Uri, String>? {
-        if (source.action != Intent.ACTION_SEND) return null
-        val sharedUri = if (android.os.Build.VERSION.SDK_INT >= 33) {
-            source.getParcelableExtra(Intent.EXTRA_STREAM, Uri::class.java)
-        } else {
-            @Suppress("DEPRECATION")
-            source.getParcelableExtra<Uri>(Intent.EXTRA_STREAM)
-        } ?: source.clipData?.getItemAt(0)?.uri ?: source.data ?: return null
+    private fun readSharedMedia(source: Intent): List<Pair<Uri, String>> {
+        val sharedUris = when (source.action) {
+            Intent.ACTION_SEND -> {
+                val single = if (android.os.Build.VERSION.SDK_INT >= 33) {
+                    source.getParcelableExtra(Intent.EXTRA_STREAM, Uri::class.java)
+                } else {
+                    @Suppress("DEPRECATION")
+                    source.getParcelableExtra<Uri>(Intent.EXTRA_STREAM)
+                }
+                listOfNotNull(single ?: source.clipData?.getItemAt(0)?.uri ?: source.data)
+            }
+            Intent.ACTION_SEND_MULTIPLE -> {
+                val multiple = if (android.os.Build.VERSION.SDK_INT >= 33) {
+                    source.getParcelableArrayListExtra(Intent.EXTRA_STREAM, Uri::class.java)
+                } else {
+                    @Suppress("DEPRECATION")
+                    source.getParcelableArrayListExtra<Uri>(Intent.EXTRA_STREAM)
+                }
+                val fromClip = source.clipData?.let { clip ->
+                    (0 until clip.itemCount).mapNotNull { index -> clip.getItemAt(index).uri }
+                }.orEmpty()
+                (multiple.orEmpty() + fromClip).distinct()
+            }
+            else -> emptyList()
+        }
 
-        if (sharedUri.scheme != "content") return null
-        val mime = source.type?.takeIf {
-            it.startsWith("image/") || it.startsWith("video/")
-        } ?: contentResolver.getType(sharedUri).orEmpty()
-        if (!mime.startsWith("image/") && !mime.startsWith("video/")) return null
-        return sharedUri to mime
+        return sharedUris.asSequence()
+            .filter { it.scheme == "content" }
+            .take(20)
+            .mapNotNull { uri ->
+                val resolvedMime = contentResolver.getType(uri).orEmpty()
+                val mime = resolvedMime.takeIf {
+                    it.startsWith("image/") || it.startsWith("video/")
+                } ?: source.type?.takeIf {
+                    it.startsWith("image/") || it.startsWith("video/")
+                }.orEmpty()
+                if (mime.startsWith("image/") || mime.startsWith("video/")) uri to mime else null
+            }
+            .toList()
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -154,7 +180,7 @@ class MediaLibraryActivity : ComponentActivity() {
 
 @Composable
 private fun MediaLibraryScreen(
-    initialSharedMedia: Pair<Uri, String>?,
+    initialSharedMedia: List<Pair<Uri, String>>,
     onPersistPermission: (Uri) -> Unit,
     mimeFor: (Uri) -> String,
     inspectEncrypted: (Uri) -> String,
@@ -163,8 +189,8 @@ private fun MediaLibraryScreen(
     clearDecryptedCache: () -> Unit,
     onShowFloatingMedia: (Uri, String) -> Unit
 ) {
-    var selectedUri by remember(initialSharedMedia?.first) { mutableStateOf(initialSharedMedia?.first) }
-    var selectedMime by remember(initialSharedMedia?.first) { mutableStateOf(initialSharedMedia?.second.orEmpty()) }
+    var selectedUri by remember(initialSharedMedia) { mutableStateOf(initialSharedMedia.firstOrNull()?.first) }
+    var selectedMime by remember(initialSharedMedia) { mutableStateOf(initialSharedMedia.firstOrNull()?.second.orEmpty()) }
     var encryptedSource by remember { mutableStateOf<Uri?>(null) }
     var encryptedMime by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
@@ -172,9 +198,9 @@ private fun MediaLibraryScreen(
     var pendingEncryptSource by remember { mutableStateOf<Uri?>(null) }
     var pendingEncryptPassword by remember { mutableStateOf("") }
     var busy by remember { mutableStateOf(false) }
-    var message by remember(initialSharedMedia?.first) {
+    var message by remember(initialSharedMedia) {
         mutableStateOf(
-            if (initialSharedMedia != null) "تم استقبال وسيط تمت مشاركته مع VIP X."
+            if (initialSharedMedia.isNotEmpty()) "تم استقبال " + initialSharedMedia.size + " عنصر مشاركة مع VIP X."
             else "اختر صورة أو فيديو، أو افتح ملف VIPXENC مشفّراً."
         )
     }
@@ -258,6 +284,32 @@ private fun MediaLibraryScreen(
                 }
                 OutlinedButton(onClick = { encryptedPicker.launch(arrayOf("*/*")) }, modifier = Modifier.weight(1f)) {
                     Text("ملف مشفّر")
+                }
+            }
+
+            if (initialSharedMedia.size > 1) {
+                Text("العناصر المستلمة (" + initialSharedMedia.size + ") — اختر ما تريد معاينته:", color = Color.LightGray)
+                Row(
+                    modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    initialSharedMedia.forEachIndexed { index, item ->
+                        OutlinedButton(
+                            onClick = {
+                                if (selectedUri?.scheme == "file") clearDecryptedCache()
+                                encryptedSource = null
+                                encryptedMime = ""
+                                password = ""
+                                selectedUri = item.first
+                                selectedMime = item.second
+                                message = if (item.second.startsWith("image/")) "الصورة " + (index + 1) + " محددة"
+                                    else "الفيديو " + (index + 1) + " محدد"
+                            },
+                            enabled = !busy
+                        ) {
+                            Text((index + 1).toString() + ". " + if (item.second.startsWith("image/")) "صورة" else "فيديو")
+                        }
+                    }
                 }
             }
 
