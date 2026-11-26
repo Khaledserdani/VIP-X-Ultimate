@@ -28,6 +28,7 @@ object AuthorizationVault {
         }
         val cipher = Cipher.getInstance("AES/GCM/NoPadding")
         cipher.init(Cipher.ENCRYPT_MODE, getOrCreateKey())
+        cipher.updateAAD(streamUrl.toByteArray(Charsets.UTF_8))
         val encrypted = cipher.doFinal(authorization.toByteArray(Charsets.UTF_8))
         val value = listOf(
             (System.currentTimeMillis() + TTL_MILLIS).toString(),
@@ -54,6 +55,7 @@ object AuthorizationVault {
             val encrypted = Base64.decode(parts[2], Base64.NO_WRAP)
             val cipher = Cipher.getInstance("AES/GCM/NoPadding")
             cipher.init(Cipher.DECRYPT_MODE, getOrCreateKey(), GCMParameterSpec(GCM_TAG_BITS, iv))
+            cipher.updateAAD(streamUrl.toByteArray(Charsets.UTF_8))
             cipher.doFinal(encrypted).toString(Charsets.UTF_8).takeIf { it.isNotBlank() }
         } catch (_: Exception) {
             prefs.edit().remove(key).apply()
