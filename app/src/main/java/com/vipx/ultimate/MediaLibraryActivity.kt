@@ -63,16 +63,17 @@ class MediaLibraryActivity : ComponentActivity() {
                                 }
                             }
                             val extension = MimeTypeMap.getSingleton().getExtensionFromMimeType(mime) ?: "media"
-                            finalFile = File(cacheDir, "vipx-dec-${System.nanoTime()}.$extension")
-                            if (!outputFile.renameTo(finalFile)) {
-                                outputFile.copyTo(finalFile, overwrite = true)
+                            val completedFile = File(cacheDir, "vipx-dec-${System.nanoTime()}.$extension")
+                            finalFile = completedFile
+                            if (!outputFile.renameTo(completedFile)) {
+                                outputFile.copyTo(completedFile, overwrite = true)
                                 outputFile.delete()
                             }
                             // The final plaintext file is published only after authenticated
                             // decryption (including the v2 end marker) has succeeded.
                             decryptedPreviewFile?.delete()
-                            decryptedPreviewFile = finalFile
-                            Pair(Uri.fromFile(finalFile), mime)
+                            decryptedPreviewFile = completedFile
+                            Pair(Uri.fromFile(completedFile), mime)
                         } catch (error: Exception) {
                             outputFile.delete()
                             finalFile?.delete()
