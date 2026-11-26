@@ -7,6 +7,7 @@ import android.content.ServiceConnection
 import android.net.Uri
 import android.os.Bundle
 import android.os.IBinder
+import android.provider.Settings
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.background
@@ -147,6 +148,19 @@ private fun LiveGridScreen(
             "تعمل المعاينات الأربع بالتوازي داخل شبكة 2×2. تبقى جلسات التشغيل في خدمة مستقلة عند الانتقال إلى صفحات التطبيق أو تصغيره.",
             color = Color.White, fontSize = 12.sp
         )
+        OutlinedButton(
+            onClick = {
+                if (!Settings.canDrawOverlays(context)) {
+                    context.startActivity(Intent(
+                        Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
+                        Uri.parse("package:${context.packageName}")
+                    ))
+                } else {
+                    context.startService(Intent(context, FloatingStreamsOverlayService::class.java))
+                }
+            },
+            modifier = Modifier.fillMaxWidth()
+        ) { Text("عرض المعاينات فوق التطبيقات الأخرى") }
         OutlinedTextField(value = url, onValueChange = { url = it }, modifier = Modifier.fillMaxWidth(),
             label = { Text("رابط بث مباشر HTTPS") }, singleLine = true)
         Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
