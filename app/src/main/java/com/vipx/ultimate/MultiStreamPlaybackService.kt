@@ -17,6 +17,7 @@ import androidx.media3.common.MediaItem
 import androidx.media3.common.Player
 import androidx.media3.exoplayer.DefaultLoadControl
 import androidx.media3.exoplayer.ExoPlayer
+import androidx.media3.ui.PlayerView
 
 /**
  * Owns up to four independent stream players.
@@ -30,6 +31,9 @@ class MultiStreamPlaybackService : Service() {
 
     private val binder = LocalBinder()
     private val players = linkedMapOf<String, ExoPlayer>()
+    // Every UI PlayerView is registered here so it can be detached synchronously
+    // before its ExoPlayer is released, including Compose grid previews.
+    private val attachedPlayerViews = linkedMapOf<String, MutableSet<PlayerView>>()
     private var audioStreamUrl: String? = null
     private var isForeground = false
     private var streamsChangedListener: (() -> Unit)? = null
@@ -133,6 +137,30 @@ class MultiStreamPlaybackService : Service() {
     @Synchronized
     fun playerFor(url: String): ExoPlayer? = players[url]
 
+    @Synchronized
+    fun attachPlayerView(url: String, view: PlayerView) {
+        attachedPlayerViews.getOrPut(url) { linkedSetOf() }.add(view)
+        view.player = players[url]
+    }
+
+    @Synchronized
+    fun detachPlayerView(url: String, view: PlayerView) {
+        attachedPlayerViews[url]?.let { views ->
+            views.remove(view)
+            if (views.isEmpty()) attachedPlayerViews.remove(url)
+        }
+        view.player = null
+    }
+
+    private fun detachPlayerViews(url: String) {
+        attachedPlayerViews.remove(url)?.forEach { view -> view.player = null }
+    }
+
+    private fun detachAllPlayerViews() {
+        attachedPlayerViews.values.flatten().forEach { view -> view.player = null }
+        attachedPlayerViews.clear()
+    }
+
     /** Route audible output from one selected stream while all four videos continue. */
     @Synchronized
     fun selectAudioStream(url: String?) {
@@ -152,7 +180,8 @@ class MultiStreamPlaybackService : Service() {
         if (players.isEmpty()) stopPlaybackService()
         else updateNotification()
         notifyAudioSelectionChanged()
-        // The overlay listener detaches its PlayerView before the removed player is released.
+        // Detach grid and overlay PlayerViews before releasing their shared player.
+        detachPlayerViews(url)
         notifyStreamsChanged()
         removedPlayer?.release()
     }
@@ -164,7 +193,8 @@ class MultiStreamPlaybackService : Service() {
         audioStreamUrl = null
         stopPlaybackService()
         notifyAudioSelectionChanged()
-        // Detach all overlay views while their players are still valid.
+        // Detach every registered grid/overlay view while players are still valid.
+        detachAllPlayerViews()
         notifyStreamsChanged()
         removedPlayers.forEach { it.release() }
     }
@@ -177,7 +207,8 @@ class MultiStreamPlaybackService : Service() {
         if (players.isEmpty()) stopPlaybackService()
         else updateNotification()
         notifyAudioSelectionChanged()
-        // Rebuild/detach the overlay before releasing the failed player's instance.
+        // Detach every registered view before releasing the failed player's instance.
+        detachPlayerViews(url)
         notifyStreamsChanged()
         failedPlayer.release()
     }
@@ -236,6 +267,7 @@ class MultiStreamPlaybackService : Service() {
         audioStreamUrl = null
         streamsChangedListener = null
         audioSelectionChangedListener = null
+        detachAllPlayerViews()
         remainingPlayers.forEach { it.release() }
         if (isForeground) {
             stopForeground(STOP_FOREGROUND_REMOVE)
