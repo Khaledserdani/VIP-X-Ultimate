@@ -159,6 +159,9 @@ private fun VipHome(
                                 (!drmEnabled || (license.scheme == "https" && !license.host.isNullOrBlank()))) {
                                 streamMessage = "يتم فتح المشغّل…"
                                 val sessionAuthorization = authorization.trim()
+                                if (drmEnabled && sessionAuthorization.isNotBlank()) {
+                                    runCatching { AuthorizationVault.save(context, streamUrl.trim(), sessionAuthorization) }
+                                }
                                 authorization = ""
                                 openStream(streamUrl.trim(), drmEnabled, licenseUrl.trim(), sessionAuthorization)
                             } else {
