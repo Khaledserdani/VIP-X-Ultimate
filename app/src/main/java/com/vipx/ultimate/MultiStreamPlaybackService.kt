@@ -5,6 +5,11 @@ import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
 import android.app.Service
+import android.media.AudioAttributes
+import android.media.AudioFocusRequest
+import android.media.AudioManager
+import android.os.Handler
+import android.os.Looper
 import android.content.Intent
 import android.content.pm.ServiceInfo
 import android.net.Uri
@@ -13,6 +18,7 @@ import android.os.Build
 import android.os.IBinder
 import androidx.core.app.NotificationCompat
 import androidx.media3.common.C
+import androidx.media3.common.AudioAttributes as Media3AudioAttributes
 import androidx.media3.common.MediaItem
 import androidx.media3.common.Player
 import androidx.media3.exoplayer.DefaultLoadControl
@@ -35,6 +41,10 @@ class MultiStreamPlaybackService : Service() {
     // before its ExoPlayer is released, including Compose grid previews.
     private val attachedPlayerViews = linkedMapOf<String, MutableSet<PlayerView>>()
     private var audioStreamUrl: String? = null
+    private var audioManager: AudioManager? = null
+    private var audioFocusRequest: AudioFocusRequest? = null
+    private var hasAudioFocus = false
+    private var audioDucked = false
     private var isForeground = false
     private var streamsChangedListener: (() -> Unit)? = null
     private var audioSelectionChangedListener: ((String?) -> Unit)? = null
@@ -44,6 +54,17 @@ class MultiStreamPlaybackService : Service() {
     override fun onCreate() {
         super.onCreate()
         createNotificationChannel()
+        audioManager = getSystemService(AudioManager::class.java)
+        audioFocusRequest = AudioFocusRequest.Builder(AudioManager.AUDIOFOCUS_GAIN)
+            .setAudioAttributes(
+                AudioAttributes.Builder()
+                    .setUsage(AudioAttributes.USAGE_MEDIA)
+                    .setContentType(AudioAttributes.CONTENT_TYPE_MOVIE)
+                    .build()
+            )
+            .setOnAudioFocusChangeListener(::onAudioFocusChanged, Handler(Looper.getMainLooper()))
+            .setWillPauseWhenDucked(false)
+            .build()
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -86,6 +107,15 @@ class MultiStreamPlaybackService : Service() {
             .build()
         val player = ExoPlayer.Builder(this)
             .setLoadControl(loadControl)
+            // The service arbitrates focus for the single audible preview; muted
+            // players must not independently compete for system audio focus.
+            .setAudioAttributes(
+                Media3AudioAttributes.Builder()
+                    .setUsage(C.USAGE_MEDIA)
+                    .setContentType(C.AUDIO_CONTENT_TYPE_MOVIE)
+                    .build(),
+                false
+            )
             .build()
         player.addListener(object : Player.Listener {
             override fun onPlayerError(error: androidx.media3.common.PlaybackException) {
@@ -165,9 +195,76 @@ class MultiStreamPlaybackService : Service() {
     @Synchronized
     fun selectAudioStream(url: String?) {
         require(url == null || players.containsKey(url)) { "البث الصوتي غير موجود" }
+        if (url == null) {
+            audioStreamUrl = null
+            applyPreviewVolumes()
+            abandonPreviewAudioFocus()
+            notifyAudioSelectionChanged()
+            return
+        }
+        if (!requestPreviewAudioFocus()) {
+            audioStreamUrl = null
+            applyPreviewVolumes()
+            notifyAudioSelectionChanged()
+            return
+        }
         audioStreamUrl = url
-        players.forEach { (streamUrl, player) -> player.volume = if (streamUrl == url) 1f else 0f }
+        applyPreviewVolumes()
         notifyAudioSelectionChanged()
+    }
+
+    private fun requestPreviewAudioFocus(): Boolean {
+        val manager = audioManager ?: return false
+        val request = audioFocusRequest ?: return false
+        if (hasAudioFocus) return true
+        val result = manager.requestAudioFocus(request)
+        hasAudioFocus = result == AudioManager.AUDIOFOCUS_REQUEST_GRANTED
+        return hasAudioFocus
+    }
+
+    private fun abandonPreviewAudioFocus() {
+        if (hasAudioFocus) {
+            audioFocusRequest?.let { audioManager?.abandonAudioFocusRequest(it) }
+        }
+        hasAudioFocus = false
+        audioDucked = false
+    }
+
+    @Synchronized
+    private fun onAudioFocusChanged(change: Int) {
+        when (change) {
+            AudioManager.AUDIOFOCUS_GAIN -> {
+                hasAudioFocus = true
+                audioDucked = false
+                applyPreviewVolumes()
+            }
+            AudioManager.AUDIOFOCUS_LOSS_TRANSIENT_CAN_DUCK -> {
+                audioDucked = true
+                applyPreviewVolumes()
+            }
+            AudioManager.AUDIOFOCUS_LOSS_TRANSIENT -> {
+                hasAudioFocus = false
+                applyPreviewVolumes()
+            }
+            AudioManager.AUDIOFOCUS_LOSS -> {
+                hasAudioFocus = false
+                audioStreamUrl = null
+                audioDucked = false
+                applyPreviewVolumes()
+                abandonPreviewAudioFocus()
+                notifyAudioSelectionChanged()
+            }
+        }
+    }
+
+    private fun applyPreviewVolumes() {
+        players.forEach { (streamUrl, player) ->
+            player.volume = when {
+                streamUrl != audioStreamUrl || !hasAudioFocus -> 0f
+                audioDucked -> 0.2f
+                else -> 1f
+            }
+        }
     }
 
     @Synchronized
@@ -176,7 +273,10 @@ class MultiStreamPlaybackService : Service() {
     @Synchronized
     fun stopStream(url: String) {
         val removedPlayer = players.remove(url)
-        if (audioStreamUrl == url) audioStreamUrl = null
+        if (audioStreamUrl == url) {
+            audioStreamUrl = null
+            if (players.isNotEmpty()) abandonPreviewAudioFocus()
+        }
         if (players.isEmpty()) stopPlaybackService()
         else updateNotification()
         notifyAudioSelectionChanged()
@@ -191,6 +291,7 @@ class MultiStreamPlaybackService : Service() {
         val removedPlayers = players.values.toList()
         players.clear()
         audioStreamUrl = null
+        abandonPreviewAudioFocus()
         stopPlaybackService()
         notifyAudioSelectionChanged()
         // Detach every registered grid/overlay view while players are still valid.
@@ -203,7 +304,10 @@ class MultiStreamPlaybackService : Service() {
     private fun handlePlayerError(url: String, failedPlayer: ExoPlayer) {
         if (players[url] !== failedPlayer) return
         players.remove(url)
-        if (audioStreamUrl == url) audioStreamUrl = null
+        if (audioStreamUrl == url) {
+            audioStreamUrl = null
+            if (players.isNotEmpty()) abandonPreviewAudioFocus()
+        }
         if (players.isEmpty()) stopPlaybackService()
         else updateNotification()
         notifyAudioSelectionChanged()
@@ -265,6 +369,9 @@ class MultiStreamPlaybackService : Service() {
         val remainingPlayers = players.values.toList()
         players.clear()
         audioStreamUrl = null
+        abandonPreviewAudioFocus()
+        audioFocusRequest = null
+        audioManager = null
         streamsChangedListener = null
         audioSelectionChangedListener = null
         detachAllPlayerViews()
