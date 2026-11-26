@@ -131,7 +131,6 @@ private fun LiveGridScreen(
 
     LaunchedEffect(service, streams.size) {
         if (streams.isNotEmpty()) {
-            startPlaybackService()
             service?.let { engine ->
                 var needsFreshDrmAuthorization = false
                 streams.forEach { entry ->
