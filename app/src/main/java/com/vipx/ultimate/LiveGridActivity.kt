@@ -215,6 +215,9 @@ private fun LiveGridScreen(
                 when {
                     parsed.scheme != "https" || parsed.host.isNullOrBlank() -> message = "الرابط غير صالح؛ استخدم HTTPS."
                     !licenseValid -> message = "أدخل رابط ترخيص Widevine عبر HTTPS."
+                    drmEnabled && authorization.isNotBlank() &&
+                        !AuthorizationVault.isValidAuthorization(authorization.trim()) ->
+                        message = "بيانات Authorization غير صالحة؛ الحد الأقصى 8192 حرفاً ومن دون أسطر جديدة."
                     streams.size >= 4 -> message = "الأربعة بثوث مستخدمة بالفعل. احذف بثاً قبل إضافة آخر."
                     streams.any { it.url == cleanUrl } -> message = "هذا البث موجود بالفعل."
                     else -> {
