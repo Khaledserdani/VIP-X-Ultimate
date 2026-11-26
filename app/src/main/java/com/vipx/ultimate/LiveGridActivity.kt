@@ -220,9 +220,14 @@ private fun LiveGridScreen(
                     else -> {
                         val entry = StreamEntry(cleanUrl, drmEnabled, if (drmEnabled) licenseUrl.trim() else "")
                         streams.add(entry)
+                        var credentialWarning: String? = null
                         if (authorization.isNotBlank()) {
-                            sessionAuthorization[cleanUrl] = authorization.trim()
-                            runCatching { AuthorizationVault.save(context, cleanUrl, authorization.trim()) }
+                            val credential = authorization.trim()
+                            sessionAuthorization[cleanUrl] = credential
+                            val saved = runCatching { AuthorizationVault.save(context, cleanUrl, credential) }
+                            if (saved.isFailure) {
+                                credentialWarning = "سيعمل هذا البث في الجلسة الحالية، لكن تعذر حفظ Authorization بأمان؛ ستحتاج إلى إدخاله مجدداً بعد إغلاق التطبيق."
+                            }
                         }
                         persistStreams()
                         startPlaybackService()
@@ -232,7 +237,7 @@ private fun LiveGridScreen(
                                 .onFailure { startError = "تعذر بدء البث؛ تحقق من الرابط والترخيص والاتصال." }
                         }
                         url = ""; licenseUrl = ""; authorization = ""; drmEnabled = false
-                        message = startError ?: "تمت إضافة البث؛ يجري تشغيله مع البثوث الأخرى."
+                        message = startError ?: credentialWarning ?: "تمت إضافة البث؛ يجري تشغيله مع البثوث الأخرى."
                     }
                 }
             }, enabled = url.isNotBlank()) { Text("إضافة وتشغيل") }
