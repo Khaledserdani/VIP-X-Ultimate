@@ -99,10 +99,6 @@ class MediaCaptureActivity : ComponentActivity() {
                                 startActivity(Intent(this@MediaCaptureActivity, PlayerActivity::class.java)
                                     .putExtra(PlayerActivity.EXTRA_STREAM_URL, candidate.url))
                             }, modifier = Modifier.fillMaxWidth()) { Text("جرّب تشغيل الرابط") }
-                            OutlinedButton(onClick = {
-                                startActivity(Intent(this@MediaCaptureActivity, LiveGridActivity::class.java)
-                                    .putExtra(LiveGridActivity.EXTRA_IMPORTED_STREAM_URL, candidate.url))
-                            }, modifier = Modifier.fillMaxWidth()) { Text("أضف الرابط إلى شبكة 2×2") }
                         } else if (sharedUri != null) {
                             Text("المصدر: $sourceApp", color = Color.White)
                             Text("العنصر ${selectedIndex + 1} من ${sharedUris.size}", color = Color(0xFF9FB2C7))
