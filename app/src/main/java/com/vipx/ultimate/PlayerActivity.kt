@@ -104,12 +104,13 @@ class PlayerActivity : ComponentActivity() {
         if (drmEnabled && authorization.isBlank()) authorization = AuthorizationVault.load(this, streamUrl).orEmpty()
         // Do not leave the temporary credential attached to the Activity's Intent.
         intent.removeExtra(EXTRA_DRM_AUTHORIZATION)
-        if (!AuthorizationVault.isValidAuthorization(authorization)) {
+        if (drmEnabled && !AuthorizationVault.isValidAuthorization(authorization)) {
             authorization = ""
             playbackMessage = "بيانات Authorization غير صالحة؛ أدخل قيمة صحيحة دون أسطر جديدة وبحد أقصى 8192 حرفاً."
             finish()
             return
         }
+        if (!drmEnabled) authorization = ""
         val parsedLicenseUri = if (drmEnabled) Uri.parse(licenseUrl) else null
         if (drmEnabled && (parsedLicenseUri?.scheme != "https" || parsedLicenseUri.host.isNullOrBlank())) {
             playbackMessage = "رابط ترخيص Widevine غير صالح؛ يلزم HTTPS."
