@@ -30,6 +30,7 @@ class MultiStreamPlaybackService : Service() {
     private val players = linkedMapOf<String, ExoPlayer>()
     private var audioStreamUrl: String? = null
     private var isForeground = false
+    private var streamsChangedListener: (() -> Unit)? = null
 
     override fun onBind(intent: Intent?): IBinder = binder
 
@@ -81,14 +82,25 @@ class MultiStreamPlaybackService : Service() {
             player.playWhenReady = true
             startAsForeground()
             updateNotification()
+            notifyStreamsChanged()
         } catch (error: Throwable) {
             if (players[url] === player) players.remove(url)
             player.release()
             if (audioStreamUrl == url) audioStreamUrl = null
             if (players.isEmpty()) stopPlaybackService()
             else updateNotification()
+            notifyStreamsChanged()
             throw error
         }
+    }
+
+    @Synchronized
+    fun setStreamsChangedListener(listener: (() -> Unit)?) {
+        streamsChangedListener = listener
+    }
+
+    private fun notifyStreamsChanged() {
+        streamsChangedListener?.invoke()
     }
 
     @Synchronized
@@ -114,6 +126,7 @@ class MultiStreamPlaybackService : Service() {
         if (audioStreamUrl == url) audioStreamUrl = null
         if (players.isEmpty()) stopPlaybackService()
         else updateNotification()
+        notifyStreamsChanged()
     }
 
     @Synchronized
@@ -122,6 +135,7 @@ class MultiStreamPlaybackService : Service() {
         players.clear()
         audioStreamUrl = null
         stopPlaybackService()
+        notifyStreamsChanged()
     }
 
     @Synchronized
@@ -132,6 +146,7 @@ class MultiStreamPlaybackService : Service() {
         failedPlayer.release()
         if (players.isEmpty()) stopPlaybackService()
         else updateNotification()
+        notifyStreamsChanged()
     }
 
     private fun stopPlaybackService() {
