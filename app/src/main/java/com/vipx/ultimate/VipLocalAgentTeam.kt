@@ -64,7 +64,10 @@ internal object VipLocalAgentTeam {
                 $goal
                 قدّم تقريراً مركزاً يتضمن التحليل والنتيجة وأهم التحفظات.
             """.trimIndent()
-            val result = LocalLlmRuntime.generateIsolated(\n                "أنت ${agent.name} ضمن فريق VIP X. ${agent.instruction} أجب بالعربية، افصل الحقائق عن الافتراضات ولا تدّع تنفيذ إجراءات.",\n                prompt\n            )
+            val result = LocalLlmRuntime.generateIsolated(
+                "أنت ${agent.name} ضمن فريق VIP X. ${agent.instruction} أجب بالعربية، افصل الحقائق عن الافتراضات ولا تدّع تنفيذ إجراءات.",
+                prompt
+            )
             reports += VipLocalAgentReport(agent.id, agent.name, result)
             prior.edit().putString("candidate_${agent.id}", result).apply()
         }
@@ -73,11 +76,13 @@ internal object VipLocalAgentTeam {
             append("مهمة المستخدم:\n").append(goal).append("\n\n")
             reports.forEach { append(it.name).append(":\n").append(it.result).append("\n\n") }
         }
-        val decision = LocalLlmRuntime.generate(
+        val decision = LocalLlmRuntime.generateIsolated(
+            "أنت منسّق فريق VIP X. اجمع التقارير بأمانة، اشرح الاختلافات، وأخرج قراراً عملياً بالعربية دون ادعاء التنفيذ.",
             """
-                أنت منسّق فريق VIP X. اجمع تقارير أربعة مساعدين مستقلين في قرار واحد.
-                وازن بين الدقة والأمان والفائدة. إذا اختلفوا فاشرح الاختلاف. أعطِ خطة عملية مرتبة واختبارات نجاح واضحة.
-                لا تدّع تنفيذ أي خطوة. أجب بالعربية.
+                اجمع تقارير أربعة مساعدين مستقلين في قرار واحد.
+                وازن بين الدقة والأمان والفائدة. إذا اختلفوا فاشرح الاختلاف.
+                أعطِ خطة عملية مرتبة واختبارات نجاح واضحة.
+                لا تدّع تنفيذ أي خطوة.
                 $synthesis
             """.trimIndent()
         )
