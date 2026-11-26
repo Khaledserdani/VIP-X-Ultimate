@@ -174,12 +174,16 @@ class VipxEncryptedMediaTest {
     }
 
 
-    @Test fun staleCacheCleanupRemovesOnlyOldVipxOwnedFiles() {
+    @Test fun staleCacheCleanupRemovesOnlyOldVipxOwnedFilesIncludingPlaybackCopies() {
         val directory = createTempDir(prefix = "vipx-cache-test-")
         try {
             val now = 2_000_000_000_000L
             val oldShared = File(directory, "vipx-shared-old.mp4").apply {
                 writeBytes(byteArrayOf(1))
+                setLastModified(now - 15L * 24L * 60L * 60L * 1000L)
+            }
+            val oldPlayback = File(directory, "vipx-player-old.mp4").apply {
+                writeBytes(byteArrayOf(4))
                 setLastModified(now - 15L * 24L * 60L * 60L * 1000L)
             }
             val recentDecrypted = File(directory, "vipx-dec-recent.png").apply {
@@ -197,8 +201,9 @@ class VipxEncryptedMediaTest {
                 maxAgeMillis = 14L * 24L * 60L * 60L * 1000L
             )
 
-            assertEquals(1, removed)
+            assertEquals(2, removed)
             assertEquals(false, oldShared.exists())
+            assertEquals(false, oldPlayback.exists())
             assertEquals(true, recentDecrypted.exists())
             assertEquals(true, unrelated.exists())
         } finally {
