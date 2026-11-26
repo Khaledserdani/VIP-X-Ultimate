@@ -90,10 +90,6 @@ class MultiStreamPlaybackService : Service() {
         require(!drmEnabled || (license?.scheme == "https" && !license.host.isNullOrBlank())) {
             "رابط ترخيص Widevine غير صالح"
         }
-        // A bound-only service may have had its started state removed after the last
-        // stream failed or stopped. Re-start it before promoting to foreground so
-        // restored streams and manual retries follow the same valid service lifecycle.
-        startService(Intent(this, MultiStreamPlaybackService::class.java))
         val item = if (drmEnabled) {
             val drm = MediaItem.DrmConfiguration.Builder(C.WIDEVINE_UUID).setLicenseUri(license!!)
             if (authorization.isNotBlank()) drm.setLicenseRequestHeaders(mapOf("Authorization" to authorization))
@@ -136,6 +132,10 @@ class MultiStreamPlaybackService : Service() {
             players[url] = player
             player.prepare()
             player.playWhenReady = true
+            // A bound-only service may have lost its started state after the last
+            // stream stopped or failed. Re-start it before foreground promotion so
+            // restored streams and manual retries share a valid service lifecycle.
+            startService(Intent(this, MultiStreamPlaybackService::class.java))
             startAsForeground()
             updateNotification()
             notifyStreamsChanged()
