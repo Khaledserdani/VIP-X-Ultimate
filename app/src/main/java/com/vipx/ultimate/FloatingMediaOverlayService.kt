@@ -30,6 +30,7 @@ class FloatingMediaOverlayService : Service() {
     private var windowManager: WindowManager? = null
     private var root: LinearLayout? = null
     private var player: ExoPlayer? = null
+    private var playerView: PlayerView? = null
     private var copiedFile: File? = null
     private var transferredSourceFile: File? = null
     private var isForeground = false
@@ -41,31 +42,38 @@ class FloatingMediaOverlayService : Service() {
             stopSelf()
             return START_NOT_STICKY
         }
-        val incomingUri = intent?.getStringExtra(EXTRA_URI)?.let(Uri::parse)
-        transferredSourceFile?.delete()
-        val transferablePath = incomingUri
-            ?.takeIf { it.scheme == "file" && !it.path.isNullOrBlank() }
-            ?.path
-        transferredSourceFile = if (
-            intent?.getBooleanExtra(EXTRA_TRANSFER_FILE_OWNERSHIP, false) == true
-        ) transferablePath?.let(::File) else null
-
-        if (!android.provider.Settings.canDrawOverlays(this)) {
-            stopSelf()
-            return START_NOT_STICKY
-        }
-        val uri = incomingUri
+        val uri = intent?.getStringExtra(EXTRA_URI)?.let(Uri::parse)
         val mime = intent?.getStringExtra(EXTRA_MIME).orEmpty()
         if (uri == null || !(mime.startsWith("image/") || mime.startsWith("video/"))) {
-            stopSelf()
+            stopSelfResult(startId)
             return START_NOT_STICKY
         }
-        removeOverlay()
-        releasePlayer()
-        copiedFile?.delete()
-        copiedFile = null
+        if (!android.provider.Settings.canDrawOverlays(this)) {
+            stopSelfResult(startId)
+            return START_NOT_STICKY
+        }
+
+        // Accept ownership only after the new request has passed basic validation.
+        // A rejected replacement must not delete a file still owned by the caller.
+        val incomingOwnedFile = if (
+            intent.getBooleanExtra(EXTRA_TRANSFER_FILE_OWNERSHIP, false) &&
+            uri.scheme == "file" && !uri.path.isNullOrBlank()
+        ) File(uri.path!!) else null
+
         try {
-            if (mime.startsWith("video/")) startPlaybackForeground()
+            removeOverlay()
+            releasePlayer()
+            copiedFile?.delete()
+            copiedFile = null
+            transferredSourceFile?.delete()
+            transferredSourceFile = incomingOwnedFile
+
+            if (mime.startsWith("video/")) {
+                startPlaybackForeground()
+            } else if (isForeground) {
+                stopForeground(STOP_FOREGROUND_REMOVE)
+                isForeground = false
+            }
             showMedia(uri, mime)
         } catch (_: Exception) {
             removeOverlay()
@@ -180,14 +188,21 @@ class FloatingMediaOverlayService : Service() {
         } else {
             val activePlayer = ExoPlayer.Builder(this).build()
             player = activePlayer
+            activePlayer.addListener(object : Player.Listener {
+                override fun onPlayerError(error: androidx.media3.common.PlaybackException) {
+                    if (player === activePlayer) stopSelf()
+                }
+            })
             activePlayer.setMediaItem(MediaItem.fromUri(mediaUri))
             activePlayer.repeatMode = Player.REPEAT_MODE_OFF
             activePlayer.prepare()
             activePlayer.playWhenReady = true
-            content.addView(PlayerView(this).apply {
+            val view = PlayerView(this).apply {
                 useController = true
                 player = activePlayer
-            }, FrameLayout.LayoutParams(-1, -1))
+            }
+            playerView = view
+            content.addView(view, FrameLayout.LayoutParams(-1, -1))
         }
         container.addView(content, LinearLayout.LayoutParams(-1, dp(214)))
 
@@ -214,6 +229,9 @@ class FloatingMediaOverlayService : Service() {
     }
 
     private fun releasePlayer() {
+        // Detach the view first so it cannot retain or call a released player.
+        playerView?.player = null
+        playerView = null
         player?.release()
         player = null
     }
