@@ -7,14 +7,14 @@ concurrency:
   cancel-in-progress: true
 
 on:
+  # The feature branch is validated by its pull request event. Running both
+  # push and pull_request for the same source commit duplicated emulator jobs.
   push:
     branches:
       - feature/vipx-live-grid
-      - feature/vipx-media-capture-engine
   pull_request:
     branches:
       - feature/vipx-live-grid
-      - feature/vipx-media-capture-engine
   workflow_dispatch:
 
 permissions:
