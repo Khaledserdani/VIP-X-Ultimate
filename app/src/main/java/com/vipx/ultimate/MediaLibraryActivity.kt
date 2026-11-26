@@ -41,7 +41,7 @@ class MediaLibraryActivity : ComponentActivity() {
         } else {
             @Suppress("DEPRECATION")
             source.getParcelableExtra<Uri>(Intent.EXTRA_STREAM)
-        } ?: source.data ?: return null
+        } ?: source.clipData?.getItemAt(0)?.uri ?: source.data ?: return null
 
         if (sharedUri.scheme != "content") return null
         val mime = source.type?.takeIf {
