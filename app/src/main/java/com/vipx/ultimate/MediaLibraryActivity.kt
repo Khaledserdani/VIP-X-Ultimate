@@ -10,6 +10,9 @@ import android.webkit.MimeTypeMap
 import android.widget.ImageView
 import androidx.activity.ComponentActivity
 import androidx.lifecycle.lifecycleScope
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.activity.compose.setContent
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -474,6 +477,7 @@ private fun MediaLibraryScreen(
                 )
             } else if (uri != null && selectedMime.startsWith("video/")) {
                 val context = androidx.compose.ui.platform.LocalContext.current
+                val lifecycleOwner = LocalLifecycleOwner.current
                 val player = remember(uri) {
                     ExoPlayer.Builder(context).build().apply {
                         setMediaItem(MediaItem.fromUri(uri))
@@ -482,8 +486,31 @@ private fun MediaLibraryScreen(
                         playWhenReady = true
                     }
                 }
-                DisposableEffect(player) {
-                    onDispose { player.release() }
+                DisposableEffect(player, lifecycleOwner) {
+                    // A library preview is foreground-only: suspend it when the
+                    // Activity leaves the foreground, then resume only if it was
+                    // actually playing before the interruption.
+                    var resumeAfterStop = false
+                    val observer = LifecycleEventObserver { _, event ->
+                        when (event) {
+                            Lifecycle.Event.ON_STOP -> {
+                                resumeAfterStop = player.isPlaying
+                                player.pause()
+                            }
+                            Lifecycle.Event.ON_START -> {
+                                if (resumeAfterStop) {
+                                    resumeAfterStop = false
+                                    player.play()
+                                }
+                            }
+                            else -> Unit
+                        }
+                    }
+                    lifecycleOwner.lifecycle.addObserver(observer)
+                    onDispose {
+                        lifecycleOwner.lifecycle.removeObserver(observer)
+                        player.release()
+                    }
                 }
                 AndroidView(
                     factory = { ctx -> PlayerView(ctx).apply { useController = true; this.player = player } },
