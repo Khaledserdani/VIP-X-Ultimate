@@ -172,18 +172,22 @@ class FloatingStreamsOverlayService : Service() {
         try {
             windowManager?.addView(root, params)
         } catch (_: SecurityException) {
+            // addView failed: the views were already connected to live players.
+            // Detach them even though WindowManager never accepted the root.
+            detachPlayers(root)
             overlayRoot = null
             stopSelf()
         } catch (_: WindowManager.BadTokenException) {
+            detachPlayers(root)
             overlayRoot = null
             stopSelf()
         }
     }
 
-    private fun detachPlayers() {
-        overlayRoot?.let { root ->
-            for (index in 0 until root.childCount) {
-                val row = root.getChildAt(index) as? LinearLayout ?: continue
+    private fun detachPlayers(root: LinearLayout? = overlayRoot) {
+        root?.let {
+            for (index in 0 until it.childCount) {
+                val row = it.getChildAt(index) as? LinearLayout ?: continue
                 for (cellIndex in 0 until row.childCount) {
                     val cell = row.getChildAt(cellIndex) as? FrameLayout ?: continue
                     for (childIndex in 0 until cell.childCount) {
