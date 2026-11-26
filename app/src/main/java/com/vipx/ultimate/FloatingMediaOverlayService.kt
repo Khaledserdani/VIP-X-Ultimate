@@ -56,7 +56,7 @@ class FloatingMediaOverlayService : Service() {
         // Accept ownership only after the new request has passed basic validation.
         // A rejected replacement must not delete a file still owned by the caller.
         val incomingOwnedFile = if (
-            intent.getBooleanExtra(EXTRA_TRANSFER_FILE_OWNERSHIP, false) &&
+            intent?.getBooleanExtra(EXTRA_TRANSFER_FILE_OWNERSHIP, false) == true &&
             uri.scheme == "file" && !uri.path.isNullOrBlank()
         ) File(uri.path!!) else null
 
