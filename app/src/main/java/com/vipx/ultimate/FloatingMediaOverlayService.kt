@@ -31,6 +31,7 @@ class FloatingMediaOverlayService : Service() {
     private var root: LinearLayout? = null
     private var player: ExoPlayer? = null
     private var copiedFile: File? = null
+    private var transferredSourceFile: File? = null
     private var isForeground = false
 
     override fun onBind(intent: Intent?): IBinder? = null
@@ -40,11 +41,18 @@ class FloatingMediaOverlayService : Service() {
             stopSelf()
             return START_NOT_STICKY
         }
+        val incomingUri = intent?.getStringExtra(EXTRA_URI)?.let(Uri::parse)
+        transferredSourceFile?.delete()
+        transferredSourceFile = if (
+            intent?.getBooleanExtra(EXTRA_TRANSFER_FILE_OWNERSHIP, false) == true &&
+            incomingUri?.scheme == "file" && !incomingUri.path.isNullOrBlank()
+        ) File(incomingUri.path!!) else null
+
         if (!android.provider.Settings.canDrawOverlays(this)) {
             stopSelf()
             return START_NOT_STICKY
         }
-        val uri = intent?.getStringExtra(EXTRA_URI)?.let(Uri::parse)
+        val uri = incomingUri
         val mime = intent?.getStringExtra(EXTRA_MIME).orEmpty()
         if (uri == null || !(mime.startsWith("image/") || mime.startsWith("video/"))) {
             stopSelf()
@@ -98,6 +106,10 @@ class FloatingMediaOverlayService : Service() {
             try {
                 original.copyTo(copy, overwrite = true)
                 copiedFile = copy
+                if (original == transferredSourceFile) {
+                    original.delete()
+                    transferredSourceFile = null
+                }
                 Uri.fromFile(copy)
             } catch (_: Exception) {
                 copy.delete()
@@ -218,6 +230,8 @@ class FloatingMediaOverlayService : Service() {
         releasePlayer()
         copiedFile?.delete()
         copiedFile = null
+        transferredSourceFile?.delete()
+        transferredSourceFile = null
         if (isForeground) {
             stopForeground(STOP_FOREGROUND_REMOVE)
             isForeground = false
@@ -229,6 +243,7 @@ class FloatingMediaOverlayService : Service() {
         const val ACTION_CLOSE = "com.vipx.ultimate.CLOSE_FLOATING_MEDIA"
         const val EXTRA_URI = "com.vipx.ultimate.FLOATING_MEDIA_URI"
         const val EXTRA_MIME = "com.vipx.ultimate.FLOATING_MEDIA_MIME"
+        const val EXTRA_TRANSFER_FILE_OWNERSHIP = "com.vipx.ultimate.FLOATING_MEDIA_TRANSFER_FILE_OWNERSHIP"
         private const val CHANNEL_ID = "vipx_floating_media"
         private const val NOTIFICATION_ID = 4205
     }
