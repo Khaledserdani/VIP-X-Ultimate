@@ -43,10 +43,12 @@ class FloatingMediaOverlayService : Service() {
         }
         val incomingUri = intent?.getStringExtra(EXTRA_URI)?.let(Uri::parse)
         transferredSourceFile?.delete()
+        val transferablePath = incomingUri
+            ?.takeIf { it.scheme == "file" && !it.path.isNullOrBlank() }
+            ?.path
         transferredSourceFile = if (
-            intent?.getBooleanExtra(EXTRA_TRANSFER_FILE_OWNERSHIP, false) == true &&
-            incomingUri?.scheme == "file" && !incomingUri.path.isNullOrBlank()
-        ) File(incomingUri.path!!) else null
+            intent?.getBooleanExtra(EXTRA_TRANSFER_FILE_OWNERSHIP, false) == true
+        ) transferablePath?.let(::File) else null
 
         if (!android.provider.Settings.canDrawOverlays(this)) {
             stopSelf()
