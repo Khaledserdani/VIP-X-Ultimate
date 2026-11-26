@@ -129,6 +129,11 @@ private fun LiveGridScreen(
 
     LaunchedEffect(service) { audibleStream = service?.selectedAudioStream() }
 
+    DisposableEffect(service) {
+        service?.setAudioSelectionChangedListener { selectedUrl -> audibleStream = selectedUrl }
+        onDispose { service?.setAudioSelectionChangedListener(null) }
+    }
+
     LaunchedEffect(service, streams.size) {
         if (streams.isNotEmpty()) {
             service?.let { engine ->
