@@ -196,6 +196,21 @@ internal object LocalLlmRuntime {
         }
     }
 
+    /** Runs one isolated agent conversation so specialist context cannot leak between agents. */
+    suspend fun generateIsolated(systemInstruction: String, prompt: String): String = withContext(Dispatchers.IO) {
+        synchronized(lock) {
+            val activeEngine = engine ?: error("المحرك المحلي غير جاهز")
+            val chat = activeEngine.createConversation(
+                ConversationConfig(systemInstruction = Contents.of(systemInstruction))
+            )
+            try {
+                chat.sendMessage(prompt).toString().trim().ifBlank { "لم ينتج النموذج إجابة نصية." }
+            } finally {
+                runCatching { chat.close() }
+            }
+        }
+    }
+
     suspend fun generate(prompt: String): String = withContext(Dispatchers.IO) {
         synchronized(lock) {
             val active = conversation ?: error("المساعد المحلي غير جاهز؛ حمّل النموذج وفعّله أولاً")
