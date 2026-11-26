@@ -36,6 +36,15 @@ class FloatingMediaOverlayService : Service() {
     private var transferredSourceFile: File? = null
     private var isForeground = false
 
+    override fun onCreate() {
+        super.onCreate()
+        // A process killed without onDestroy can leave service-owned cache copies.
+        // A new service instance has no live owner for files from an earlier instance.
+        cacheDir.listFiles()
+            ?.filter { it.isFile && it.name.startsWith("vipx-floating-") }
+            ?.forEach { it.delete() }
+    }
+
     override fun onBind(intent: Intent?): IBinder? = null
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
