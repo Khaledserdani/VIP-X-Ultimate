@@ -66,12 +66,14 @@ class MediaLibraryActivity : ComponentActivity() {
             .filter { it.scheme == "content" }
             .take(20)
             .mapNotNull { uri ->
-                val resolvedMime = contentResolver.getType(uri).orEmpty()
-                val mime = resolvedMime.takeIf {
-                    it.startsWith("image/") || it.startsWith("video/")
-                } ?: source.type?.takeIf {
-                    it.startsWith("image/") || it.startsWith("video/")
-                }.orEmpty()
+                val resolvedMime = contentResolver.getType(uri)
+                val mime = when {
+                    resolvedMime?.startsWith("image/") == true || resolvedMime?.startsWith("video/") == true -> resolvedMime
+                    resolvedMime.isNullOrBlank() -> source.type?.takeIf {
+                        it.startsWith("image/") || it.startsWith("video/")
+                    }.orEmpty()
+                    else -> ""
+                }
                 if (mime.startsWith("image/") || mime.startsWith("video/")) uri to mime else null
             }
             .toList()
@@ -153,6 +155,7 @@ class MediaLibraryActivity : ComponentActivity() {
                                 .putExtra(FloatingMediaOverlayService.EXTRA_URI, uri.toString())
                                 .putExtra(FloatingMediaOverlayService.EXTRA_MIME, mime)
                                 .putExtra(FloatingMediaOverlayService.EXTRA_TRANSFER_FILE_OWNERSHIP, transferDecryptedFile)
+                                .setClipData(android.content.ClipData.newRawUri("VIP X media", uri))
                                 .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
                             try {
                                 if (mime.startsWith("video/") && android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
