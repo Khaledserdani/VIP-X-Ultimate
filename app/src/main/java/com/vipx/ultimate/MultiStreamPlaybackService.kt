@@ -122,20 +122,24 @@ class MultiStreamPlaybackService : Service() {
 
     @Synchronized
     fun stopStream(url: String) {
-        players.remove(url)?.release()
+        val removedPlayer = players.remove(url)
         if (audioStreamUrl == url) audioStreamUrl = null
         if (players.isEmpty()) stopPlaybackService()
         else updateNotification()
+        // The overlay listener detaches its PlayerView before the removed player is released.
         notifyStreamsChanged()
+        removedPlayer?.release()
     }
 
     @Synchronized
     fun stopAll() {
-        players.values.forEach { it.release() }
+        val removedPlayers = players.values.toList()
         players.clear()
         audioStreamUrl = null
         stopPlaybackService()
+        // Detach all overlay views while their players are still valid.
         notifyStreamsChanged()
+        removedPlayers.forEach { it.release() }
     }
 
     @Synchronized
@@ -143,10 +147,11 @@ class MultiStreamPlaybackService : Service() {
         if (players[url] !== failedPlayer) return
         players.remove(url)
         if (audioStreamUrl == url) audioStreamUrl = null
-        failedPlayer.release()
         if (players.isEmpty()) stopPlaybackService()
         else updateNotification()
+        // Rebuild/detach the overlay before releasing the failed player's instance.
         notifyStreamsChanged()
+        failedPlayer.release()
     }
 
     private fun stopPlaybackService() {
@@ -190,9 +195,11 @@ class MultiStreamPlaybackService : Service() {
     }
 
     override fun onDestroy() {
-        players.values.toList().forEach { it.release() }
+        val remainingPlayers = players.values.toList()
         players.clear()
         audioStreamUrl = null
+        streamsChangedListener = null
+        remainingPlayers.forEach { it.release() }
         if (isForeground) {
             stopForeground(STOP_FOREGROUND_REMOVE)
             isForeground = false
