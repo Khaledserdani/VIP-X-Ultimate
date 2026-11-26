@@ -107,7 +107,14 @@ object VipxEncryptedMedia {
                 ((first and 0xff) shl 24) or ((rest[0].toInt() and 0xff) shl 16) or
                     ((rest[1].toInt() and 0xff) shl 8) or (rest[2].toInt() and 0xff)
             } else {
-                try { source.readInt() } catch (_: EOFException) { break }
+                // For legacy v1, EOF is clean only before a new record starts.
+                // A partially written 4-byte length must not be mistaken for EOF.
+                val first = source.read()
+                if (first < 0) break
+                val rest = ByteArray(3)
+                source.readFully(rest)
+                ((first and 0xff) shl 24) or ((rest[0].toInt() and 0xff) shl 16) or
+                    ((rest[1].toInt() and 0xff) shl 8) or (rest[2].toInt() and 0xff)
             }
 
             if (plainLength == 0 && header.version >= 2) {
