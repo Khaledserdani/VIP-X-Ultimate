@@ -43,9 +43,15 @@ class PlayerActivity : ComponentActivity() {
         override fun onPlaybackStateChanged(playbackState: Int) {
             playbackMessage = when (playbackState) {
                 Player.STATE_BUFFERING -> "جارٍ تحميل البث…"
-                Player.STATE_READY -> "البث جاهز"
+                Player.STATE_READY -> if (mediaController?.isPlaying == true) "البث يعمل" else "البث جاهز"
                 Player.STATE_ENDED -> "انتهى البث"
                 else -> "في انتظار البث…"
+            }
+        }
+
+        override fun onIsPlayingChanged(isPlaying: Boolean) {
+            if (mediaController?.playbackState == Player.STATE_READY) {
+                playbackMessage = if (isPlaying) "البث يعمل" else "البث جاهز"
             }
         }
 
@@ -157,7 +163,7 @@ class PlayerActivity : ComponentActivity() {
                         modifier = Modifier.fillMaxSize(),
                         update = { it.player = mediaController }
                     )
-                    if (playbackMessage != "البث جاهز") {
+                    if (playbackMessage != "البث جاهز" && playbackMessage != "البث يعمل") {
                         Text(
                             text = playbackMessage,
                             color = Color.White,
