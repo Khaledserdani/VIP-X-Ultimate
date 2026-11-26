@@ -218,7 +218,7 @@ class FloatingStreamsOverlayService : Service() {
             runCatching { unbindService(playbackConnection) }
             isBound = false
         }
-        playbackService?.setStreamsChangedListener(null)
+        playbackService?.removeStreamsChangedListener(streamsChangedListener)
         playbackService = null
         super.onDestroy()
     }
