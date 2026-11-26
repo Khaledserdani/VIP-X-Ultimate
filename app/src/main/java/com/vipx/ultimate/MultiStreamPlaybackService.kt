@@ -87,6 +87,9 @@ class MultiStreamPlaybackService : Service() {
         require(uri.scheme == "https" && !uri.host.isNullOrBlank()) { "يجب استخدام رابط بث HTTPS صالح" }
         require(players.size < MAX_STREAMS || players.containsKey(url)) { "الحد الأقصى أربعة بثوث متزامنة" }
         if (players.containsKey(url)) return // keep an already-running stream alive when the grid is reopened
+        require(AuthorizationVault.isValidAuthorization(authorization)) {
+            "Authorization غير صالح؛ أزل الأسطر الجديدة أو اختصر القيمة"
+        }
         val license = if (drmEnabled) Uri.parse(licenseUrl) else null
         require(!drmEnabled || (license?.scheme == "https" && !license.host.isNullOrBlank())) {
             "رابط ترخيص Widevine غير صالح"
