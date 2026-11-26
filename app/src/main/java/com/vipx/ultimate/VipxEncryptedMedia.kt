@@ -62,7 +62,7 @@ object VipxEncryptedMedia {
             }
         }.toByteArray()
         val key = deriveKey(password, salt)
-        val source = BufferedInputStream(input)
+        val source = input
         val sink = DataOutputStream(BufferedOutputStream(output))
         sink.write(headerBytes)
         val buffer = ByteArray(chunkSize)
