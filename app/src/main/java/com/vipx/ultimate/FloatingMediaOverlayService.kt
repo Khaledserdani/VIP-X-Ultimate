@@ -58,7 +58,9 @@ class FloatingMediaOverlayService : Service() {
         val incomingOwnedFile = if (
             intent?.getBooleanExtra(EXTRA_TRANSFER_FILE_OWNERSHIP, false) == true &&
             uri.scheme == "file" && !uri.path.isNullOrBlank()
-        ) File(uri.path!!) else null
+        ) {
+            File(uri.path!!).takeIf { it.isFile && it.canRead() }
+        } else null
 
         try {
             removeOverlay()
