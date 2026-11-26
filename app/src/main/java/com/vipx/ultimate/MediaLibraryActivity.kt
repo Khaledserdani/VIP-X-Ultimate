@@ -102,6 +102,7 @@ class MediaLibraryActivity : ComponentActivity() {
                         val input = contentResolver.openInputStream(uri)
                             ?: throw IllegalStateException("تعذر فتح الملف المشفر")
                         val outputFile = File.createTempFile("vipx-dec-", ".tmp", cacheDir)
+                        var incompleteFinalFile: File? = null
                         try {
                             val mime = input.use { source ->
                                 outputFile.outputStream().buffered().use { sink ->
@@ -110,15 +111,23 @@ class MediaLibraryActivity : ComponentActivity() {
                             }
                             val extension = MimeTypeMap.getSingleton().getExtensionFromMimeType(mime) ?: "media"
                             val finalFile = File(cacheDir, "vipx-dec-${System.nanoTime()}.$extension")
+                            incompleteFinalFile = finalFile
                             if (!outputFile.renameTo(finalFile)) {
-                                outputFile.copyTo(finalFile, overwrite = true)
-                                outputFile.delete()
+                                try {
+                                    outputFile.copyTo(finalFile, overwrite = true)
+                                    outputFile.delete()
+                                } catch (copyError: Exception) {
+                                    finalFile.delete()
+                                    throw copyError
+                                }
                             }
                             decryptedPreviewFile?.delete()
                             decryptedPreviewFile = finalFile
+                            incompleteFinalFile = null
                             Pair(Uri.fromFile(finalFile), mime)
                         } catch (error: Exception) {
                             outputFile.delete()
+                            incompleteFinalFile?.delete()
                             throw error
                         }
                     },
