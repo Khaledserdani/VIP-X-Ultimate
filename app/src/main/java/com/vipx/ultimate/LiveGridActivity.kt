@@ -337,6 +337,9 @@ private fun StreamPreview(
     }
 
     DisposableEffect(player) {
+        // Capture the exact instance observed by this effect. Reading the mutable
+        // Compose state again from onDispose could target a replacement player.
+        val observedPlayer = player
         val listener = object : Player.Listener {
             override fun onPlaybackStateChanged(playbackState: Int) {
                 state = when (playbackState) {
@@ -367,7 +370,7 @@ private fun StreamPreview(
                 }
             }
         }
-        player?.let { activePlayer ->
+        observedPlayer?.let { activePlayer ->
             activePlayer.addListener(listener)
             // A player may already be READY before this composable attaches.
             state = when {
@@ -379,7 +382,7 @@ private fun StreamPreview(
                 else -> "في الانتظار"
             }
         }
-        onDispose { player?.removeListener(listener) }
+        onDispose { observedPlayer?.removeListener(listener) }
     }
 
     Column(modifier, verticalArrangement = Arrangement.spacedBy(2.dp)) {
