@@ -175,7 +175,7 @@ class VipxEncryptedMediaTest {
 
 
     @Test fun staleCacheCleanupRemovesOnlyOldVipxOwnedFilesIncludingPlaybackCopies() {
-        val directory = createTempDir(prefix = "vipx-cache-test-")
+        val directory = java.nio.file.Files.createTempDirectory("vipx-cache-test-").toFile()
         try {
             val now = 2_000_000_000_000L
             val oldShared = File(directory, "vipx-shared-old.mp4").apply {
