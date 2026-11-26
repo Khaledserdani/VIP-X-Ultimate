@@ -146,6 +146,9 @@ private fun MediaLibraryScreen(
         val source = pendingEncryptSource
         if (destination != null && source != null) {
             val secret = pendingEncryptPassword.toCharArray()
+            // Drop UI-held password strings as soon as the operation takes ownership.
+            pendingEncryptPassword = ""
+            encryptPassword = ""
             busy = true
             message = "يجري تشفير الملف وحفظه بصيغة VIPXENC…"
             scope.launch {
@@ -158,13 +161,13 @@ private fun MediaLibraryScreen(
                     secret.fill('\u0000')
                     pendingEncryptPassword = ""
                     pendingEncryptSource = null
-                    encryptPassword = ""
                     busy = false
                 }
             }
         } else {
             pendingEncryptPassword = ""
             pendingEncryptSource = null
+            encryptPassword = ""
         }
     }
 
@@ -256,6 +259,7 @@ private fun MediaLibraryScreen(
                                 message = when (error) {
                                     is javax.crypto.AEADBadTagException -> "فشل التحقق: كلمة المرور خاطئة أو الملف تم العبث به."
                                     is java.io.EOFException -> "الملف مبتور أو علامة اكتماله غير موجودة."
+                                    is IllegalArgumentException -> "ملف مشفّر غير صالح أو بياناته تالفة."
                                     else -> "تعذر فك الملف: ${error.message ?: error.javaClass.simpleName}"
                                 }
                             } finally {
