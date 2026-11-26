@@ -28,9 +28,9 @@ class SharedMediaCaptureInstrumentedTest {
         val intent = Intent(Intent.ACTION_SEND_MULTIPLE)
             .setType("video/mp4")
             .putParcelableArrayListExtra(Intent.EXTRA_STREAM, arrayListOf(first, second))
-            .setClipData(ClipData.newRawUri("first", first).apply {
-                addItem(ClipData.Item(second))
-            })
+        intent.clipData = ClipData.newRawUri("first", first).apply {
+            addItem(ClipData.Item(second))
+        }
 
         assertEquals(listOf(first, second), SharedMediaCapture.sharedContentUris(intent))
     }
@@ -42,7 +42,7 @@ class SharedMediaCaptureInstrumentedTest {
         val intent = Intent(Intent.ACTION_SEND)
             .setType("video/mp4")
             .putExtra(Intent.EXTRA_STREAM, file)
-            .setClipData(ClipData.newRawUri("web", web))
+        intent.clipData = ClipData.newRawUri("web", web)
 
         assertTrue(SharedMediaCapture.sharedContentUris(intent).isEmpty())
     }
