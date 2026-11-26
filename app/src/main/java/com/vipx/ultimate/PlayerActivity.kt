@@ -126,9 +126,8 @@ class PlayerActivity : ComponentActivity() {
                 }
                 // Keep the credential only long enough to build this in-memory DRM request.
                 authorization = ""
-                // This service is a single full-player session: explicitly release any
-                // previous item (and its DRM session) before installing the new stream.
-                controller.stop()
+                // Replacing the media item releases the previous item's playback/DRM
+                // resources without sending the session's dedicated STOP command.
                 controller.clearMediaItems()
                 controller.setMediaItem(mediaItem)
                 controller.prepare()
