@@ -131,7 +131,8 @@ class FloatingStreamsOverlayService : Service() {
                 val cell = FrameLayout(this).apply { setBackgroundColor(0xFF172B40.toInt()) }
                 val playerView = PlayerView(this).apply {
                     useController = false
-                    player = engine.playerFor(url)
+                    tag = url
+                    engine.attachPlayerView(url, this)
                     setBackgroundColor(0xFF000000.toInt())
                 }
                 cell.addView(playerView, FrameLayout.LayoutParams(
@@ -191,7 +192,11 @@ class FloatingStreamsOverlayService : Service() {
                 for (cellIndex in 0 until row.childCount) {
                     val cell = row.getChildAt(cellIndex) as? FrameLayout ?: continue
                     for (childIndex in 0 until cell.childCount) {
-                        (cell.getChildAt(childIndex) as? PlayerView)?.player = null
+                        (cell.getChildAt(childIndex) as? PlayerView)?.let { view ->
+                            val url = view.tag as? String
+                            if (url != null) playbackService?.detachPlayerView(url, view)
+                            else view.player = null
+                        }
                     }
                 }
             }
