@@ -208,7 +208,7 @@ class MultiStreamPlaybackService : Service() {
         attachedPlayerViews.clear()
     }
 
-    /** Route audible output from one selected stream while all four videos continue. */
+    /** Route audible output from one selected stream while visible previews continue. */
     @Synchronized
     fun selectAudioStream(url: String?): Boolean {
         require(url == null || players.containsKey(url)) { "البث الصوتي غير موجود" }
@@ -223,6 +223,8 @@ class MultiStreamPlaybackService : Service() {
         if (!requestPreviewAudioFocus()) {
             audioStreamUrl = null
             applyPreviewVolumes()
+            abandonPreviewAudioFocus()
+            updateAllPlaybackStates()
             notifyAudioSelectionChanged()
             return false
         }
