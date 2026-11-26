@@ -81,13 +81,24 @@ class PlayerActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         val streamUrl = intent.getStringExtra(EXTRA_STREAM_URL)?.trim().orEmpty()
         val parsedUri = Uri.parse(streamUrl)
-        if (parsedUri.scheme != "https" || parsedUri.host.isNullOrBlank()) {
-            playbackMessage = "الرابط غير صالح؛ يلزم رابط HTTPS مباشر متوافق."
+        val validMediaUri = when (parsedUri.scheme) {
+            "https" -> !parsedUri.host.isNullOrBlank()
+            "content" -> !parsedUri.authority.isNullOrBlank()
+            "file" -> !parsedUri.path.isNullOrBlank()
+            else -> false
+        }
+        if (!validMediaUri) {
+            playbackMessage = "مصدر الوسائط غير صالح؛ يلزم HTTPS أو مشاركة Android مصرح بها."
             finish()
             return
         }
 
         val drmEnabled = intent.getBooleanExtra(EXTRA_DRM_ENABLED, false)
+        if (drmEnabled && parsedUri.scheme != "https") {
+            playbackMessage = "محتوى Widevine يحتاج رابط بث HTTPS وترخيصاً رسمياً."
+            finish()
+            return
+        }
         val licenseUrl = intent.getStringExtra(EXTRA_DRM_LICENSE_URL)?.trim().orEmpty()
         var authorization = intent.getStringExtra(EXTRA_DRM_AUTHORIZATION)?.trim().orEmpty()
         if (drmEnabled && authorization.isBlank()) authorization = AuthorizationVault.load(this, streamUrl).orEmpty()
