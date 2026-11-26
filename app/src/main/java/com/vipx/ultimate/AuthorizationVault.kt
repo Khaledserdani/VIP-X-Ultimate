@@ -12,6 +12,7 @@ import javax.crypto.spec.GCMParameterSpec
 /**
  * Stores provider-issued Authorization values encrypted with an Android Keystore AES-GCM key.
  * Entries expire 8 hours after being saved and are indexed by a one-way URL digest.
+ * Legacy 24-hour entries are capped at 8 hours from their original save time when read or pruned.
  */
 object AuthorizationVault {
     private const val PREFS = "vipx_authorization_vault"
