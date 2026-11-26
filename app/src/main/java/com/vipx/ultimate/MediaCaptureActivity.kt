@@ -304,6 +304,52 @@ class MediaCaptureActivity : ComponentActivity() {
     }
 
     private fun openSharedVideo(uri: Uri) {
+        if (uri.scheme == "content") {
+            // A temporary provider grant may disappear when the share Activity
+            // leaves its task. Stage the bytes in our private cache first.
+            lifecycleScope.launch {
+                var playbackFile: File? = null
+                try {
+                    val readyFile = withContext(Dispatchers.IO) {
+                        val mime = contentResolver.getType(uri).orEmpty()
+                        val extension = android.webkit.MimeTypeMap.getSingleton()
+                            .getExtensionFromMimeType(mime)
+                            ?.filter { it.isLetterOrDigit() }
+                            ?.take(8)
+                            ?.takeIf { it.isNotBlank() }
+                            ?: "media"
+                        val target = File(cacheDir, "vipx-player-${System.nanoTime()}.$extension")
+                        try {
+                            val input = contentResolver.openInputStream(uri)
+                                ?: throw IllegalStateException("تعذر قراءة ملف المشاركة")
+                            input.use { source ->
+                                target.outputStream().buffered().use { output ->
+                                    source.copyTo(output)
+                                }
+                            }
+                            target
+                        } catch (error: Exception) {
+                            target.delete()
+                            throw error
+                        }
+                    }
+                    playbackFile = readyFile
+                    startActivity(
+                        Intent(this@MediaCaptureActivity, PlayerActivity::class.java)
+                            .putExtra(PlayerActivity.EXTRA_STREAM_URL, Uri.fromFile(readyFile).toString())
+                    )
+                } catch (error: Exception) {
+                    playbackFile?.delete()
+                    android.widget.Toast.makeText(
+                        this@MediaCaptureActivity,
+                        "تعذر تجهيز نسخة التشغيل: ${error.message ?: "خطأ غير معروف"}",
+                        android.widget.Toast.LENGTH_LONG
+                    ).show()
+                }
+            }
+            return
+        }
+
         if (uri.scheme == "file") {
             val candidate = runCatching { File(uri.path.orEmpty()).canonicalFile }.getOrNull()
             val cache = runCatching { cacheDir.canonicalFile }.getOrNull()
@@ -348,10 +394,6 @@ class MediaCaptureActivity : ComponentActivity() {
 
         val playIntent = Intent(this, PlayerActivity::class.java)
             .putExtra(PlayerActivity.EXTRA_STREAM_URL, uri.toString())
-        if (uri.scheme == "content") {
-            playIntent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-                .setClipData(ClipData.newRawUri("VIP X shared media", uri))
-        }
         runCatching { startActivity(playIntent) }.onFailure { error ->
             android.widget.Toast.makeText(
                 this,
