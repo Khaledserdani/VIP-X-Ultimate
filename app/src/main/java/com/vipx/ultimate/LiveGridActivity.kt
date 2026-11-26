@@ -226,20 +226,27 @@ private fun LiveGridScreen(
                         Text(entry.url, color = Color.White, fontSize = 9.sp, maxLines = 1)
                         Text(if (entry.drmEnabled) "Widevine • ترخيص مستقل" else "بث مباشر", color = Color(0xFF9FB2C7), fontSize = 9.sp)
                         TextButton(onClick = {
-                            service?.selectAudioStream(entry.url)
-                            audibleStream = entry.url
-                        }) { Text(if (audibleStream == entry.url) "الصوت مفعّل" else "اسمع هذا البث", fontSize = 11.sp) }
+                            val nextAudio = if (audibleStream == entry.url) null else entry.url
+                            service?.selectAudioStream(nextAudio)
+                            audibleStream = nextAudio
+                        }) {
+                            Text(if (audibleStream == entry.url) "كتم هذا البث" else "اسمع هذا البث", fontSize = 11.sp)
+                        }
                         TextButton(onClick = {
-                            // Transfer this tile to the full player instead of decoding the same
-                            // stream twice in two independent services.
-                            service?.stopStream(entry.url)
-                            if (audibleStream == entry.url) audibleStream = null
+                            // Move this entry out of the preview grid before opening the full player.
+                            val sessionKey = entry.url
+                            val sessionAuth = sessionAuthorization[sessionKey].orEmpty()
+                            service?.stopStream(sessionKey)
+                            if (audibleStream == sessionKey) audibleStream = null
+                            streams.remove(entry)
+                            sessionAuthorization.remove(sessionKey)
+                            persistStreams()
                             context.startActivity(
                                 Intent(context, PlayerActivity::class.java)
-                                    .putExtra(PlayerActivity.EXTRA_STREAM_URL, entry.url)
+                                    .putExtra(PlayerActivity.EXTRA_STREAM_URL, sessionKey)
                                     .putExtra(PlayerActivity.EXTRA_DRM_ENABLED, entry.drmEnabled)
                                     .putExtra(PlayerActivity.EXTRA_DRM_LICENSE_URL, entry.licenseUrl)
-                                    .putExtra(PlayerActivity.EXTRA_DRM_AUTHORIZATION, sessionAuthorization[entry.url].orEmpty())
+                                    .putExtra(PlayerActivity.EXTRA_DRM_AUTHORIZATION, sessionAuth)
                             )
                         }) { Text("فتح المشغّل الكامل", fontSize = 11.sp) }
                         TextButton(onClick = {
@@ -312,6 +319,19 @@ private fun StreamPreview(
     }
 
     Column(modifier, verticalArrangement = Arrangement.spacedBy(2.dp)) {
+        if (state.startsWith("خطأ:") || state.startsWith("تعذر التشغيل:")) {
+            TextButton(onClick = {
+                runCatching {
+                    service?.playStream(entry.url, entry.drmEnabled, entry.licenseUrl, authorization)
+                    player = service?.playerFor(entry.url)
+                    state = if (player == null) "تعذر بدء المحاولة" else "إعادة المحاولة…"
+                }.onFailure {
+                    state = "تعذر التشغيل: ${it.message ?: "خطأ غير معروف"}"
+                }
+            }, enabled = service != null) {
+                Text("إعادة المحاولة", fontSize = 10.sp)
+            }
+        }
         AndroidView(
             factory = { PlayerView(it).apply { useController = false; this.player = player } },
             modifier = Modifier.fillMaxWidth().height(88.dp),
