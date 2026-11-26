@@ -402,7 +402,8 @@ private fun StreamPreview(
         if (state.startsWith("خطأ:") ||
             state.startsWith("تعذر التشغيل:") ||
             state.startsWith("تعذر تشغيل البث") ||
-            state.startsWith("تعذر بدء المحاولة") ||\n            state.startsWith("تم إيقاف البث")) {
+            state.startsWith("تعذر بدء المحاولة") ||
+            state.startsWith("تم إيقاف البث")) {
             TextButton(onClick = {
                 runCatching {
                     service?.playStream(entry.url, entry.drmEnabled, entry.licenseUrl, authorization)
