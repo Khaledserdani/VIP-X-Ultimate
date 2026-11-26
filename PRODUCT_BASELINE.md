@@ -21,13 +21,15 @@ A free, standalone Android companion for user-authorized media playback: local i
 - Live Grid stores up to four user-supplied HTTPS stream entries locally, with per-entry Widevine enabled flag and license URL. Authorization values are session-only and are not persisted in stream preferences.
 - `MultiStreamPlaybackService` owns up to four Media3 ExoPlayer instances, exposes active stream URLs/player references, maintains one selected audible stream, and runs as a media-playback foreground service.
 - Live Grid can open a floating overlay for up to four streams already registered in VIP X. The overlay is movable and closable. It does not discover, inspect, or capture streams from other applications.
+- Media Library has a movable floating-media overlay action for a user-selected local image or video. It requests Android overlay permission when needed, displays images directly, and plays videos with Media3 in a media-playback foreground service.
+- For a decrypted VIPXENC preview held in a file URI, the floating-media service copies the file into its own cache before display so MediaLibraryActivity cleanup does not immediately invalidate the floating preview. The service deletes its copied temporary file when the overlay closes or the service is destroyed.
 - Full player uses Media3/MediaSessionService and has Picture-in-Picture configuration.
 - HLS/DASH Media3 modules are included. This remains a URL-based playback app, not a general web browser or cross-app media discovery engine.
 
 ## Important limitations / next work
-- The floating overlay currently covers registered VIP X streams only. It does not yet float selected local images/videos.
-- The Media Library's SAF URI grants are persisted where supported, but there is no floating-media service consuming them yet.
-- Decrypted media is stored in Activity-managed cache and deleted when that Activity is destroyed; a future floating-media feature must transfer/copy the media safely into service-owned temporary storage before Activity cleanup.
+- Floating stream previews and floating local media are separate services. The local-media overlay displays one selected image or video at a time; it does not automatically discover media in another app.
+- The Media Library's SAF URI grants are persisted where supported. Floating playback depends on the selected document remaining readable through its granted URI.
+- Decrypted media is stored in Activity-managed cache and deleted when that Activity is destroyed; the floating-media service makes its own temporary copy before displaying a decrypted file URI.
 - Android application sandboxing means an overlay permission does not grant access to another app's private media, memory, network requests, or DRM sessions. Cross-app integrations require an explicit supported share/provider/SDK/API flow.
 - Widevine configuration exists, but no actual provider-authorized protected stream/license has been tested. Do not claim that arbitrary encrypted broadcasts can be opened.
 - Four-player capacity is a configured ceiling, not proof every device can decode four simultaneous streams. Decoder, memory, bandwidth, battery, and thermal limits need target-device tests.
