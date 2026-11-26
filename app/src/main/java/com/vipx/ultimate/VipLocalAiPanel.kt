@@ -1,10 +1,10 @@
 package com.vipx.ultimate
 
-import android.content.Context
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
@@ -83,14 +83,14 @@ internal fun VipLocalAiPanel() {
 
     Card(colors = CardDefaults.cardColors(containerColor = Color(0xFF122238))) {
         Column(
-            modifier = Modifier.fillMaxWidth().then(Modifier),
+            modifier = Modifier.fillMaxWidth().padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
-            Column(modifier = Modifier.fillMaxWidth().then(Modifier), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Column(modifier = Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text("الذكاء المحلي • أربعة مساعدين", color = Color.White, fontWeight = FontWeight.Bold)
                 Text("Qwen3 0.6B يعمل على الهاتف دون اشتراك أو API. حجم النموذج نحو 586 MiB ويُنزّل منفصلاً عن APK.", color = AiMuted, fontSize = 12.sp)
                 Text(if (modelReady) "حالة النموذج: جاهز" else "حالة النموذج: غير مهيأ", color = if (modelReady) AiMint else AiMuted)
-                LinearProgressIndicator(progress = { progress / 100f }, modifier = Modifier.fillMaxWidth())
+                LinearProgressIndicator(progress = progress / 100f, modifier = Modifier.fillMaxWidth())
                 Text(status, color = AiMuted, fontSize = 12.sp)
                 Button(
                     enabled = !busy && !modelReady,
