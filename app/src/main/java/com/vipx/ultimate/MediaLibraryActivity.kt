@@ -102,14 +102,22 @@ class MediaLibraryActivity : ComponentActivity() {
                                 Uri.parse("package:$packageName")
                             ))
                         } else {
+                            val transferDecryptedFile = uri.scheme == "file" &&
+                                decryptedPreviewFile?.absolutePath == uri.path
                             val overlayIntent = Intent(this, FloatingMediaOverlayService::class.java)
                                 .putExtra(FloatingMediaOverlayService.EXTRA_URI, uri.toString())
                                 .putExtra(FloatingMediaOverlayService.EXTRA_MIME, mime)
+                                .putExtra(FloatingMediaOverlayService.EXTRA_TRANSFER_FILE_OWNERSHIP, transferDecryptedFile)
                                 .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-                            if (mime.startsWith("video/") && android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
-                                startForegroundService(overlayIntent)
-                            } else {
-                                startService(overlayIntent)
+                            try {
+                                if (mime.startsWith("video/") && android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
+                                    startForegroundService(overlayIntent)
+                                } else {
+                                    startService(overlayIntent)
+                                }
+                                if (transferDecryptedFile) decryptedPreviewFile = null
+                            } catch (_: Exception) {
+                                // Keep Activity ownership so its normal cleanup remains responsible.
                             }
                         }
                     }
