@@ -173,7 +173,7 @@ private fun LiveGridScreen(
     Column(Modifier.fillMaxSize().background(GridBg).padding(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
         Text("VIP X • أربعة بثوث متزامنة", color = GridAccent, fontSize = 23.sp)
         Text(
-            "تعمل المعاينات الأربع بالتوازي داخل شبكة 2×2. تبقى جلسات التشغيل في خدمة مستقلة عند الانتقال إلى صفحات التطبيق أو تصغيره.",
+            "تعمل المعاينات داخل شبكة 2×2. تبقى جلسات التشغيل في الخدمة عند التنقل؛ وعند تصغير التطبيق تتوقف المعاينات المخفية لتوفير الموارد، إلا إذا فتحت النافذة العائمة.",
             color = Color.White, fontSize = 12.sp
         )
         OutlinedButton(
