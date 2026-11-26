@@ -2,11 +2,14 @@ package com.vipx.ultimate
 
 import android.content.Intent
 import android.net.Uri
+import android.graphics.Bitmap
+import android.graphics.BitmapFactory
 import android.provider.DocumentsContract
 import android.os.Bundle
 import android.webkit.MimeTypeMap
 import android.widget.ImageView
 import androidx.activity.ComponentActivity
+import androidx.lifecycle.lifecycleScope
 import androidx.activity.compose.setContent
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -28,6 +31,7 @@ import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.ui.PlayerView
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withContext
 import java.io.File
 
@@ -80,6 +84,40 @@ class MediaLibraryActivity : ComponentActivity() {
             .toList()
     }
 
+    private fun loadSampledImage(view: ImageView, uri: Uri) {
+        if (view.tag == uri) return
+        view.tag = uri
+        view.setImageDrawable(null)
+        view.post {
+            val targetWidth = view.width.coerceAtLeast(1024)
+            val targetHeight = view.height.coerceAtLeast(1024)
+            lifecycleScope.launch {
+                val bitmap = withContext(Dispatchers.IO) {
+                    runCatching {
+                        val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+                        contentResolver.openInputStream(uri)?.use {
+                            BitmapFactory.decodeStream(it, null, bounds)
+                        }
+                        if (bounds.outWidth <= 0 || bounds.outHeight <= 0) return@runCatching null
+                        var sample = 1
+                        while (bounds.outWidth / sample > targetWidth * 2 ||
+                            bounds.outHeight / sample > targetHeight * 2) {
+                            sample *= 2
+                        }
+                        val options = BitmapFactory.Options().apply {
+                            inSampleSize = sample
+                            inPreferredConfig = Bitmap.Config.ARGB_8888
+                        }
+                        contentResolver.openInputStream(uri)?.use {
+                            BitmapFactory.decodeStream(it, null, options)
+                        }
+                    }.getOrNull()
+                }
+                if (view.tag == uri) view.setImageBitmap(bitmap)
+            }
+        }
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         VipxMediaCacheMaintenance.cleanupStale(cacheDir)
@@ -99,6 +137,7 @@ class MediaLibraryActivity : ComponentActivity() {
             MaterialTheme(colorScheme = darkColorScheme(primary = MediaAccent, background = MediaBg)) {
                 MediaLibraryScreen(
                     initialSharedMedia = sharedMedia,
+                    loadSampledImage = { view, uri -> loadSampledImage(view, uri) },
                     onPersistPermission = { uri ->
                         try {
                             contentResolver.takePersistableUriPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION)
@@ -212,6 +251,7 @@ class MediaLibraryActivity : ComponentActivity() {
 @Composable
 private fun MediaLibraryScreen(
     initialSharedMedia: List<Pair<Uri, String>>,
+    loadSampledImage: (ImageView, Uri) -> Unit,
     onPersistPermission: (Uri) -> Unit,
     mimeFor: (Uri) -> String,
     inspectEncrypted: (Uri) -> String,
@@ -430,7 +470,7 @@ private fun MediaLibraryScreen(
                         scaleType = ImageView.ScaleType.FIT_CENTER
                         adjustViewBounds = true
                     } },
-                    update = { view -> view.setImageURI(uri) },
+                    update = { view -> loadSampledImage(view, uri) },
                     modifier = Modifier.fillMaxWidth().weight(1f)
                 )
             } else if (uri != null && selectedMime.startsWith("video/")) {
