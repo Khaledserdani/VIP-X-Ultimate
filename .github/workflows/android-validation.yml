@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - feature/vipx-live-grid
+      - feature/vipx-local-qwen-four-assistants
   pull_request:
     branches:
       - feature/vipx-live-grid
