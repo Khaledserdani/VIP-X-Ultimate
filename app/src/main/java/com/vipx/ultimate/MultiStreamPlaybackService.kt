@@ -3,6 +3,7 @@ package com.vipx.ultimate
 import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
+import android.app.PendingIntent
 import android.app.Service
 import android.content.Intent
 import android.content.pm.ServiceInfo
@@ -204,15 +205,23 @@ class MultiStreamPlaybackService : Service() {
         manager.notify(NOTIFICATION_ID, buildNotification())
     }
 
-    private fun buildNotification(): Notification =
-        NotificationCompat.Builder(this, CHANNEL_ID)
+    private fun buildNotification(): Notification {
+        val stopIntent = PendingIntent.getService(
+            this,
+            NOTIFICATION_ID,
+            Intent(this, MultiStreamPlaybackService::class.java).setAction(ACTION_STOP_ALL),
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+        return NotificationCompat.Builder(this, CHANNEL_ID)
             .setSmallIcon(android.R.drawable.ic_media_play)
             .setContentTitle("VIP X • تشغيل البثوث")
             .setContentText("يعمل الآن ${players.size} من 4 بثوث متزامنة")
             .setOngoing(true)
             .setOnlyAlertOnce(true)
             .setCategory(NotificationCompat.CATEGORY_TRANSPORT)
+            .addAction(android.R.drawable.ic_media_pause, "إيقاف الكل", stopIntent)
             .build()
+    }
 
     private fun createNotificationChannel() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
