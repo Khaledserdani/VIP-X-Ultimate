@@ -326,9 +326,24 @@ private fun StreamPreview(
                 }
             }
             override fun onPlayerError(error: androidx.media3.common.PlaybackException) {
+                // Media3 has already applied its load-error retry policy before this terminal callback.
                 // The service releases terminally failed players; never keep a stale view reference.
                 player = null
-                state = "خطأ: ${error.errorCodeName}"
+                val code = error.errorCodeName.uppercase()
+                state = when {
+                    "NETWORK" in code || "TIMEOUT" in code ->
+                        "خطأ: تعذر الاتصال بمصدر البث؛ افحص الإنترنت ثم أعد المحاولة."
+                    "BAD_HTTP_STATUS" in code || "INVALID_HTTP" in code ->
+                        "خطأ: مصدر البث رفض الطلب أو أن الرابط لم يعد صالحاً."
+                    "DRM" in code ->
+                        "خطأ: تعذر التحقق من ترخيص البث؛ راجع بيانات الترخيص والصلاحية."
+                    "DECOD" in code ->
+                        "خطأ: تعذر فك ترميز الفيديو على هذا الجهاز أو لهذا المصدر."
+                    "MANIFEST" in code || "PARS" in code ->
+                        "خطأ: صيغة البث أو ملف الفهرسة غير صالح."
+                    else ->
+                        "خطأ: تعذر تشغيل البث؛ تحقق من الرابط والاتصال والترخيص."
+                }
             }
         }
         player?.let { activePlayer ->
