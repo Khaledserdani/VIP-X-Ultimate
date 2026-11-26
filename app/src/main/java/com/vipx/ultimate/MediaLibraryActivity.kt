@@ -87,12 +87,12 @@ class MediaLibraryActivity : ComponentActivity() {
                         require(mime.startsWith("image/") || mime.startsWith("video/")) {
                             "يمكن تشفير الصور والفيديوهات فقط"
                         }
-                        val input = contentResolver.openInputStream(sourceUri)
-                            ?: throw IllegalStateException("تعذر قراءة الملف الأصلي")
-                        val output = contentResolver.openOutputStream(destinationUri, "wt")
-                            ?: throw IllegalStateException("تعذر إنشاء ملف VIPXENC")
                         try {
+                            val input = contentResolver.openInputStream(sourceUri)
+                                ?: throw IllegalStateException("تعذر قراءة الملف الأصلي")
                             input.use { source ->
+                                val output = contentResolver.openOutputStream(destinationUri, "wt")
+                                    ?: throw IllegalStateException("تعذر إنشاء ملف VIPXENC")
                                 output.use { sink ->
                                     VipxEncryptedMedia.encrypt(source, sink, password, mime)
                                 }
