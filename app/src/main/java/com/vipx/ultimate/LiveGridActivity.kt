@@ -202,9 +202,9 @@ private fun LiveGridScreen(
             OutlinedTextField(value = licenseUrl, onValueChange = { licenseUrl = it }, modifier = Modifier.fillMaxWidth(),
                 label = { Text("رابط ترخيص HTTPS لهذا البث") }, singleLine = true)
             OutlinedTextField(value = authorization, onValueChange = { authorization = it }, modifier = Modifier.fillMaxWidth(),
-                label = { Text("Authorization لهذا البث (حفظ آمن 24 ساعة)") },
+                label = { Text("Authorization لهذا البث (حفظ آمن 8 ساعات)") },
                 visualTransformation = PasswordVisualTransformation(), singleLine = true)
-            Text("تُحفظ Authorization مشفّرة محلياً لمدة 24 ساعة لكل بث، ثم تُحذف تلقائياً. لا تُرسل إلى خادم VIP X.", color = Color(0xFF9FB2C7), fontSize = 10.sp)
+            Text("تُحفظ Authorization مشفّرة محلياً لمدة 8 ساعات لكل بث، ثم تُحذف تلقائياً. لا تُرسل إلى خادم VIP X.", color = Color(0xFF9FB2C7), fontSize = 10.sp)
         }
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             Button(onClick = {
@@ -280,7 +280,7 @@ private fun LiveGridScreen(
                             if (audibleStream == sessionKey) audibleStream = null
                             streams.remove(entry)
                             sessionAuthorization.remove(sessionKey)
-                            // Keep encrypted credentials until their 24-hour expiry.
+                            // Keep encrypted credentials until their 8-hour expiry.
                             persistStreams()
                             context.startActivity(
                                 Intent(context, PlayerActivity::class.java)
