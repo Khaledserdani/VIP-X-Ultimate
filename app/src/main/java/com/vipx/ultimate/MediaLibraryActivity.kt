@@ -34,13 +34,32 @@ private val MediaAccent = Color(0xFF42E3C2)
 class MediaLibraryActivity : ComponentActivity() {
     private var decryptedPreviewFile: File? = null
 
+    private fun readSharedMedia(source: Intent): Pair<Uri, String>? {
+        if (source.action != Intent.ACTION_SEND) return null
+        val sharedUri = if (android.os.Build.VERSION.SDK_INT >= 33) {
+            source.getParcelableExtra(Intent.EXTRA_STREAM, Uri::class.java)
+        } else {
+            @Suppress("DEPRECATION")
+            source.getParcelableExtra<Uri>(Intent.EXTRA_STREAM)
+        } ?: source.data ?: return null
+
+        if (sharedUri.scheme != "content") return null
+        val mime = source.type?.takeIf {
+            it.startsWith("image/") || it.startsWith("video/")
+        } ?: contentResolver.getType(sharedUri).orEmpty()
+        if (!mime.startsWith("image/") && !mime.startsWith("video/")) return null
+        return sharedUri to mime
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         window.statusBarColor = android.graphics.Color.rgb(7, 17, 31)
         window.navigationBarColor = android.graphics.Color.rgb(7, 17, 31)
+        val sharedMedia = readSharedMedia(intent)
         setContent {
             MaterialTheme(colorScheme = darkColorScheme(primary = MediaAccent, background = MediaBg)) {
                 MediaLibraryScreen(
+                    initialSharedMedia = sharedMedia,
                     onPersistPermission = { uri ->
                         try {
                             contentResolver.takePersistableUriPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION)
@@ -135,6 +154,7 @@ class MediaLibraryActivity : ComponentActivity() {
 
 @Composable
 private fun MediaLibraryScreen(
+    initialSharedMedia: Pair<Uri, String>?,
     onPersistPermission: (Uri) -> Unit,
     mimeFor: (Uri) -> String,
     inspectEncrypted: (Uri) -> String,
@@ -143,8 +163,8 @@ private fun MediaLibraryScreen(
     clearDecryptedCache: () -> Unit,
     onShowFloatingMedia: (Uri, String) -> Unit
 ) {
-    var selectedUri by remember { mutableStateOf<Uri?>(null) }
-    var selectedMime by remember { mutableStateOf("") }
+    var selectedUri by remember(initialSharedMedia?.first) { mutableStateOf(initialSharedMedia?.first) }
+    var selectedMime by remember(initialSharedMedia?.first) { mutableStateOf(initialSharedMedia?.second.orEmpty()) }
     var encryptedSource by remember { mutableStateOf<Uri?>(null) }
     var encryptedMime by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
@@ -152,7 +172,12 @@ private fun MediaLibraryScreen(
     var pendingEncryptSource by remember { mutableStateOf<Uri?>(null) }
     var pendingEncryptPassword by remember { mutableStateOf("") }
     var busy by remember { mutableStateOf(false) }
-    var message by remember { mutableStateOf("اختر صورة أو فيديو، أو افتح ملف VIPXENC مشفّراً.") }
+    var message by remember(initialSharedMedia?.first) {
+        mutableStateOf(
+            if (initialSharedMedia != null) "تم استقبال وسيط تمت مشاركته مع VIP X."
+            else "اختر صورة أو فيديو، أو افتح ملف VIPXENC مشفّراً."
+        )
+    }
     val scope = rememberCoroutineScope()
 
     val mediaPicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
