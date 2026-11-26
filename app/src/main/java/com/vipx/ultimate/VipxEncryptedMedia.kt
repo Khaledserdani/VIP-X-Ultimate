@@ -66,6 +66,7 @@ object VipxEncryptedMedia {
         val sink = DataOutputStream(BufferedOutputStream(output))
         sink.write(headerBytes)
         val buffer = ByteArray(chunkSize)
+        try {
         var index = 0L
         var totalPlainBytes = 0L
         while (true) {
@@ -109,6 +110,9 @@ object VipxEncryptedMedia {
         sink.writeInt(0)
         sink.write(finalTag)
         sink.flush()
+        } finally {
+            buffer.fill(0)
+        }
     }
 
     /**
