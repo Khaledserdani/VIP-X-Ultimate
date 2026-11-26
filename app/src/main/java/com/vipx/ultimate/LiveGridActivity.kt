@@ -336,6 +336,19 @@ private fun StreamPreview(
         }
     }
 
+    DisposableEffect(service, entry.url) {
+        val observedService = service
+        val listener: () -> Unit = {
+            val currentPlayer = observedService?.playerFor(entry.url)
+            if (currentPlayer !== player) {
+                player = currentPlayer
+                state = if (currentPlayer == null) "تم إيقاف البث" else "يعمل ضمن الشبكة"
+            }
+        }
+        observedService?.addStreamsChangedListener(listener)
+        onDispose { observedService?.removeStreamsChangedListener(listener) }
+    }
+
     DisposableEffect(player) {
         // Capture the exact instance observed by this effect. Reading the mutable
         // Compose state again from onDispose could target a replacement player.
@@ -389,7 +402,7 @@ private fun StreamPreview(
         if (state.startsWith("خطأ:") ||
             state.startsWith("تعذر التشغيل:") ||
             state.startsWith("تعذر تشغيل البث") ||
-            state.startsWith("تعذر بدء المحاولة")) {
+            state.startsWith("تعذر بدء المحاولة") ||\n            state.startsWith("تم إيقاف البث")) {
             TextButton(onClick = {
                 runCatching {
                     service?.playStream(entry.url, entry.drmEnabled, entry.licenseUrl, authorization)
