@@ -136,7 +136,7 @@ private fun LiveGridScreen(
                 streams.forEach { entry ->
                     runCatching {
                         engine.playStream(entry.url, entry.drmEnabled, entry.licenseUrl, sessionAuthorization[entry.url].orEmpty())
-                    }.onFailure { message = "تعذر تشغيل أحد البثوث: ${it.message}" }
+                    }.onFailure { message = "تعذر تشغيل أحد البثوث؛ تحقق من الرابط والترخيص والاتصال." }
                 }
             }
         }
@@ -195,7 +195,7 @@ private fun LiveGridScreen(
                         var startError: String? = null
                         service?.let {
                             runCatching { it.playStream(entry.url, entry.drmEnabled, entry.licenseUrl, sessionAuthorization[entry.url].orEmpty()) }
-                                .onFailure { error -> startError = "تعذر بدء البث: ${error.message}" }
+                                .onFailure { startError = "تعذر بدء البث؛ تحقق من الرابط والترخيص والاتصال." }
                         }
                         url = ""; licenseUrl = ""; authorization = ""; drmEnabled = false
                         message = startError ?: "تمت إضافة البث؛ يجري تشغيله مع البثوث الأخرى."
@@ -285,7 +285,7 @@ private fun StreamPreview(
                 player = service.playerFor(entry.url)
                 state = "يعمل ضمن الشبكة"
             }.onFailure {
-                state = "تعذر التشغيل: ${it.message ?: "خطأ غير معروف"}"
+                state = "تعذر تشغيل البث؛ تحقق من الرابط والترخيص والاتصال."
             }
         }
     }
@@ -329,7 +329,7 @@ private fun StreamPreview(
                     player = service?.playerFor(entry.url)
                     state = if (player == null) "تعذر بدء المحاولة" else "إعادة المحاولة…"
                 }.onFailure {
-                    state = "تعذر التشغيل: ${it.message ?: "خطأ غير معروف"}"
+                    state = "تعذر تشغيل البث؛ تحقق من الرابط والترخيص والاتصال."
                 }
             }, enabled = service != null) {
                 Text("إعادة المحاولة", fontSize = 10.sp)
