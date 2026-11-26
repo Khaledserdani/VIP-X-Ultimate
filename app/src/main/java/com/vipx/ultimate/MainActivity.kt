@@ -141,6 +141,8 @@ private fun VipHome(
             Text("مساعد المشاهدة", color = Color.White, fontSize = 28.sp, fontWeight = FontWeight.Black)
             Text("مشغّل بث مستقل وأدوات مجانية ضمن صلاحيات Android.", color = VipMuted, fontSize = 14.sp)
 
+            VipLocalAiPanel()
+
             Card(colors = CardDefaults.cardColors(containerColor = VipPanel)) {
                 Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                     Text("شبكة البثوث والمعاينات التلقائية", color = Color.White, fontWeight = FontWeight.Bold)
