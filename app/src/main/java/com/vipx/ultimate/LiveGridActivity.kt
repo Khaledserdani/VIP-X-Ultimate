@@ -164,7 +164,10 @@ private fun LiveGridScreen(
         OutlinedTextField(value = url, onValueChange = { url = it }, modifier = Modifier.fillMaxWidth(),
             label = { Text("رابط بث مباشر HTTPS") }, singleLine = true)
         Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
-            Checkbox(checked = drmEnabled, onCheckedChange = { drmEnabled = it })
+            Checkbox(checked = drmEnabled, onCheckedChange = {
+                drmEnabled = it
+                if (!it) authorization = ""
+            })
             Text("هذا البث محمي بـ Widevine", color = Color.White, fontSize = 12.sp)
         }
         if (drmEnabled) {
