@@ -5,6 +5,9 @@ import android.content.Intent
 import android.net.Uri
 import android.os.Bundle
 import android.widget.ImageView
+import android.graphics.Bitmap
+import android.graphics.BitmapFactory
+import androidx.lifecycle.lifecycleScope
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.layout.*
@@ -243,7 +246,7 @@ class MediaCaptureActivity : ComponentActivity() {
                                     scaleType = ImageView.ScaleType.FIT_CENTER
                                     adjustViewBounds = true
                                 } },
-                                update = { it.setImageURI(imageUri) },
+                                update = { loadSampledImage(it, imageUri) },
                                 modifier = Modifier.fillMaxWidth().weight(1f)
                             )
                         } else if (imageUri != null && previewMime.startsWith("video/")) {
@@ -267,6 +270,41 @@ class MediaCaptureActivity : ComponentActivity() {
     private fun clearCurrentPreview() {
         decryptedPreviewFile?.delete()
         decryptedPreviewFile = null
+    }
+
+
+    private fun loadSampledImage(view: ImageView, uri: Uri) {
+        if (view.tag == uri) return
+        view.tag = uri
+        view.setImageDrawable(null)
+        view.post {
+            val targetWidth = view.width.coerceAtLeast(1024)
+            val targetHeight = view.height.coerceAtLeast(1024)
+            lifecycleScope.launch {
+                val bitmap = withContext(Dispatchers.IO) {
+                    runCatching {
+                        val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+                        contentResolver.openInputStream(uri)?.use {
+                            BitmapFactory.decodeStream(it, null, bounds)
+                        }
+                        if (bounds.outWidth <= 0 || bounds.outHeight <= 0) return@runCatching null
+                        var sample = 1
+                        while (bounds.outWidth / sample > targetWidth * 2 ||
+                            bounds.outHeight / sample > targetHeight * 2) {
+                            sample *= 2
+                        }
+                        val options = BitmapFactory.Options().apply {
+                            inSampleSize = sample
+                            inPreferredConfig = Bitmap.Config.ARGB_8888
+                        }
+                        contentResolver.openInputStream(uri)?.use {
+                            BitmapFactory.decodeStream(it, null, options)
+                        }
+                    }.getOrNull()
+                }
+                if (view.tag == uri) view.setImageBitmap(bitmap)
+            }
+        }
     }
 
     private fun openSharedVideo(uri: Uri) {
