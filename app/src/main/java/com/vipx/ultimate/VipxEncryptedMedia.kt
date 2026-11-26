@@ -14,6 +14,7 @@ import javax.crypto.SecretKeyFactory
 import javax.crypto.spec.GCMParameterSpec
 import javax.crypto.spec.PBEKeySpec
 import javax.crypto.spec.SecretKeySpec
+import java.io.File
 
 /**
  * VIPXENC authenticated chunk container.
@@ -22,12 +23,43 @@ import javax.crypto.spec.SecretKeySpec
  * when complete encrypted chunks are removed. v1 remains readable for
  * compatibility, but new encryption always writes v2.
  */
+
+/**
+ * Removes only old app-owned temporary media files left behind by process death.
+ * Recently created files are preserved because playback or preview may still own them.
+ */
+object VipxMediaCacheMaintenance {
+    private const val DEFAULT_MAX_AGE_MILLIS = 14L * 24L * 60L * 60L * 1000L
+    private val OWNED_PREFIXES = listOf("vipx-dec-", "vipx-shared-", "vipx-player-")
+
+    fun cleanupStale(
+        cacheDir: File,
+        nowMillis: Long = System.currentTimeMillis(),
+        maxAgeMillis: Long = DEFAULT_MAX_AGE_MILLIS
+    ): Int {
+        require(maxAgeMillis > 0) { "مدة الاحتفاظ غير صالحة" }
+        var removed = 0
+        cacheDir.listFiles()
+            ?.filter { file ->
+                file.isFile &&
+                    OWNED_PREFIXES.any { prefix -> file.name.startsWith(prefix) } &&
+                    nowMillis >= file.lastModified() &&
+                    nowMillis - file.lastModified() >= maxAgeMillis
+            }
+            ?.forEach { file ->
+                if (runCatching { file.delete() }.getOrDefault(false)) removed++
+            }
+        return removed
+    }
+}
+
 object VipxEncryptedMedia {
     private val MAGIC = byteArrayOf(0x56, 0x49, 0x50, 0x58, 0x45, 0x4E, 0x43, 0x31)
     private const val VERSION = 2
     const val DEFAULT_CHUNK_SIZE = 256 * 1024
     private const val MIN_CHUNK_SIZE = 4 * 1024
     private const val MAX_CHUNK_SIZE = 1024 * 1024
+    const val MAX_PLAINTEXT_BYTES = 512L * 1024L * 1024L
     private const val SALT_SIZE = 16
     private const val PREFIX_SIZE = 8
     private const val TAG_BITS = 128
@@ -44,9 +76,11 @@ object VipxEncryptedMedia {
     )
 
     fun encrypt(input: InputStream, output: OutputStream, password: CharArray,
-                mimeType: String, chunkSize: Int = DEFAULT_CHUNK_SIZE) {
+                mimeType: String, chunkSize: Int = DEFAULT_CHUNK_SIZE,
+                maxPlaintextBytes: Long = MAX_PLAINTEXT_BYTES) {
         require(password.isNotEmpty()) { "كلمة المرور فارغة" }
         require(chunkSize in MIN_CHUNK_SIZE..MAX_CHUNK_SIZE) { "حجم القطعة غير صالح" }
+        require(maxPlaintextBytes in 1..MAX_PLAINTEXT_BYTES) { "حد حجم الملف غير صالح" }
         require(mimeType.length in 1..255 && !mimeType.contains('\n')) { "نوع الوسائط غير صالح" }
         val salt = ByteArray(SALT_SIZE).also { SecureRandom().nextBytes(it) }
         val prefix = ByteArray(PREFIX_SIZE).also { SecureRandom().nextBytes(it) }
@@ -59,25 +93,45 @@ object VipxEncryptedMedia {
             }
         }.toByteArray()
         val key = deriveKey(password, salt)
-        val source = BufferedInputStream(input)
+        val source = input
         val sink = DataOutputStream(BufferedOutputStream(output))
         sink.write(headerBytes)
         val buffer = ByteArray(chunkSize)
+        try {
         var index = 0L
+        var totalPlainBytes = 0L
         while (true) {
             var count = 0
             while (count < buffer.size) {
                 val n = source.read(buffer, count, buffer.size - count)
                 if (n < 0) break
-                if (n == 0) continue
+                if (n == 0) {
+                    // Some custom/provider streams may return zero for a non-empty read.
+                    // Fall back to a single-byte read so this loop cannot spin forever.
+                    val one = source.read()
+                    if (one < 0) break
+                    buffer[count++] = one.toByte()
+                    continue
+                }
                 count += n
             }
             if (count == 0) break
-            require(index <= 0xFFFF_FFFFL) { "الملف أكبر من حد صيغة VIPXENC" }
-            val encrypted = crypt(Cipher.ENCRYPT_MODE, key, nonce(prefix, index),
-                aad(headerBytes, index, count), buffer.copyOf(count))
-            sink.writeInt(count)
-            sink.write(encrypted)
+            if (totalPlainBytes > maxPlaintextBytes - count.toLong()) {
+                buffer.fill(0, 0, count)
+                throw IllegalArgumentException("حجم الملف يتجاوز الحد الأقصى المسموح به")
+            }
+            require(index < 0xFFFF_FFFFL) { "الملف أكبر من حد صيغة VIPXENC" }
+            val plainChunk = buffer.copyOf(count)
+            try {
+                val encrypted = crypt(Cipher.ENCRYPT_MODE, key, nonce(prefix, index),
+                    aad(headerBytes, index, count), plainChunk)
+                sink.writeInt(count)
+                sink.write(encrypted)
+            } finally {
+                plainChunk.fill(0)
+                buffer.fill(0, 0, count)
+            }
+            totalPlainBytes += count.toLong()
             index++
             if (count < buffer.size) break
         }
@@ -87,15 +141,26 @@ object VipxEncryptedMedia {
         sink.writeInt(0)
         sink.write(finalTag)
         sink.flush()
+        } finally {
+            buffer.fill(0)
+        }
     }
 
-    fun decrypt(input: InputStream, output: OutputStream, password: CharArray): String {
+    /**
+     * Decrypts to [output]. Callers must supply a temporary/unpublished destination and
+     * publish it only after this method returns successfully: authenticated v2 end-of-file
+     * validation happens after plaintext chunks have been streamed to the output.
+     */
+    fun decrypt(input: InputStream, output: OutputStream, password: CharArray,
+                maxPlaintextBytes: Long = MAX_PLAINTEXT_BYTES): String {
         require(password.isNotEmpty()) { "كلمة المرور فارغة" }
+        require(maxPlaintextBytes in 1..MAX_PLAINTEXT_BYTES) { "حد حجم الملف غير صالح" }
         val source = DataInputStream(BufferedInputStream(input))
         val header = readHeader(source)
         val key = deriveKey(password, header.salt)
         val sink = BufferedOutputStream(output)
         var index = 0L
+        var totalPlainBytes = 0L
         var authenticatedEnd = false
         while (true) {
             val plainLength = if (header.version >= 2) {
@@ -107,7 +172,14 @@ object VipxEncryptedMedia {
                 ((first and 0xff) shl 24) or ((rest[0].toInt() and 0xff) shl 16) or
                     ((rest[1].toInt() and 0xff) shl 8) or (rest[2].toInt() and 0xff)
             } else {
-                try { source.readInt() } catch (_: EOFException) { break }
+                // For legacy v1, EOF is clean only before a new record starts.
+                // A partially written 4-byte length must not be mistaken for EOF.
+                val first = source.read()
+                if (first < 0) break
+                val rest = ByteArray(3)
+                source.readFully(rest)
+                ((first and 0xff) shl 24) or ((rest[0].toInt() and 0xff) shl 16) or
+                    ((rest[1].toInt() and 0xff) shl 8) or (rest[2].toInt() and 0xff)
             }
 
             if (plainLength == 0 && header.version >= 2) {
@@ -121,13 +193,21 @@ object VipxEncryptedMedia {
             }
 
             require(plainLength in 1..header.chunkSize) { "قطعة تالفة أو غير صالحة" }
-            require(index <= 0xFFFF_FFFFL) { "تجاوز عدد القطع المدعوم" }
+            require(index < 0xFFFF_FFFFL) { "تجاوز عدد القطع المدعوم" }
             val encrypted = ByteArray(plainLength + TAG_BYTES)
             source.readFully(encrypted)
             val plain = crypt(Cipher.DECRYPT_MODE, key, nonce(header.noncePrefix, index),
                 aad(header.authenticatedBytes, index, plainLength), encrypted)
-            require(plain.size == plainLength) { "طول القطعة غير مطابق" }
-            sink.write(plain)
+            try {
+                require(plain.size == plainLength) { "طول القطعة غير مطابق" }
+                require(totalPlainBytes <= maxPlaintextBytes - plain.size.toLong()) {
+                    "حجم الملف المفكوك يتجاوز الحد الأقصى المسموح به"
+                }
+                sink.write(plain)
+                totalPlainBytes += plain.size.toLong()
+            } finally {
+                plain.fill(0)
+            }
             index++
         }
         if (header.version >= 2) require(authenticatedEnd) { "نهاية الملف غير موثّقة" }

@@ -7,6 +7,7 @@ import org.junit.Test
 import java.io.ByteArrayInputStream
 import java.io.ByteArrayOutputStream
 import java.io.EOFException
+import java.io.File
 import java.awt.image.BufferedImage
 import javax.imageio.ImageIO
 
@@ -111,6 +112,105 @@ class VipxEncryptedMediaTest {
             fail("Truncated end marker must fail")
         } catch (_: EOFException) { }
     }
+
+    @Test fun encryptionRejectsPayloadAboveConfiguredLimit() {
+        val output = ByteArrayOutputStream()
+        try {
+            VipxEncryptedMedia.encrypt(
+                ByteArrayInputStream(byteArrayOf(1, 2, 3, 4, 5)),
+                output,
+                "limit-pass".toCharArray(),
+                "video/mp4",
+                maxPlaintextBytes = 4
+            )
+            fail("Encryption must reject payloads above the configured limit")
+        } catch (_: IllegalArgumentException) { }
+    }
+
+    @Test fun decryptionRejectsPayloadAboveConfiguredLimit() {
+        val encrypted = ByteArrayOutputStream()
+        VipxEncryptedMedia.encrypt(
+            ByteArrayInputStream(byteArrayOf(1, 2, 3, 4, 5)),
+            encrypted,
+            "limit-pass".toCharArray(),
+            "video/mp4"
+        )
+        try {
+            VipxEncryptedMedia.decrypt(
+                ByteArrayInputStream(encrypted.toByteArray()),
+                ByteArrayOutputStream(),
+                "limit-pass".toCharArray(),
+                maxPlaintextBytes = 4
+            )
+            fail("Decryption must reject payloads above the configured limit")
+        } catch (_: IllegalArgumentException) { }
+    }
+
+    @Test fun encryptionHandlesStreamsThatTemporarilyReturnZero() {
+        val payload = byteArrayOf(11, 22, 33, 44, 55)
+        val unusualStream = object : java.io.InputStream() {
+            private val delegate = ByteArrayInputStream(payload)
+            private var returnZero = true
+
+            override fun read(): Int = delegate.read()
+
+            override fun read(buffer: ByteArray, offset: Int, length: Int): Int {
+                if (returnZero) {
+                    returnZero = false
+                    return 0
+                }
+                return delegate.read(buffer, offset, length)
+            }
+        }
+        val encrypted = ByteArrayOutputStream()
+        VipxEncryptedMedia.encrypt(unusualStream, encrypted, "zero-read".toCharArray(), "video/mp4")
+        val recovered = ByteArrayOutputStream()
+        VipxEncryptedMedia.decrypt(
+            ByteArrayInputStream(encrypted.toByteArray()),
+            recovered,
+            "zero-read".toCharArray()
+        )
+        assertArrayEquals(payload, recovered.toByteArray())
+    }
+
+
+    @Test fun staleCacheCleanupRemovesOnlyOldVipxOwnedFilesIncludingPlaybackCopies() {
+        val directory = java.nio.file.Files.createTempDirectory("vipx-cache-test-").toFile()
+        try {
+            val now = 2_000_000_000_000L
+            val oldShared = File(directory, "vipx-shared-old.mp4").apply {
+                writeBytes(byteArrayOf(1))
+                setLastModified(now - 15L * 24L * 60L * 60L * 1000L)
+            }
+            val oldPlayback = File(directory, "vipx-player-old.mp4").apply {
+                writeBytes(byteArrayOf(4))
+                setLastModified(now - 15L * 24L * 60L * 60L * 1000L)
+            }
+            val recentDecrypted = File(directory, "vipx-dec-recent.png").apply {
+                writeBytes(byteArrayOf(2))
+                setLastModified(now - 2L * 24L * 60L * 60L * 1000L)
+            }
+            val unrelated = File(directory, "user-photo.jpg").apply {
+                writeBytes(byteArrayOf(3))
+                setLastModified(now - 30L * 24L * 60L * 60L * 1000L)
+            }
+
+            val removed = VipxMediaCacheMaintenance.cleanupStale(
+                directory,
+                nowMillis = now,
+                maxAgeMillis = 14L * 24L * 60L * 60L * 1000L
+            )
+
+            assertEquals(2, removed)
+            assertEquals(false, oldShared.exists())
+            assertEquals(false, oldPlayback.exists())
+            assertEquals(true, recentDecrypted.exists())
+            assertEquals(true, unrelated.exists())
+        } finally {
+            directory.deleteRecursively()
+        }
+    }
+
 
     @Test fun trailingBytesAfterAuthenticatedEndAreRejected() {
         val encrypted = ByteArrayOutputStream()

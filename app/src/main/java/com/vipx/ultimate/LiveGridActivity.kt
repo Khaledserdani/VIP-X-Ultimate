@@ -215,8 +215,35 @@ private fun LiveGridScreen(
                 when {
                     parsed.scheme != "https" || parsed.host.isNullOrBlank() -> message = "الرابط غير صالح؛ استخدم HTTPS."
                     !licenseValid -> message = "أدخل رابط ترخيص Widevine عبر HTTPS."
-                    streams.size >= 4 -> message = "الأربعة بثوث مستخدمة بالفعل. احذف بثاً قبل إضافة آخر."
-                    streams.any { it.url == cleanUrl } -> message = "هذا البث موجود بالفعل."
+                    drmEnabled && authorization.isNotBlank() &&
+                        !AuthorizationVault.isValidAuthorization(authorization.trim()) ->
+                        message = "بيانات Authorization غير صالحة؛ الحد الأقصى 8192 حرفاً ومن دون أسطر جديدة."
+                    streams.size >= 4 && streams.none { it.url == cleanUrl } ->
+                        message = "الأربعة بثوث مستخدمة بالفعل. احذف بثاً قبل إضافة آخر."
+                    streams.any { it.url == cleanUrl } &&
+                        streams.first { it.url == cleanUrl }.drmEnabled &&
+                        drmEnabled &&
+                        streams.first { it.url == cleanUrl }.licenseUrl == licenseUrl.trim() &&
+                        authorization.isNotBlank() -> {
+                        val credential = authorization.trim()
+                        sessionAuthorization[cleanUrl] = credential
+                        val saved = runCatching { AuthorizationVault.save(context, cleanUrl, credential) }
+                        service?.stopStream(cleanUrl)
+                        startPlaybackService()
+                        var restartFailed = false
+                        service?.let { engine ->
+                            runCatching {
+                                engine.playStream(cleanUrl, true, licenseUrl.trim(), credential)
+                            }.onFailure { restartFailed = true }
+                        }
+                        authorization = ""
+                        message = when {
+                            restartFailed -> "حُدّثت بيانات الترخيص، لكن تعذر إعادة تشغيل البث الآن."
+                            saved.isFailure -> "تم تحديث بيانات الترخيص للجلسة الحالية، لكن تعذر حفظها بأمان؛ أدخلها مجدداً بعد إغلاق التطبيق."
+                            else -> "تم تحديث بيانات الترخيص لهذا البث وإعادة تشغيله."
+                        }
+                    }
+                    streams.any { it.url == cleanUrl } -> message = "هذا البث موجود بالفعل؛ لتحديثه اختر Widevine وأدخل رابط الترخيص نفسه وبيانات Authorization الجديدة."
                     else -> {
                         val entry = StreamEntry(cleanUrl, drmEnabled, if (drmEnabled) licenseUrl.trim() else "")
                         streams.add(entry)

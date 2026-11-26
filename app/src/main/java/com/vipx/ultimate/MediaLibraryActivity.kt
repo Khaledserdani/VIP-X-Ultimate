@@ -2,10 +2,17 @@ package com.vipx.ultimate
 
 import android.content.Intent
 import android.net.Uri
+import android.graphics.Bitmap
+import android.graphics.BitmapFactory
+import android.provider.DocumentsContract
 import android.os.Bundle
 import android.webkit.MimeTypeMap
 import android.widget.ImageView
 import androidx.activity.ComponentActivity
+import androidx.lifecycle.lifecycleScope
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.activity.compose.setContent
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -79,8 +86,43 @@ class MediaLibraryActivity : ComponentActivity() {
             .toList()
     }
 
+    private fun loadSampledImage(view: ImageView, uri: Uri) {
+        if (view.tag == uri) return
+        view.tag = uri
+        view.setImageDrawable(null)
+        view.post {
+            val targetWidth = view.width.coerceAtLeast(1024)
+            val targetHeight = view.height.coerceAtLeast(1024)
+            lifecycleScope.launch {
+                val bitmap = withContext(Dispatchers.IO) {
+                    runCatching {
+                        val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+                        contentResolver.openInputStream(uri)?.use {
+                            BitmapFactory.decodeStream(it, null, bounds)
+                        }
+                        if (bounds.outWidth <= 0 || bounds.outHeight <= 0) return@runCatching null
+                        var sample = 1
+                        while (bounds.outWidth / sample > targetWidth * 2 ||
+                            bounds.outHeight / sample > targetHeight * 2) {
+                            sample *= 2
+                        }
+                        val options = BitmapFactory.Options().apply {
+                            inSampleSize = sample
+                            inPreferredConfig = Bitmap.Config.ARGB_8888
+                        }
+                        contentResolver.openInputStream(uri)?.use {
+                            BitmapFactory.decodeStream(it, null, options)
+                        }
+                    }.getOrNull()
+                }
+                if (view.tag == uri) view.setImageBitmap(bitmap)
+            }
+        }
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        VipxMediaCacheMaintenance.cleanupStale(cacheDir)
         // Activity destruction is not guaranteed after process death. Prune only
         // old decrypted previews so recent files from another Activity remain safe.
         val staleBefore = System.currentTimeMillis() - 24L * 60L * 60L * 1000L
@@ -97,6 +139,7 @@ class MediaLibraryActivity : ComponentActivity() {
             MaterialTheme(colorScheme = darkColorScheme(primary = MediaAccent, background = MediaBg)) {
                 MediaLibraryScreen(
                     initialSharedMedia = sharedMedia,
+                    loadSampledImage = { view, uri -> loadSampledImage(view, uri) },
                     onPersistPermission = { uri ->
                         try {
                             contentResolver.takePersistableUriPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION)
@@ -146,14 +189,20 @@ class MediaLibraryActivity : ComponentActivity() {
                         require(mime.startsWith("image/") || mime.startsWith("video/")) {
                             "يمكن تشفير الصور والفيديوهات فقط"
                         }
-                        val input = contentResolver.openInputStream(sourceUri)
-                            ?: throw IllegalStateException("تعذر قراءة الملف الأصلي")
-                        val output = contentResolver.openOutputStream(destinationUri, "wt")
-                            ?: throw IllegalStateException("تعذر إنشاء ملف VIPXENC")
-                        input.use { source ->
-                            output.use { sink ->
-                                VipxEncryptedMedia.encrypt(source, sink, password, mime)
+                        try {
+                            val input = contentResolver.openInputStream(sourceUri)
+                                ?: throw IllegalStateException("تعذر قراءة الملف الأصلي")
+                            input.use { source ->
+                                val output = contentResolver.openOutputStream(destinationUri, "wt")
+                                    ?: throw IllegalStateException("تعذر إنشاء ملف VIPXENC")
+                                output.use { sink ->
+                                    VipxEncryptedMedia.encrypt(source, sink, password, mime)
+                                }
                             }
+                        } catch (error: Exception) {
+                            // SAF providers may leave a partial destination after a failed write.
+                            runCatching { DocumentsContract.deleteDocument(contentResolver, destinationUri) }
+                            throw error
                         }
                     },
                     clearDecryptedCache = {
@@ -204,6 +253,7 @@ class MediaLibraryActivity : ComponentActivity() {
 @Composable
 private fun MediaLibraryScreen(
     initialSharedMedia: List<Pair<Uri, String>>,
+    loadSampledImage: (ImageView, Uri) -> Unit,
     onPersistPermission: (Uri) -> Unit,
     mimeFor: (Uri) -> String,
     inspectEncrypted: (Uri) -> String,
@@ -280,15 +330,18 @@ private fun MediaLibraryScreen(
             encryptedSource = uri
             password = ""
             onPersistPermission(uri)
-            encryptedMime = try {
-                inspectEncrypted(uri)
-            } catch (error: Exception) {
-                ""
-            }
-            message = if (encryptedMime.startsWith("image/") || encryptedMime.startsWith("video/")) {
-                "ملف VIPXENC صالح مبدئياً • النوع: $encryptedMime. أدخل كلمة المرور لفكّه."
-            } else {
-                "لم يتم التعرف على حاوية VIPXENC صالحة أو أن ترويسة الملف تالفة."
+            busy = true
+            message = "يجري فحص ترويسة VIPXENC في الخلفية…"
+            scope.launch {
+                encryptedMime = withContext(Dispatchers.IO) {
+                    runCatching { inspectEncrypted(uri) }.getOrDefault("")
+                }
+                message = if (encryptedMime.startsWith("image/") || encryptedMime.startsWith("video/")) {
+                    "ملف VIPXENC صالح مبدئياً • النوع: $encryptedMime. أدخل كلمة المرور لفكّه."
+                } else {
+                    "لم يتم التعرف على حاوية VIPXENC صالحة أو أن ترويسة الملف تالفة."
+                }
+                busy = false
             }
         }
     }
@@ -419,11 +472,12 @@ private fun MediaLibraryScreen(
                         scaleType = ImageView.ScaleType.FIT_CENTER
                         adjustViewBounds = true
                     } },
-                    update = { view -> view.setImageURI(uri) },
+                    update = { view -> loadSampledImage(view, uri) },
                     modifier = Modifier.fillMaxWidth().weight(1f)
                 )
             } else if (uri != null && selectedMime.startsWith("video/")) {
                 val context = androidx.compose.ui.platform.LocalContext.current
+                val lifecycleOwner = LocalLifecycleOwner.current
                 val player = remember(uri) {
                     ExoPlayer.Builder(context).build().apply {
                         setMediaItem(MediaItem.fromUri(uri))
@@ -432,8 +486,31 @@ private fun MediaLibraryScreen(
                         playWhenReady = true
                     }
                 }
-                DisposableEffect(player) {
-                    onDispose { player.release() }
+                DisposableEffect(player, lifecycleOwner) {
+                    // A library preview is foreground-only: suspend it when the
+                    // Activity leaves the foreground, then resume only if it was
+                    // actually playing before the interruption.
+                    var resumeAfterStop = false
+                    val observer = LifecycleEventObserver { _, event ->
+                        when (event) {
+                            Lifecycle.Event.ON_STOP -> {
+                                resumeAfterStop = player.isPlaying
+                                player.pause()
+                            }
+                            Lifecycle.Event.ON_START -> {
+                                if (resumeAfterStop) {
+                                    resumeAfterStop = false
+                                    player.play()
+                                }
+                            }
+                            else -> Unit
+                        }
+                    }
+                    lifecycleOwner.lifecycle.addObserver(observer)
+                    onDispose {
+                        lifecycleOwner.lifecycle.removeObserver(observer)
+                        player.release()
+                    }
                 }
                 AndroidView(
                     factory = { ctx -> PlayerView(ctx).apply { useController = true; this.player = player } },

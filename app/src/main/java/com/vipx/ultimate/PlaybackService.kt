@@ -6,6 +6,7 @@ import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.session.CommandButton
 import androidx.media3.session.MediaSession
 import androidx.media3.session.MediaSessionService
+import java.io.File
 
 @OptIn(UnstableApi::class)
 class PlaybackService : MediaSessionService() {
@@ -54,6 +55,12 @@ class PlaybackService : MediaSessionService() {
             release()
         }
         mediaSession = null
+        // These copies are transferred exclusively to this single-player service.
+        // Delete them when the playback session ends; stale-cache cleanup is the
+        // fallback if Android kills the process without delivering onDestroy().
+        cacheDir.listFiles()
+            ?.filter { it.isFile && it.name.startsWith("vipx-player-") }
+            ?.forEach { runCatching { it.delete() } }
         super.onDestroy()
     }
 }

@@ -40,6 +40,8 @@ jobs:
   android-emulator:
     runs-on: ubuntu-latest
     timeout-minutes: 40
+    env:
+      ANDROID_I_WANT_MY_TCG: "yes"
     steps:
       - name: Checkout
         uses: actions/checkout@v4
