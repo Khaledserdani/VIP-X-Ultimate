@@ -281,7 +281,7 @@ class MultiStreamPlaybackService : Service() {
         val removedPlayer = players.remove(url)
         if (audioStreamUrl == url) {
             audioStreamUrl = null
-            if (players.isNotEmpty()) abandonPreviewAudioFocus()
+            abandonPreviewAudioFocus()
         }
         if (players.isEmpty()) stopPlaybackService()
         else updateNotification()
@@ -312,7 +312,7 @@ class MultiStreamPlaybackService : Service() {
         players.remove(url)
         if (audioStreamUrl == url) {
             audioStreamUrl = null
-            if (players.isNotEmpty()) abandonPreviewAudioFocus()
+            abandonPreviewAudioFocus()
         }
         if (players.isEmpty()) stopPlaybackService()
         else updateNotification()
