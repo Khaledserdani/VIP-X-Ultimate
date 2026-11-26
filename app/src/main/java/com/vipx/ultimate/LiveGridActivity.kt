@@ -242,7 +242,6 @@ private fun LiveGridScreen(
                 audibleStream = null
                 streams.clear()
                 sessionAuthorization.clear()
-                AuthorizationVault.clear(context)
                 persistStreams()
                 message = "تم إيقاف البثوث الأربعة."
             }) { Text("إيقاف الكل") }
