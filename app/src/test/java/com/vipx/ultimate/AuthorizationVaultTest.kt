@@ -14,8 +14,8 @@ class AuthorizationVaultTest {
 
     @Test
     fun rejectsHeaderInjectionAndOversizedValues() {
-        assertFalse(AuthorizationVault.isValidAuthorization("Bearer first\\r\\nInjected: value"))
-        assertFalse(AuthorizationVault.isValidAuthorization("Bearer first\\nInjected: value"))
+        assertFalse(AuthorizationVault.isValidAuthorization("Bearer first\r\nInjected: value"))
+        assertFalse(AuthorizationVault.isValidAuthorization("Bearer first\nInjected: value"))
         assertFalse(AuthorizationVault.isValidAuthorization("x".repeat(8193)))
     }
 }
