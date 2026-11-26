@@ -111,4 +111,65 @@ class VipxEncryptedMediaTest {
             fail("Truncated end marker must fail")
         } catch (_: EOFException) { }
     }
+
+    @Test fun encryptionRejectsPayloadAboveConfiguredLimit() {
+        val output = ByteArrayOutputStream()
+        try {
+            VipxEncryptedMedia.encrypt(
+                ByteArrayInputStream(byteArrayOf(1, 2, 3, 4, 5)),
+                output,
+                "limit-pass".toCharArray(),
+                "video/mp4",
+                maxPlaintextBytes = 4
+            )
+            fail("Encryption must reject payloads above the configured limit")
+        } catch (_: IllegalArgumentException) { }
+    }
+
+    @Test fun decryptionRejectsPayloadAboveConfiguredLimit() {
+        val encrypted = ByteArrayOutputStream()
+        VipxEncryptedMedia.encrypt(
+            ByteArrayInputStream(byteArrayOf(1, 2, 3, 4, 5)),
+            encrypted,
+            "limit-pass".toCharArray(),
+            "video/mp4"
+        )
+        try {
+            VipxEncryptedMedia.decrypt(
+                ByteArrayInputStream(encrypted.toByteArray()),
+                ByteArrayOutputStream(),
+                "limit-pass".toCharArray(),
+                maxPlaintextBytes = 4
+            )
+            fail("Decryption must reject payloads above the configured limit")
+        } catch (_: IllegalArgumentException) { }
+    }
+
+    @Test fun encryptionHandlesStreamsThatTemporarilyReturnZero() {
+        val payload = byteArrayOf(11, 22, 33, 44, 55)
+        val unusualStream = object : java.io.InputStream() {
+            private val delegate = ByteArrayInputStream(payload)
+            private var returnZero = true
+
+            override fun read(): Int = delegate.read()
+
+            override fun read(buffer: ByteArray, offset: Int, length: Int): Int {
+                if (returnZero) {
+                    returnZero = false
+                    return 0
+                }
+                return delegate.read(buffer, offset, length)
+            }
+        }
+        val encrypted = ByteArrayOutputStream()
+        VipxEncryptedMedia.encrypt(unusualStream, encrypted, "zero-read".toCharArray(), "video/mp4")
+        val recovered = ByteArrayOutputStream()
+        VipxEncryptedMedia.decrypt(
+            ByteArrayInputStream(encrypted.toByteArray()),
+            recovered,
+            "zero-read".toCharArray()
+        )
+        assertArrayEquals(payload, recovered.toByteArray())
+    }
+
 }
