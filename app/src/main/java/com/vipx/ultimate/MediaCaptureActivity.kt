@@ -27,6 +27,7 @@ class MediaCaptureActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        VipxMediaCacheMaintenance.cleanupStale(cacheDir)
         val candidate = SharedMediaCapture.fromIntent(intent)
         val sharedUris = SharedMediaCapture.sharedContentUris(intent)
         val sourceApp = referrer?.host ?: "تطبيق مشاركة على Android"
