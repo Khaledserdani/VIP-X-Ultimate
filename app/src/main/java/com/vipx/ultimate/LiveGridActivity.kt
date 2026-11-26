@@ -216,6 +216,15 @@ private fun LiveGridScreen(
                             audibleStream = entry.url
                         }) { Text(if (audibleStream == entry.url) "الصوت مفعّل" else "اسمع هذا البث", fontSize = 11.sp) }
                         TextButton(onClick = {
+                            context.startActivity(
+                                Intent(context, PlayerActivity::class.java)
+                                    .putExtra(PlayerActivity.EXTRA_STREAM_URL, entry.url)
+                                    .putExtra(PlayerActivity.EXTRA_DRM_ENABLED, entry.drmEnabled)
+                                    .putExtra(PlayerActivity.EXTRA_DRM_LICENSE_URL, entry.licenseUrl)
+                                    .putExtra(PlayerActivity.EXTRA_DRM_AUTHORIZATION, sessionAuthorization[entry.url].orEmpty())
+                            )
+                        }) { Text("فتح المشغّل الكامل", fontSize = 11.sp) }
+                        TextButton(onClick = {
                             service?.stopStream(entry.url)
                             if (audibleStream == entry.url) audibleStream = null
                             streams.remove(entry)
