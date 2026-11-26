@@ -134,6 +134,13 @@ private fun LiveGridScreen(
     var message by remember { mutableStateOf("أضف حتى أربعة بثوث؛ ستعمل معاً وتستمر عند تصفح التطبيق.") }
     var audibleStream by remember { mutableStateOf<String?>(service?.selectedAudioStream()) }
 
+    LaunchedEffect(Unit) {
+        AuthorizationVault.pruneExpired(context)
+        streams.filter { it.drmEnabled }.forEach { entry ->
+            AuthorizationVault.load(context, entry.url)?.let { sessionAuthorization[entry.url] = it }
+        }
+    }
+
     LaunchedEffect(service) { audibleStream = service?.selectedAudioStream() }
 
     DisposableEffect(service) {
@@ -141,14 +148,12 @@ private fun LiveGridScreen(
         onDispose { service?.setAudioSelectionChangedListener(null) }
     }
 
-    LaunchedEffect(service, streams.size) {
+    LaunchedEffect(service, streams.size, sessionAuthorization.size) {
         if (streams.isNotEmpty()) {
             service?.let { engine ->
                 var needsFreshDrmAuthorization = false
                 streams.forEach { entry ->
-                    // A persisted stream entry is configuration, not a persisted login.
-                    // Never silently retry a protected stream after process recreation
-                    // without the user re-entering its session-only Authorization value.
+                    // Protected credentials are restored only from the encrypted 24-hour vault.
                     if (entry.drmEnabled && !engine.activeStreamUrls().contains(entry.url) &&
                         sessionAuthorization[entry.url].isNullOrBlank()) {
                         needsFreshDrmAuthorization = true
@@ -159,7 +164,7 @@ private fun LiveGridScreen(
                     }
                 }
                 if (needsFreshDrmAuthorization) {
-                    message = "استُرجعت إعدادات البث؛ البث المحمي يحتاج مصادقة جديدة. أزل البث المحمي ثم أضفه مجدداً مع بيانات Authorization الصالحة."
+                    message = "انتهت صلاحية بيانات Authorization أو لم تعد متاحة؛ أدخل بيانات جديدة لهذا البث المحمي."
                 }
             }
         }
@@ -197,9 +202,9 @@ private fun LiveGridScreen(
             OutlinedTextField(value = licenseUrl, onValueChange = { licenseUrl = it }, modifier = Modifier.fillMaxWidth(),
                 label = { Text("رابط ترخيص HTTPS لهذا البث") }, singleLine = true)
             OutlinedTextField(value = authorization, onValueChange = { authorization = it }, modifier = Modifier.fillMaxWidth(),
-                label = { Text("Authorization لهذا البث (جلسة فقط)") },
+                label = { Text("Authorization لهذا البث (حفظ آمن 24 ساعة)") },
                 visualTransformation = PasswordVisualTransformation(), singleLine = true)
-            Text("كل بث له رابط ترخيص وترويسة مصادقة مستقلان. لا نحفظ Authorization في التخزين.", color = Color(0xFF9FB2C7), fontSize = 10.sp)
+            Text("تُحفظ Authorization مشفّرة محلياً لمدة 24 ساعة لكل بث، ثم تُحذف تلقائياً. لا تُرسل إلى خادم VIP X.", color = Color(0xFF9FB2C7), fontSize = 10.sp)
         }
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             Button(onClick = {
@@ -215,7 +220,10 @@ private fun LiveGridScreen(
                     else -> {
                         val entry = StreamEntry(cleanUrl, drmEnabled, if (drmEnabled) licenseUrl.trim() else "")
                         streams.add(entry)
-                        if (authorization.isNotBlank()) sessionAuthorization[cleanUrl] = authorization.trim()
+                        if (authorization.isNotBlank()) {
+                            sessionAuthorization[cleanUrl] = authorization.trim()
+                            runCatching { AuthorizationVault.save(context, cleanUrl, authorization.trim()) }
+                        }
                         persistStreams()
                         startPlaybackService()
                         var startError: String? = null
@@ -234,6 +242,7 @@ private fun LiveGridScreen(
                 audibleStream = null
                 streams.clear()
                 sessionAuthorization.clear()
+                AuthorizationVault.clear(context)
                 persistStreams()
                 message = "تم إيقاف البثوث الأربعة."
             }) { Text("إيقاف الكل") }
@@ -272,6 +281,7 @@ private fun LiveGridScreen(
                             if (audibleStream == sessionKey) audibleStream = null
                             streams.remove(entry)
                             sessionAuthorization.remove(sessionKey)
+                            // Keep encrypted credentials until their 24-hour expiry.
                             persistStreams()
                             context.startActivity(
                                 Intent(context, PlayerActivity::class.java)
@@ -286,6 +296,7 @@ private fun LiveGridScreen(
                             if (audibleStream == entry.url) audibleStream = null
                             streams.remove(entry)
                             sessionAuthorization.remove(entry.url)
+                            AuthorizationVault.remove(context, entry.url)
                             persistStreams()
                         }) { Text("إزالة وإيقاف", fontSize = 11.sp) }
                     }
