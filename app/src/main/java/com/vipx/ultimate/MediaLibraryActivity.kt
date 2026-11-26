@@ -187,6 +187,7 @@ private fun MediaLibraryScreen(
             onPersistPermission(uri)
             selectedUri = uri
             selectedMime = mimeFor(uri)
+            encryptPassword = ""
             message = if (selectedMime.startsWith("image/")) "صورة محددة" else
                 if (selectedMime.startsWith("video/")) "فيديو محدد" else "نوع الملف غير مدعوم للمعاينة."
         }
@@ -215,6 +216,7 @@ private fun MediaLibraryScreen(
         } else {
             pendingEncryptPassword = ""
             pendingEncryptSource = null
+            encryptPassword = ""
         }
     }
 
@@ -275,6 +277,7 @@ private fun MediaLibraryScreen(
                     onClick = {
                         pendingEncryptSource = selectedUri
                         pendingEncryptPassword = encryptPassword
+                        encryptPassword = ""
                         val extension = if (selectedMime.startsWith("image/")) "image" else "video"
                         encryptedSavePicker.launch("VIPX-$extension-${System.currentTimeMillis()}.vipxenc")
                     },
