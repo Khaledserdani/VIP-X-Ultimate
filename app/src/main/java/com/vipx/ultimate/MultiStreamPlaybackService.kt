@@ -29,6 +29,7 @@ class MultiStreamPlaybackService : Service() {
     private val binder = LocalBinder()
     private val players = linkedMapOf<String, ExoPlayer>()
     private var audioStreamUrl: String? = null
+    private var isForeground = false
 
     override fun onBind(intent: Intent?): IBinder = binder
 
@@ -42,8 +43,12 @@ class MultiStreamPlaybackService : Service() {
             stopAll()
             return START_NOT_STICKY
         }
-        startAsForeground()
-        return START_STICKY
+        try {
+            startAsForeground()
+        } catch (_: Exception) {
+            stopSelfResult(startId)
+        }
+        return START_NOT_STICKY
     }
 
     @Synchronized
@@ -62,6 +67,11 @@ class MultiStreamPlaybackService : Service() {
             MediaItem.Builder().setUri(uri).setDrmConfiguration(drm.build()).build()
         } else MediaItem.fromUri(uri)
         val player = ExoPlayer.Builder(this).build()
+        player.addListener(object : Player.Listener {
+            override fun onPlayerError(error: androidx.media3.common.PlaybackException) {
+                handlePlayerError(url, player)
+            }
+        })
         try {
             player.volume = 0f // previews stay muted until the user selects one audio stream
             player.repeatMode = Player.REPEAT_MODE_OFF
@@ -72,8 +82,11 @@ class MultiStreamPlaybackService : Service() {
             startAsForeground()
             updateNotification()
         } catch (error: Throwable) {
-            players.remove(url)
+            if (players[url] === player) players.remove(url)
             player.release()
+            if (audioStreamUrl == url) audioStreamUrl = null
+            if (players.isEmpty()) stopPlaybackService()
+            else updateNotification()
             throw error
         }
     }
@@ -99,10 +112,8 @@ class MultiStreamPlaybackService : Service() {
     fun stopStream(url: String) {
         players.remove(url)?.release()
         if (audioStreamUrl == url) audioStreamUrl = null
-        if (players.isEmpty()) {
-            stopForeground(STOP_FOREGROUND_REMOVE)
-            stopSelf()
-        } else updateNotification()
+        if (players.isEmpty()) stopPlaybackService()
+        else updateNotification()
     }
 
     @Synchronized
@@ -110,7 +121,24 @@ class MultiStreamPlaybackService : Service() {
         players.values.forEach { it.release() }
         players.clear()
         audioStreamUrl = null
-        stopForeground(STOP_FOREGROUND_REMOVE)
+        stopPlaybackService()
+    }
+
+    @Synchronized
+    private fun handlePlayerError(url: String, failedPlayer: ExoPlayer) {
+        if (players[url] !== failedPlayer) return
+        players.remove(url)
+        if (audioStreamUrl == url) audioStreamUrl = null
+        failedPlayer.release()
+        if (players.isEmpty()) stopPlaybackService()
+        else updateNotification()
+    }
+
+    private fun stopPlaybackService() {
+        if (isForeground) {
+            stopForeground(STOP_FOREGROUND_REMOVE)
+            isForeground = false
+        }
         stopSelf()
     }
 
@@ -121,6 +149,7 @@ class MultiStreamPlaybackService : Service() {
         } else {
             startForeground(NOTIFICATION_ID, notification)
         }
+        isForeground = true
     }
 
     private fun updateNotification() {
@@ -146,8 +175,13 @@ class MultiStreamPlaybackService : Service() {
     }
 
     override fun onDestroy() {
-        players.values.forEach { it.release() }
+        players.values.toList().forEach { it.release() }
         players.clear()
+        audioStreamUrl = null
+        if (isForeground) {
+            stopForeground(STOP_FOREGROUND_REMOVE)
+            isForeground = false
+        }
         super.onDestroy()
     }
 
