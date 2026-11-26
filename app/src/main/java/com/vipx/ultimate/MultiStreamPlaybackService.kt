@@ -14,6 +14,7 @@ import androidx.core.app.NotificationCompat
 import androidx.media3.common.C
 import androidx.media3.common.MediaItem
 import androidx.media3.common.Player
+import androidx.media3.exoplayer.DefaultLoadControl
 import androidx.media3.exoplayer.ExoPlayer
 
 /**
@@ -67,7 +68,22 @@ class MultiStreamPlaybackService : Service() {
             if (authorization.isNotBlank()) drm.setLicenseRequestHeaders(mapOf("Authorization" to authorization))
             MediaItem.Builder().setUri(uri).setDrmConfiguration(drm.build()).build()
         } else MediaItem.fromUri(uri)
-        val player = ExoPlayer.Builder(this).build()
+        // Four simultaneous previews must not each use the default long buffer.
+        // Bound each player's media buffer to 12 MiB and 12 seconds to reduce
+        // aggregate memory pressure while retaining a short startup buffer.
+        val loadControl = DefaultLoadControl.Builder()
+            .setBufferDurationsMs(
+                1_500,  // minimum buffer
+                12_000, // maximum buffer
+                500,    // buffer required to start playback
+                1_500   // buffer required after rebuffering
+            )
+            .setTargetBufferBytes(12 * 1024 * 1024)
+            .setPrioritizeTimeOverSizeThresholds(true)
+            .build()
+        val player = ExoPlayer.Builder(this)
+            .setLoadControl(loadControl)
+            .build()
         player.addListener(object : Player.Listener {
             override fun onPlayerError(error: androidx.media3.common.PlaybackException) {
                 handlePlayerError(url, player)
