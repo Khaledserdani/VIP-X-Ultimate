@@ -7,8 +7,6 @@ import org.junit.Test
 import java.io.ByteArrayInputStream
 import java.io.ByteArrayOutputStream
 import java.io.EOFException
-import java.awt.image.BufferedImage
-import javax.imageio.ImageIO
 
 class VipxEncryptedMediaTest {
     @Test fun roundTripImageAndVideoPayload() {
@@ -21,25 +19,25 @@ class VipxEncryptedMediaTest {
         assertArrayEquals(payload, recovered.toByteArray())
     }
 
-    @Test fun actualPngImageRoundTripsAndRemainsDecodable() {
-        val original = BufferedImage(24, 18, BufferedImage.TYPE_INT_ARGB)
-        for (y in 0 until original.height) for (x in 0 until original.width) {
-            original.setRGB(x, y, (0xFF shl 24) or ((x * 9) shl 16) or ((y * 13) shl 8) or ((x + y) * 3))
-        }
-        val imageBytes = ByteArrayOutputStream().also { check(ImageIO.write(original, "png", it)) }.toByteArray()
+    @Test fun actualPngImagePayloadRoundTripsWithoutChangingBytes() {
+        // A fixed 1x1 PNG fixture; JVM unit tests do not provide java.awt/ImageIO on Android.
+        val imageBytes = java.util.Base64.getDecoder().decode(
+            "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAAAAAA6fptVAAAACklEQVR4nGNgAAAAAgABSK+kcQAAAABJRU5ErkJggg=="
+        )
         val encrypted = ByteArrayOutputStream()
         VipxEncryptedMedia.encrypt(ByteArrayInputStream(imageBytes), encrypted, "png-test".toCharArray(), "image/png", 4096)
         val recovered = ByteArrayOutputStream()
         assertEquals("image/png", VipxEncryptedMedia.decrypt(
             ByteArrayInputStream(encrypted.toByteArray()), recovered, "png-test".toCharArray()
         ))
-        val decoded = ImageIO.read(ByteArrayInputStream(recovered.toByteArray()))
-        org.junit.Assert.assertNotNull("Decrypted file must be a real decodable PNG", decoded)
-        assertEquals(original.width, decoded.width)
-        assertEquals(original.height, decoded.height)
-        for (y in 0 until original.height) for (x in 0 until original.width) {
-            assertEquals(original.getRGB(x, y), decoded.getRGB(x, y))
-        }
+        val decodedBytes = recovered.toByteArray()
+        assertArrayEquals("PNG bytes must survive encryption and decryption unchanged", imageBytes, decodedBytes)
+        assertEquals(0x89, decodedBytes[0].toInt() and 0xff)
+        assertEquals('P'.code, decodedBytes[1].toInt())
+        assertEquals('N'.code, decodedBytes[2].toInt())
+        assertEquals('G'.code, decodedBytes[3].toInt())
+        assertEquals(1, java.nio.ByteBuffer.wrap(decodedBytes, 16, 4).int)
+        assertEquals(1, java.nio.ByteBuffer.wrap(decodedBytes, 20, 4).int)
     }
 
     @Test fun actualMp4VideoContainerRoundTripsWithoutChangingBytes() {
