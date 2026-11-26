@@ -98,7 +98,7 @@ object AuthorizationVault {
      */
     fun isValidAuthorization(value: String): Boolean =
         value.length <= MAX_AUTHORIZATION_LENGTH &&
-            value.none { it == '\\r' || it == '\\n' }
+            value.none { it == '\r' || it == '\n' }
 
     @Synchronized
     fun remove(context: Context, streamUrl: String) {
