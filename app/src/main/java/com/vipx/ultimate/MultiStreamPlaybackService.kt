@@ -32,6 +32,7 @@ class MultiStreamPlaybackService : Service() {
     private var audioStreamUrl: String? = null
     private var isForeground = false
     private var streamsChangedListener: (() -> Unit)? = null
+    private var audioSelectionChangedListener: ((String?) -> Unit)? = null
 
     override fun onBind(intent: Intent?): IBinder = binder
 
@@ -119,6 +120,15 @@ class MultiStreamPlaybackService : Service() {
         streamsChangedListener?.invoke()
     }
 
+    private fun notifyAudioSelectionChanged() {
+        audioSelectionChangedListener?.invoke(audioStreamUrl)
+    }
+
+    @Synchronized
+    fun setAudioSelectionChangedListener(listener: ((String?) -> Unit)?) {
+        audioSelectionChangedListener = listener
+    }
+
     @Synchronized
     fun activeStreamUrls(): List<String> = players.keys.toList()
 
@@ -131,6 +141,7 @@ class MultiStreamPlaybackService : Service() {
         require(url == null || players.containsKey(url)) { "البث الصوتي غير موجود" }
         audioStreamUrl = url
         players.forEach { (streamUrl, player) -> player.volume = if (streamUrl == url) 1f else 0f }
+        notifyAudioSelectionChanged()
     }
 
     @Synchronized
@@ -142,6 +153,7 @@ class MultiStreamPlaybackService : Service() {
         if (audioStreamUrl == url) audioStreamUrl = null
         if (players.isEmpty()) stopPlaybackService()
         else updateNotification()
+        notifyAudioSelectionChanged()
         // The overlay listener detaches its PlayerView before the removed player is released.
         notifyStreamsChanged()
         removedPlayer?.release()
@@ -153,6 +165,7 @@ class MultiStreamPlaybackService : Service() {
         players.clear()
         audioStreamUrl = null
         stopPlaybackService()
+        notifyAudioSelectionChanged()
         // Detach all overlay views while their players are still valid.
         notifyStreamsChanged()
         removedPlayers.forEach { it.release() }
@@ -165,6 +178,7 @@ class MultiStreamPlaybackService : Service() {
         if (audioStreamUrl == url) audioStreamUrl = null
         if (players.isEmpty()) stopPlaybackService()
         else updateNotification()
+        notifyAudioSelectionChanged()
         // Rebuild/detach the overlay before releasing the failed player's instance.
         notifyStreamsChanged()
         failedPlayer.release()
@@ -215,6 +229,7 @@ class MultiStreamPlaybackService : Service() {
         players.clear()
         audioStreamUrl = null
         streamsChangedListener = null
+        audioSelectionChangedListener = null
         remainingPlayers.forEach { it.release() }
         if (isForeground) {
             stopForeground(STOP_FOREGROUND_REMOVE)
