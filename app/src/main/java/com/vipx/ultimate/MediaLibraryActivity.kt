@@ -81,6 +81,15 @@ class MediaLibraryActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        // Activity destruction is not guaranteed after process death. Prune only
+        // old decrypted previews so recent files from another Activity remain safe.
+        val staleBefore = System.currentTimeMillis() - 24L * 60L * 60L * 1000L
+        cacheDir.listFiles()
+            ?.filter {
+                it.isFile && it.name.startsWith("vipx-dec-") &&
+                    it.lastModified() < staleBefore
+            }
+            ?.forEach { it.delete() }
         window.statusBarColor = android.graphics.Color.rgb(7, 17, 31)
         window.navigationBarColor = android.graphics.Color.rgb(7, 17, 31)
         val sharedMedia = readSharedMedia(intent)
