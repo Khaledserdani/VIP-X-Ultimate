@@ -73,7 +73,7 @@ object VipxEncryptedMedia {
                 count += n
             }
             if (count == 0) break
-            require(index <= 0xFFFF_FFFFL) { "الملف أكبر من حد صيغة VIPXENC" }
+            require(index < 0xFFFF_FFFFL) { "الملف أكبر من حد صيغة VIPXENC" }
             val encrypted = crypt(Cipher.ENCRYPT_MODE, key, nonce(prefix, index),
                 aad(headerBytes, index, count), buffer.copyOf(count))
             sink.writeInt(count)
@@ -128,7 +128,7 @@ object VipxEncryptedMedia {
             }
 
             require(plainLength in 1..header.chunkSize) { "قطعة تالفة أو غير صالحة" }
-            require(index <= 0xFFFF_FFFFL) { "تجاوز عدد القطع المدعوم" }
+            require(index < 0xFFFF_FFFFL) { "تجاوز عدد القطع المدعوم" }
             val encrypted = ByteArray(plainLength + TAG_BYTES)
             source.readFully(encrypted)
             val plain = crypt(Cipher.DECRYPT_MODE, key, nonce(header.noncePrefix, index),
