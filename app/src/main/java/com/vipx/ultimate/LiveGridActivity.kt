@@ -192,12 +192,13 @@ private fun LiveGridScreen(
                         if (authorization.isNotBlank()) sessionAuthorization[cleanUrl] = authorization.trim()
                         persistStreams()
                         startPlaybackService()
+                        var startError: String? = null
                         service?.let {
                             runCatching { it.playStream(entry.url, entry.drmEnabled, entry.licenseUrl, sessionAuthorization[entry.url].orEmpty()) }
-                                .onFailure { error -> message = "تعذر بدء البث: ${error.message}" }
+                                .onFailure { error -> startError = "تعذر بدء البث: ${error.message}" }
                         }
                         url = ""; licenseUrl = ""; authorization = ""; drmEnabled = false
-                        message = "تمت إضافة البث؛ يجري تشغيله مع البثوث الأخرى."
+                        message = startError ?: "تمت إضافة البث؛ يجري تشغيله مع البثوث الأخرى."
                     }
                 }
             }, enabled = url.isNotBlank()) { Text("إضافة وتشغيل") }
@@ -300,6 +301,8 @@ private fun StreamPreview(
                 }
             }
             override fun onPlayerError(error: androidx.media3.common.PlaybackException) {
+                // The service releases terminally failed players; never keep a stale view reference.
+                player = null
                 state = "خطأ: ${error.errorCodeName}"
             }
         }
