@@ -33,9 +33,11 @@ class FloatingStreamsOverlayService : Service() {
                 stopSelf()
                 return
             }
+            playbackService?.setStreamsChangedListener { showOverlay() }
             showOverlay()
         }
         override fun onServiceDisconnected(name: ComponentName?) {
+            playbackService?.setStreamsChangedListener(null)
             removeOverlay()
             playbackService = null
         }
@@ -203,6 +205,7 @@ class FloatingStreamsOverlayService : Service() {
             runCatching { unbindService(playbackConnection) }
             isBound = false
         }
+        playbackService?.setStreamsChangedListener(null)
         playbackService = null
         super.onDestroy()
     }
