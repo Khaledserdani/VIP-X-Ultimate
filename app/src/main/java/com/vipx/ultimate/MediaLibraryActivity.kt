@@ -96,14 +96,21 @@ class MediaLibraryActivity : ComponentActivity() {
                         decryptedPreviewFile = null
                     },
                     onShowFloatingMedia = { uri, mime ->
-                        val overlayIntent = Intent(this, FloatingMediaOverlayService::class.java)
-                            .putExtra(FloatingMediaOverlayService.EXTRA_URI, uri.toString())
-                            .putExtra(FloatingMediaOverlayService.EXTRA_MIME, mime)
-                            .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-                        if (mime.startsWith("video/") && android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
-                            startForegroundService(overlayIntent)
+                        if (!android.provider.Settings.canDrawOverlays(this)) {
+                            startActivity(Intent(
+                                android.provider.Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
+                                Uri.parse("package:$packageName")
+                            ))
                         } else {
-                            startService(overlayIntent)
+                            val overlayIntent = Intent(this, FloatingMediaOverlayService::class.java)
+                                .putExtra(FloatingMediaOverlayService.EXTRA_URI, uri.toString())
+                                .putExtra(FloatingMediaOverlayService.EXTRA_MIME, mime)
+                                .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                            if (mime.startsWith("video/") && android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
+                                startForegroundService(overlayIntent)
+                            } else {
+                                startService(overlayIntent)
+                            }
                         }
                     }
                 )
