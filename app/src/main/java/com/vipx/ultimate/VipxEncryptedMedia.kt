@@ -73,7 +73,7 @@ object VipxEncryptedMedia {
                 count += n
             }
             if (count == 0) break
-            require(index <= 0xFFFF_FFFFL) { "الملف أكبر من حد صيغة VIPXENC" }
+            require(index < 0xFFFF_FFFFL) { "الملف أكبر من حد صيغة VIPXENC" }
             val encrypted = crypt(Cipher.ENCRYPT_MODE, key, nonce(prefix, index),
                 aad(headerBytes, index, count), buffer.copyOf(count))
             sink.writeInt(count)
@@ -107,7 +107,14 @@ object VipxEncryptedMedia {
                 ((first and 0xff) shl 24) or ((rest[0].toInt() and 0xff) shl 16) or
                     ((rest[1].toInt() and 0xff) shl 8) or (rest[2].toInt() and 0xff)
             } else {
-                try { source.readInt() } catch (_: EOFException) { break }
+                // For legacy v1, EOF is clean only before a new record starts.
+                // A partially written 4-byte length must not be mistaken for EOF.
+                val first = source.read()
+                if (first < 0) break
+                val rest = ByteArray(3)
+                source.readFully(rest)
+                ((first and 0xff) shl 24) or ((rest[0].toInt() and 0xff) shl 16) or
+                    ((rest[1].toInt() and 0xff) shl 8) or (rest[2].toInt() and 0xff)
             }
 
             if (plainLength == 0 && header.version >= 2) {
@@ -121,7 +128,7 @@ object VipxEncryptedMedia {
             }
 
             require(plainLength in 1..header.chunkSize) { "قطعة تالفة أو غير صالحة" }
-            require(index <= 0xFFFF_FFFFL) { "تجاوز عدد القطع المدعوم" }
+            require(index < 0xFFFF_FFFFL) { "تجاوز عدد القطع المدعوم" }
             val encrypted = ByteArray(plainLength + TAG_BYTES)
             source.readFully(encrypted)
             val plain = crypt(Cipher.DECRYPT_MODE, key, nonce(header.noncePrefix, index),
