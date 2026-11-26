@@ -64,7 +64,7 @@ class MultiStreamPlaybackService : Service() {
                     .build()
             )
             .setOnAudioFocusChangeListener(::onAudioFocusChanged, Handler(Looper.getMainLooper()))
-            .setWillPauseWhenDucked(false)
+            .setWillPauseWhenDucked(true)
             .build()
     }
 
