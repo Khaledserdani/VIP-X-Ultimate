@@ -32,26 +32,36 @@ class MediaCaptureActivity : ComponentActivity() {
         val sourceApp = referrer?.host ?: "تطبيق مشاركة على Android"
         val sharedMime = sharedUris.firstOrNull()?.let { contentResolver.getType(it) }
             ?: intent.type.orEmpty()
-        val encryptedMime = sharedUris.firstOrNull()?.let { uri ->
-            runCatching {
-                contentResolver.openInputStream(uri)?.use { VipxEncryptedMedia.inspect(it).mimeType }
-            }.getOrNull()
-        }.orEmpty()
-
         setContent {
             var previewUri by remember(sharedUris, sharedMime) { mutableStateOf(if (sharedMime.startsWith("image/")) sharedUris.firstOrNull() else null) }
             var previewMime by remember(sharedMime) { mutableStateOf(if (sharedMime.startsWith("image/")) sharedMime else "") }
+            var encryptedMime by remember { mutableStateOf("") }
+            var checkingEncrypted by remember { mutableStateOf(sharedUris.isNotEmpty()) }
             var password by remember { mutableStateOf("") }
             var busy by remember { mutableStateOf(false) }
             var message by remember {
-                mutableStateOf(
-                    if (encryptedMime.startsWith("image/") || encryptedMime.startsWith("video/"))
-                        "تم التعرف على حاوية VIPXENC مشفّرة. أدخل كلمة المرور التي أنشأتها لها."
-                    else "استقبل VIP X مشاركة من تطبيق آخر. لا يتم تفتيش ذاكرة الهاتف."
-                )
+                mutableStateOf("استقبل VIP X مشاركة من تطبيق آخر. لا يتم تفتيش ذاكرة الهاتف.")
             }
             val scope = rememberCoroutineScope()
             val sharedUri = sharedUris.firstOrNull()
+
+            LaunchedEffect(sharedUris) {
+                val uri = sharedUri
+                if (uri != null) {
+                    val inspectedMime = withContext(Dispatchers.IO) {
+                        runCatching {
+                            contentResolver.openInputStream(uri)?.use { VipxEncryptedMedia.inspect(it).mimeType }
+                        }.getOrNull().orEmpty()
+                    }
+                    encryptedMime = inspectedMime
+                    message = if (inspectedMime.startsWith("image/") || inspectedMime.startsWith("video/")) {
+                        "تمت قراءة ترويسة VIPXENC مبدئياً. أدخل كلمة المرور للتحقق الكامل."
+                    } else {
+                        "استقبل VIP X مشاركة من تطبيق آخر. لا يتم تفتيش ذاكرة الهاتف."
+                    }
+                }
+                checkingEncrypted = false
+            }
 
             MaterialTheme(colorScheme = darkColorScheme(
                 primary = Color(0xFF42E3C2),
@@ -81,6 +91,9 @@ class MediaCaptureActivity : ComponentActivity() {
                         } else if (sharedUri != null) {
                             Text("المصدر: $sourceApp", color = Color.White)
                             Text("عدد العناصر المستلمة: ${sharedUris.size}", color = Color(0xFF9FB2C7))
+                            if (checkingEncrypted) {
+                                Text("يجري فحص ترويسة الملف في الخلفية…", color = Color(0xFF9FB2C7), fontSize = 12.sp)
+                            }
                             Text("نوع المشاركة: ${if (encryptedMime.isNotBlank()) "VIPXENC مشفّر • $encryptedMime" else sharedMime.ifBlank { "غير محدد" }}",
                                 color = Color(0xFF42E3C2))
                             Text(
