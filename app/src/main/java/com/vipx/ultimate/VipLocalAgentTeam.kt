@@ -64,7 +64,7 @@ internal object VipLocalAgentTeam {
                 $goal
                 قدّم تقريراً مركزاً يتضمن التحليل والنتيجة وأهم التحفظات.
             """.trimIndent()
-            val result = LocalLlmRuntime.generate(prompt)
+            val result = LocalLlmRuntime.generateIsolated(\n                "أنت ${agent.name} ضمن فريق VIP X. ${agent.instruction} أجب بالعربية، افصل الحقائق عن الافتراضات ولا تدّع تنفيذ إجراءات.",\n                prompt\n            )
             reports += VipLocalAgentReport(agent.id, agent.name, result)
             prior.edit().putString("candidate_${agent.id}", result).apply()
         }
