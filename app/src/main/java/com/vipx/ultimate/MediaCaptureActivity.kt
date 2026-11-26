@@ -304,24 +304,60 @@ class MediaCaptureActivity : ComponentActivity() {
     }
 
     private fun openSharedVideo(uri: Uri) {
+        if (uri.scheme == "file") {
+            val candidate = runCatching { File(uri.path.orEmpty()).canonicalFile }.getOrNull()
+            val cache = runCatching { cacheDir.canonicalFile }.getOrNull()
+            val isOwnedPreview = candidate != null && cache != null &&
+                candidate.parentFile == cache && candidate.name.startsWith("vipx-shared-") &&
+                decryptedPreviewFile?.canonicalFile == candidate
+            if (isOwnedPreview) {
+                // Give PlaybackService its own copy. Keep the preview owned by this
+                // Activity until it is destroyed, so a failed launch cannot orphan it.
+                lifecycleScope.launch {
+                    var playbackFile: File? = null
+                    try {
+                        playbackFile = withContext(Dispatchers.IO) {
+                            val source = candidate!!
+                            val extension = source.extension.takeIf { it.isNotBlank() }?.let { ".$it" } ?: ".media"
+                            val target = File(cacheDir, "vipx-player-${System.nanoTime()}$extension")
+                            try {
+                                source.copyTo(target, overwrite = false)
+                                target
+                            } catch (error: Exception) {
+                                target.delete()
+                                throw error
+                            }
+                        }
+                        startActivity(
+                            Intent(this@MediaCaptureActivity, PlayerActivity::class.java)
+                                .putExtra(PlayerActivity.EXTRA_STREAM_URL, Uri.fromFile(playbackFile).toString())
+                        )
+                    } catch (error: Exception) {
+                        playbackFile?.delete()
+                        android.widget.Toast.makeText(
+                            this@MediaCaptureActivity,
+                            "تعذر تجهيز الفيديو للتشغيل: ${error.message ?: "خطأ غير معروف"}",
+                            android.widget.Toast.LENGTH_LONG
+                        ).show()
+                    }
+                }
+                return
+            }
+        }
+
         val playIntent = Intent(this, PlayerActivity::class.java)
             .putExtra(PlayerActivity.EXTRA_STREAM_URL, uri.toString())
         if (uri.scheme == "content") {
             playIntent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
                 .setClipData(ClipData.newRawUri("VIP X shared media", uri))
-        } else if (uri.scheme == "file") {
-            // Transfer ownership of a decrypted cache file to PlaybackService.
-            // The capture screen may be destroyed while playback continues.
-            val candidate = runCatching { File(uri.path.orEmpty()).canonicalFile }.getOrNull()
-            val cache = runCatching { cacheDir.canonicalFile }.getOrNull()
-            if (candidate != null && cache != null &&
-                candidate.parentFile == cache && candidate.name.startsWith("vipx-shared-") &&
-                decryptedPreviewFile?.canonicalFile == candidate
-            ) {
-                decryptedPreviewFile = null
-            }
         }
-        startActivity(playIntent)
+        runCatching { startActivity(playIntent) }.onFailure { error ->
+            android.widget.Toast.makeText(
+                this,
+                "تعذر فتح مشغّل الفيديو: ${error.message ?: "خطأ غير معروف"}",
+                android.widget.Toast.LENGTH_LONG
+            ).show()
+        }
     }
 
     override fun onDestroy() {
