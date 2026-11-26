@@ -22,12 +22,16 @@ object AuthorizationVault {
     private const val TTL_MILLIS = 8L * 60L * 60L * 1000L
     private const val LEGACY_TTL_REDUCTION_MILLIS = 16L * 60L * 60L * 1000L
     private const val GCM_TAG_BITS = 128
+    private const val MAX_AUTHORIZATION_LENGTH = 8192
 
     @Synchronized
     fun save(context: Context, streamUrl: String, authorization: String) {
         if (authorization.isBlank()) {
             remove(context, streamUrl)
             return
+        }
+        require(isValidAuthorization(authorization)) {
+            "Authorization غير صالح؛ الحد الأقصى 8192 حرفاً ومن دون أسطر جديدة"
         }
         val cipher = Cipher.getInstance("AES/GCM/NoPadding")
         cipher.init(Cipher.ENCRYPT_MODE, getOrCreateKey())
@@ -68,7 +72,8 @@ object AuthorizationVault {
             val cipher = Cipher.getInstance("AES/GCM/NoPadding")
             cipher.init(Cipher.DECRYPT_MODE, getOrCreateKey(), GCMParameterSpec(GCM_TAG_BITS, iv))
             cipher.updateAAD(streamUrl.toByteArray(Charsets.UTF_8))
-            val authorization = cipher.doFinal(encrypted).toString(Charsets.UTF_8).takeIf { it.isNotBlank() }
+            val authorization = cipher.doFinal(encrypted).toString(Charsets.UTF_8)
+                .takeIf { it.isNotBlank() && isValidAuthorization(it) }
             if (authorization != null && isLegacyVersion) {
                 prefs.edit().putString(
                     key,
@@ -86,6 +91,14 @@ object AuthorizationVault {
             null
         }
     }
+
+    /**
+     * Accept one bounded HTTP header value only; CR/LF are rejected to prevent
+     * header injection. Empty values remain valid for streams without auth.
+     */
+    fun isValidAuthorization(value: String): Boolean =
+        value.length <= MAX_AUTHORIZATION_LENGTH &&
+            value.none { it == '\\r' || it == '\\n' }
 
     @Synchronized
     fun remove(context: Context, streamUrl: String) {
