@@ -34,6 +34,25 @@ internal data class VideoPoseReport(
     val samplingIntervalMs: Long
 )
 
+internal object VideoPoseSampling {
+    const val MAX_FRAMES = 1800
+
+    fun intervalMs(durationMs: Long): Long {
+        require(durationMs > 0L) { "duration must be positive" }
+        val target = when {
+            durationMs <= 30_000L -> 125L
+            durationMs <= 120_000L -> 250L
+            else -> 500L
+        }
+        return maxOf(target, (durationMs / MAX_FRAMES).coerceAtLeast(1L))
+    }
+
+    fun frameCount(durationMs: Long): Int {
+        val interval = intervalMs(durationMs)
+        return ((durationMs + interval - 1L) / interval).coerceIn(1L, MAX_FRAMES.toLong()).toInt()
+    }
+}
+
 internal object VideoPoseAnalyzer {
     fun analyze(
         context: Context,
@@ -48,16 +67,9 @@ internal object VideoPoseAnalyzer {
                 ?.toLongOrNull() ?: error("تعذر قراءة مدة الفيديو")
             require(duration > 0L) { "الفيديو فارغ أو غير صالح" }
             tracker = HumanBodyTrackingEngine(context)
-            // Dense sampling for short clips; reduce density for long videos to keep
-            // on-device analysis practical without imposing an 80-frame ceiling.
-            val targetIntervalMs = when {
-                duration <= 30_000L -> 125L   // up to 8 frames/second
-                duration <= 120_000L -> 250L  // up to 4 frames/second
-                else -> 500L                  // up to 2 frames/second
-            }
-            val maxFrames = 1800
-            val interval = maxOf(targetIntervalMs, (duration / maxFrames).coerceAtLeast(1L))
-            val count = ((duration + interval - 1L) / interval).toInt().coerceIn(1, maxFrames)
+            // Dense sampling for short clips, bounded for long clips.
+            val interval = VideoPoseSampling.intervalMs(duration)
+            val count = VideoPoseSampling.frameCount(duration)
             var reliable = 0
             var masks = 0
             var sampled = 0
