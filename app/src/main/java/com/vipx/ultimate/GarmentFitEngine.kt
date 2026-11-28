@@ -115,7 +115,7 @@ internal object GarmentFitEngine {
             val bodyCm = body.value(zone)
             val garmentCm = garment.value(zone)
             // Optional abdomen circumference/depth are assessed independently.
-            if ((zone == FitZone.ABDOMEN_CIRCUMFERENCE || zone == FitZone.ABDOMEN_PROJECTION) && bodyCm == 0.0 && garmentCm == 0.0) {
+            if ((zone == FitZone.ABDOMEN_CIRCUMFERENCE || zone == FitZone.ABDOMEN_PROJECTION) && (bodyCm == 0.0 || garmentCm == 0.0)) {
                 return@map ZoneFit(zone, 0.0, 0.0, 0.0, 1.0, "غير مقاس")
             }
             val ease = garmentCm - bodyCm
