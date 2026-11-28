@@ -1,6 +1,11 @@
 package com.vipx.ultimate
 
 import android.content.Context
+import android.graphics.Canvas as AndroidCanvas
+import android.graphics.Paint as AndroidPaint
+import android.graphics.Path as AndroidPath
+import android.graphics.Color as AndroidColor
+import android.graphics.Bitmap
 import android.media.MediaMetadataRetriever
 import android.os.Handler
 import android.os.Looper
@@ -22,6 +27,9 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.Image
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.layout.ContentScale
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -32,7 +40,8 @@ internal data class VideoPoseReport(
     val reliablePoseFrames: Int,
     val segmentationFrames: Int,
     val overlayReadyFrames: Int,
-    val samplingIntervalMs: Long
+    val samplingIntervalMs: Long,
+    val previewFrame: Bitmap?
 )
 
 internal object VideoPoseSampling {
@@ -51,6 +60,50 @@ internal object VideoPoseSampling {
     fun frameCount(durationMs: Long): Int {
         val interval = intervalMs(durationMs)
         return ((durationMs + interval - 1L) / interval).coerceIn(1L, MAX_FRAMES.toLong()).toInt()
+    }
+}
+
+
+/**
+ * Draws a simple translucent garment silhouette over the selected source frame.
+ * It paints only garment pixels; it never warps, scales, or edits the source body.
+ * This is a 2D proof-of-pipeline preview, not a fitted cloth simulation.
+ */
+internal object GarmentOverlayRenderer {
+    fun render(source: Bitmap, mesh: GarmentOverlayMesh): Bitmap? {
+        if (!mesh.valid || mesh.vertices.size < 11) return null
+        val scale = minOf(1f, 720f / maxOf(source.width, source.height))
+        val width = (source.width * scale).toInt().coerceAtLeast(1)
+        val height = (source.height * scale).toInt().coerceAtLeast(1)
+        val output = Bitmap.createScaledBitmap(source, width, height, true)
+            .copy(Bitmap.Config.ARGB_8888, true)
+        val canvas = AndroidCanvas(output)
+        val points = mesh.vertices
+        fun px(index: Int) = points[index].x * width
+        fun py(index: Int) = points[index].y * height
+
+        val garment = AndroidPath().apply {
+            moveTo(px(0), py(0))
+            lineTo(px(1), py(1))
+            lineTo(px(7), py(7))
+            lineTo(px(9), py(9))
+            lineTo(px(10), py(10))
+            lineTo(px(8), py(8))
+            lineTo(px(6), py(6))
+            close()
+        }
+        val fill = AndroidPaint(AndroidPaint.ANTI_ALIAS_FLAG).apply {
+            color = AndroidColor.argb(112, 55, 185, 170)
+            style = AndroidPaint.Style.FILL
+        }
+        val stroke = AndroidPaint(AndroidPaint.ANTI_ALIAS_FLAG).apply {
+            color = AndroidColor.argb(235, 210, 255, 246)
+            style = AndroidPaint.Style.STROKE
+            strokeWidth = (width / 220f).coerceAtLeast(2f)
+        }
+        canvas.drawPath(garment, fill)
+        canvas.drawPath(garment, stroke)
+        return output
     }
 }
 
@@ -74,6 +127,7 @@ internal object VideoPoseAnalyzer {
             var reliable = 0
             var masks = 0
             var overlayReady = 0
+            var previewFrame: Bitmap? = null
             var sampled = 0
             for (index in 0 until count) {
                 val timeMs = if (count == 1) 0L else index * interval
@@ -86,13 +140,19 @@ internal object VideoPoseAnalyzer {
                     sampled++
                     if (frame?.hasReliablePose() == true) reliable++
                     if (frame?.segmentationMaskAvailable == true) masks++
-                    if (frame != null && PoseGarmentRig.build(frame).valid) overlayReady++
+                    if (frame != null) {
+                        val mesh = PoseGarmentRig.build(frame)
+                        if (mesh.valid) {
+                            overlayReady++
+                            if (previewFrame == null) previewFrame = GarmentOverlayRenderer.render(bitmap, mesh)
+                        }
+                    }
                 } finally {
                     bitmap.recycle()
                 }
                 onProgress(((index + 1) * 100 / count).coerceIn(0, 100))
             }
-            return VideoPoseReport(duration, sampled, reliable, masks, overlayReady, interval)
+            return VideoPoseReport(duration, sampled, reliable, masks, overlayReady, interval, previewFrame)
         } finally {
             tracker?.close()
             retriever.release()
@@ -172,6 +232,15 @@ internal fun VideoPoseAnalysisPanel() {
                 Text("إطارات توفرت فيها خريطة فصل الجسم: ${result.segmentationFrames}", color = Color.White)
                 Text("إطارات صالحة لقالب اللباس الهندسي: ${result.overlayReadyFrames}", color = Color.White)
                 Text("الفاصل بين اللقطات: ${result.samplingIntervalMs} مللي ثانية", color = Color.White)
+                result.previewFrame?.let { preview ->
+                    Text("معاينة أولية لقالب اللباس فوق إطار حقيقي من الفيديو", color = Color(0xFF43E0C6))
+                    Image(
+                        bitmap = preview.asImageBitmap(),
+                        contentDescription = "معاينة هندسية أولية للملابس فوق إطار الفيديو",
+                        modifier = Modifier.fillMaxWidth(),
+                        contentScale = ContentScale.Fit
+                    )
+                }
                 Text(
                     "قالب اللباس الهندسي مرحلة أولية فقط؛ لم يُرسم اللباس فوق الفيديو بعد، وهذه ليست قياسات محيط الجسم.",
                     color = Color(0xFFFFD18A)
