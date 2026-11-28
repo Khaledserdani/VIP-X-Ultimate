@@ -70,7 +70,7 @@ internal object VideoPoseSampling {
  * This is a 2D proof-of-pipeline preview, not a fitted cloth simulation.
  */
 internal object GarmentOverlayRenderer {
-    fun render(source: Bitmap, mesh: GarmentOverlayMesh, colorHex: String, style: SheerGarmentStyle): Bitmap? {
+    fun render(source: Bitmap, mesh: GarmentOverlayMesh, colorHex: String, garmentStyle: SheerGarmentStyle): Bitmap? {
         if (!mesh.valid || mesh.vertices.size < 11) return null
         val scale = minOf(1f, 720f / maxOf(source.width, source.height))
         val width = (source.width * scale).toInt().coerceAtLeast(1)
@@ -93,7 +93,7 @@ internal object GarmentOverlayRenderer {
             close()
         }
         val baseColor = runCatching { AndroidColor.parseColor(colorHex) }.getOrDefault(AndroidColor.WHITE)
-        val fabricAlpha = when (style) {
+        val fabricAlpha = when (garmentStyle) {
             SheerGarmentStyle.CHIFFON_OVERLAY -> 92
             SheerGarmentStyle.TULLE_LAYERED -> 128
             SheerGarmentStyle.LACE_OVERLAY -> 142
@@ -120,7 +120,7 @@ internal object VideoPoseAnalyzer {
         context: Context,
         uri: Uri,
         colorHex: String,
-        style: SheerGarmentStyle,
+        garmentStyle: SheerGarmentStyle,
         onProgress: (Int) -> Unit = {}
     ): VideoPoseReport {
         val retriever = MediaMetadataRetriever()
@@ -154,7 +154,7 @@ internal object VideoPoseAnalyzer {
                         val mesh = PoseGarmentRig.build(frame)
                         if (mesh.valid) {
                             overlayReady++
-                            if (previewFrame == null) previewFrame = GarmentOverlayRenderer.render(bitmap, mesh, colorHex, style)
+                            if (previewFrame == null) previewFrame = GarmentOverlayRenderer.render(bitmap, mesh, colorHex, garmentStyle)
                         }
                     }
                 } finally {
