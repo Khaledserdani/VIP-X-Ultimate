@@ -36,6 +36,35 @@ android {
         targetCompatibility = JavaVersion.VERSION_17
     }
 }
+
+val poseModelFile = layout.projectDirectory.file("src/main/assets/pose_landmarker_full.task").asFile
+val downloadPoseLandmarkerModel by tasks.registering {
+    outputs.file(poseModelFile)
+    doLast {
+        val expectedSha256 = "4eaa5eb7a98365221087693fcc286334cf0858e2eb6e15b506aa4a7ecdcec4ad"
+        val modelUrl = "https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_full/float16/latest/pose_landmarker_full.task"
+        poseModelFile.parentFile.mkdirs()
+        if (!poseModelFile.exists()) {
+            val temporary = java.io.File(poseModelFile.parentFile, poseModelFile.name + ".download")
+            java.net.URL(modelUrl).openStream().use { input ->
+                temporary.outputStream().use { output -> input.copyTo(output) }
+            }
+            temporary.copyTo(poseModelFile, overwrite = true)
+            temporary.delete()
+        }
+        val digest = java.security.MessageDigest.getInstance("SHA-256")
+            .digest(poseModelFile.readBytes())
+            .joinToString("") { "%02x".format(it) }
+        if (digest != expectedSha256) {
+            poseModelFile.delete()
+            throw GradleException("MediaPipe pose model SHA-256 mismatch: $digest")
+        }
+    }
+}
+tasks.named("preBuild").configure {
+    dependsOn(downloadPoseLandmarkerModel)
+}
+
 dependencies {
     implementation(platform("androidx.compose:compose-bom:2024.12.01"))
     implementation("androidx.activity:activity-compose:1.10.0")
