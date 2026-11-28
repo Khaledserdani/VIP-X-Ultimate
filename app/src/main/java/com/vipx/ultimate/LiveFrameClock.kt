@@ -7,17 +7,16 @@ package com.vipx.ultimate
 internal class LiveFrameClock(
     private val minimumIntervalMs: Long = 100L
 ) {
-    init {
-        require(minimumIntervalMs >= 0L)
-    }
+    init { require(minimumIntervalMs >= 0L) }
 
     private var lastAcceptedMs = -1L
 
     @Synchronized
     fun accept(timestampMs: Long): Boolean {
         if (timestampMs < 0L) return false
-        if (lastAcceptedMs >= 0L && timestampMs - lastAcceptedMs < minimumIntervalMs) {
-            return false
+        if (lastAcceptedMs >= 0L) {
+            val delta = timestampMs - lastAcceptedMs
+            if (delta <= 0L || delta < minimumIntervalMs) return false
         }
         lastAcceptedMs = timestampMs
         return true
@@ -32,21 +31,15 @@ internal class LiveFrameClock(
     }
 
     @Synchronized
-    fun reset() {
-        lastAcceptedMs = -1L
-    }
+    fun reset() { lastAcceptedMs = -1L }
 
     @Synchronized
     fun lastTimestampMs(): Long? = lastAcceptedMs.takeIf { it >= 0L }
 }
 
-/** Latest-frame queue policy: never accumulate stale camera/screen frames. */
-internal class LatestFrameGate(
-    private val minimumIntervalMs: Long = 100L
-) {
+/** Drops stale frames instead of accumulating a queue of old camera/screen images. */
+internal class LatestFrameGate(private val minimumIntervalMs: Long = 100L) {
     private val clock = LiveFrameClock(minimumIntervalMs)
-
     fun shouldAnalyze(timestampMs: Long): Boolean = clock.accept(timestampMs)
-
     fun reset() = clock.reset()
 }
