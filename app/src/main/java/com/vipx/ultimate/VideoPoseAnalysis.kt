@@ -40,6 +40,13 @@ internal data class VideoPoseReport(
     val reliablePoseFrames: Int,
     val segmentationFrames: Int,
     val overlayReadyFrames: Int,
+    val postureFrames: Int,
+    val maxTorsoLeanDegrees: Float,
+    val maxShoulderTiltDegrees: Float,
+    val maxHipTiltDegrees: Float,
+    val maxLeftElbowFlexionDegrees: Float,
+    val maxRightElbowFlexionDegrees: Float,
+    val maxForwardBackBendDegrees: Float?,
     val samplingIntervalMs: Long,
     val previewFrame: Bitmap?
 )
@@ -233,6 +240,13 @@ internal object VideoPoseAnalyzer {
             var reliable = 0
             var masks = 0
             var overlayReady = 0
+            var postureFrames = 0
+            var maxTorsoLean = 0f
+            var maxShoulderTilt = 0f
+            var maxHipTilt = 0f
+            var maxLeftElbow = 0f
+            var maxRightElbow = 0f
+            var maxForwardBackBend: Float? = null
             var previewFrame: Bitmap? = null
             var sampled = 0
             for (index in 0 until count) {
@@ -247,6 +261,16 @@ internal object VideoPoseAnalyzer {
                     if (frame?.hasReliablePose() == true) reliable++
                     if (frame?.segmentationMaskAvailable == true) masks++
                     if (frame != null) {
+                        val motion = PoseMotionAnalyzer.analyze(frame)
+                        if (motion != null) {
+                            postureFrames++
+                            maxTorsoLean = maxOf(maxTorsoLean, kotlin.math.abs(motion.torsoLeanDegrees))
+                            maxShoulderTilt = maxOf(maxShoulderTilt, kotlin.math.abs(motion.shoulderTiltDegrees))
+                            maxHipTilt = maxOf(maxHipTilt, kotlin.math.abs(motion.hipTiltDegrees))
+                            motion.leftElbowFlexionDegrees?.let { maxLeftElbow = maxOf(maxLeftElbow, it) }
+                            motion.rightElbowFlexionDegrees?.let { maxRightElbow = maxOf(maxRightElbow, it) }
+                            motion.forwardBackBendDegrees?.let { maxForwardBackBend = maxOf(maxForwardBackBend ?: 0f, kotlin.math.abs(it)) }
+                        }
                         val mesh = PoseGarmentRig.build(frame)
                         if (mesh.valid) {
                             overlayReady++
@@ -258,7 +282,7 @@ internal object VideoPoseAnalyzer {
                 }
                 onProgress(((index + 1) * 100 / count).coerceIn(0, 100))
             }
-            return VideoPoseReport(duration, sampled, reliable, masks, overlayReady, interval, previewFrame)
+            return VideoPoseReport(duration, sampled, reliable, masks, overlayReady, postureFrames, maxTorsoLean, maxShoulderTilt, maxHipTilt, maxLeftElbow, maxRightElbow, maxForwardBackBend, interval, previewFrame)
         } finally {
             tracker?.close()
             retriever.release()
@@ -337,6 +361,12 @@ internal fun VideoPoseAnalysisPanel(selectedColorHex: String, selectedStyle: She
                 Text("إطارات بوضعية موثوقة: ${result.reliablePoseFrames}", color = Color.White)
                 Text("إطارات توفرت فيها خريطة فصل الجسم: ${result.segmentationFrames}", color = Color.White)
                 Text("إطارات صالحة لقالب اللباس الهندسي: ${result.overlayReadyFrames}", color = Color.White)
+                Text("إطارات تحليل وضعية الجسم: ${result.postureFrames}", color = Color.White)
+                Text("أقصى ميل للجذع: ${result.maxTorsoLeanDegrees.toInt()}°", color = Color.White)
+                Text("أقصى ميل للكتفين: ${result.maxShoulderTiltDegrees.toInt()}°", color = Color.White)
+                Text("أقصى ميل للوركين: ${result.maxHipTiltDegrees.toInt()}°", color = Color.White)
+                Text("أقصى ثني للمرفق الأيسر/الأيمن: ${result.maxLeftElbowFlexionDegrees.toInt()}° / ${result.maxRightElbowFlexionDegrees.toInt()}°", color = Color.White)
+                result.maxForwardBackBendDegrees?.let { Text("مؤشر انحناء أمامي/خلفي تقريبي: ${it.toInt()}°", color = Color.White) }
                 Text("الفاصل بين اللقطات: ${result.samplingIntervalMs} مللي ثانية", color = Color.White)
                 result.previewFrame?.let { preview ->
                     Text("معاينة أولية للتصميم واللون المختارين فوق إطار حقيقي من الفيديو", color = Color(0xFF43E0C6))
@@ -348,7 +378,7 @@ internal fun VideoPoseAnalysisPanel(selectedColorHex: String, selectedStyle: She
                     )
                 }
                 Text(
-                    "قالب اللباس الهندسي مرحلة أولية فقط؛ لم يُرسم اللباس فوق الفيديو بعد، وهذه ليست قياسات محيط الجسم.",
+                    "تحليل الزوايا يصف وضعية المفاصل في الإطارات المختارة فقط؛ لا يقيس انحناء العمود الفقري طبياً ولا يثبت قياسات الجسم. معاينة اللباس الحالية ثابتة من إطار واحد وليست تتبعاً مرئياً مستمراً بعد.",
                     color = Color(0xFFFFD18A)
                 )
             }
