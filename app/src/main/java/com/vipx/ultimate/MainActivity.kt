@@ -8,6 +8,9 @@ import android.os.Build
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.PickVisualMediaRequest
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.layout.*
@@ -187,6 +190,7 @@ private fun VipBuilderScreen(loadApps:()->List<InstalledApp>){
                 Icon(Icons.Default.Android,null,tint=Mint,modifier=Modifier.size(34.dp))
             }
             SheerGarmentPicker(onConfirm = { garmentName, colorName -> status = "تم اعتماد $garmentName باللون $colorName كاختيار للتجربة" })
+            VideoPoseAnalysisPanel()
             Card(colors=CardDefaults.cardColors(containerColor=Panel),shape=RoundedCornerShape(18.dp)){
                 Column(Modifier.fillMaxWidth().padding(13.dp),verticalArrangement=Arrangement.spacedBy(8.dp)){
                     Text("1 • اختر التطبيق المثبّت",color=Color.White,fontWeight=FontWeight.Bold)
