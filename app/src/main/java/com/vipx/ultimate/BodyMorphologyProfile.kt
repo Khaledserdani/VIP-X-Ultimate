@@ -60,6 +60,28 @@ internal data class BodyMorphologyProfile(
             confidence >= 0.75 &&
             listOf(chestCircumferenceCm, waistCircumferenceCm,
                 abdomenCircumferenceCm, hipCircumferenceCm).all { it != null }
+
+    /**
+     * Converts only sufficiently verified circumference measurements into the fit engine.
+     * The larger left/right arm and thigh values provide conservative garment ease;
+     * asymmetry remains available in this profile for side-specific rendering.
+     */
+    fun toBodyMeasurementsOrNull(): BodyMeasurements? {
+        if (!isReadyForGarmentFit()) return null
+        val leftArm = upperArmLeftCm ?: return null
+        val rightArm = upperArmRightCm ?: return null
+        val leftThigh = thighLeftCm ?: return null
+        val rightThigh = thighRightCm ?: return null
+        return BodyMeasurements(
+            chestCm = chestCircumferenceCm!!,
+            waistCm = waistCircumferenceCm!!,
+            hipCm = hipCircumferenceCm!!,
+            upperArmCm = maxOf(leftArm, rightArm),
+            thighCm = maxOf(leftThigh, rightThigh),
+            abdomenProjectionCm = abdomenProjectionCm ?: 0.0,
+            abdomenCircumferenceCm = abdomenCircumferenceCm!!
+        )
+    }
 }
 
 internal enum class SoftTissueProfile {
