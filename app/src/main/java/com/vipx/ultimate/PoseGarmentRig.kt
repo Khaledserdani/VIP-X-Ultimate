@@ -50,8 +50,26 @@ internal object PoseGarmentRig {
         val hipMidY = (leftHip.y + rightHip.y) / 2f
         val torsoHeight = hipMidY - shoulderMidY
         val waistY = shoulderMidY + torsoHeight * 0.58f
-        val waistHalfWidth = (shoulderWidth * 0.34f).coerceAtLeast(hipWidth * 0.48f)
+        val landmarkWaistHalfWidth = (shoulderWidth * 0.34f).coerceAtLeast(hipWidth * 0.48f)
+        // Use the dense foreground silhouette as a second contour signal, not as a body-measurement claim.
+        val silhouette = frame.silhouette?.takeIf { it.valid }
+        val silhouetteWaistHalfWidth = silhouette?.let { mask ->
+            val row = mask.rowWidths[(0.58f * (mask.rowWidths.size - 1)).toInt()]
+            val maskBoxWidth = (mask.right - mask.left + 1).toFloat()
+            row * maskBoxWidth / frame.imageWidth.toFloat() * 0.5f
+        }
+        val waistHalfWidth = if (silhouetteWaistHalfWidth != null &&
+            silhouetteWaistHalfWidth.isFinite() && silhouetteWaistHalfWidth > 0f) {
+            // Conservative blend: landmarks keep the fit stable while the pixel mask adapts the visible contour.
+            landmarkWaistHalfWidth * 0.65f + minOf(silhouetteWaistHalfWidth, landmarkWaistHalfWidth * 1.45f) * 0.35f
+        } else landmarkWaistHalfWidth
 
+        val hipHalfWidth = silhouette?.let { mask ->
+            val row = mask.rowWidths[(0.76f * (mask.rowWidths.size - 1)).toInt()]
+            row * (mask.right - mask.left + 1).toFloat() / frame.imageWidth.toFloat() * 0.5f
+        }?.takeIf { it.isFinite() && it > 0f }?.let {
+            hipWidth * 0.35f + minOf(it, hipWidth * 0.75f) * 0.65f
+        } ?: hipWidth * 0.5f
         val vertices = listOf(
             GarmentOverlayVertex(leftShoulder.x, leftShoulder.y, true),
             GarmentOverlayVertex(rightShoulder.x, rightShoulder.y, true),
@@ -61,8 +79,8 @@ internal object PoseGarmentRig {
             GarmentOverlayVertex(points.getValue(16).x, points.getValue(16).y, true),
             GarmentOverlayVertex(shoulderMidX - waistHalfWidth, waistY),
             GarmentOverlayVertex(shoulderMidX + waistHalfWidth, waistY),
-            GarmentOverlayVertex(leftHip.x, leftHip.y, true),
-            GarmentOverlayVertex(rightHip.x, rightHip.y, true),
+            GarmentOverlayVertex(hipMidX - hipHalfWidth, leftHip.y, true),
+            GarmentOverlayVertex(hipMidX + hipHalfWidth, rightHip.y, true),
             GarmentOverlayVertex(hipMidX, hipMidY)
         )
         return GarmentOverlayMesh(
