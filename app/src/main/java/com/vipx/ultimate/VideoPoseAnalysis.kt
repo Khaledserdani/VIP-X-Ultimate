@@ -1,0 +1,142 @@
+package com.vipx.ultimate
+
+import android.content.Context
+import android.media.MediaMetadataRetriever
+import android.net.Uri
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.PickVisualMediaRequest
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.material3.Button
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.LinearProgressIndicator
+import androidx.compose.material3.Text
+import androidx.compose.runtime.*
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.unit.dp
+import androidx.compose.foundation.layout.padding
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+
+internal data class VideoPoseReport(
+    val durationMs: Long,
+    val sampledFrames: Int,
+    val reliablePoseFrames: Int,
+    val segmentationFrames: Int
+)
+
+internal object VideoPoseAnalyzer {
+    fun analyze(context: Context, uri: Uri, maxFrames: Int = 80): VideoPoseReport {
+        val retriever = MediaMetadataRetriever()
+        var tracker: HumanBodyTrackingEngine? = null
+        try {
+            retriever.setDataSource(context, uri)
+            val duration = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_DURATION)
+                ?.toLongOrNull() ?: error("تعذر قراءة مدة الفيديو")
+            require(duration > 0L) { "الفيديو فارغ أو غير صالح" }
+            tracker = HumanBodyTrackingEngine(context)
+            val count = minOf(maxFrames, maxOf(1, (duration / 500L).toInt()))
+            val interval = if (count <= 1) 0L else duration / count
+            var reliable = 0
+            var masks = 0
+            var sampled = 0
+            for (index in 0 until count) {
+                val timeMs = if (count == 1) 0L else index * interval
+                val bitmap = retriever.getFrameAtTime(
+                    timeMs * 1000L,
+                    MediaMetadataRetriever.OPTION_CLOSEST
+                ) ?: continue
+                try {
+                    val frame = tracker.detect(bitmap, timeMs)
+                    sampled++
+                    if (frame?.hasReliablePose() == true) reliable++
+                    if (frame?.segmentationMaskAvailable == true) masks++
+                } finally {
+                    bitmap.recycle()
+                }
+            }
+            return VideoPoseReport(duration, sampled, reliable, masks)
+        } finally {
+            tracker?.close()
+            retriever.release()
+        }
+    }
+}
+
+@Composable
+internal fun VideoPoseAnalysisPanel() {
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    var busy by remember { mutableStateOf(false) }
+    var status by remember { mutableStateOf("اختر فيديو من هاتفك لتحليل الحركة محلياً") }
+    var report by remember { mutableStateOf<VideoPoseReport?>(null) }
+    val picker = rememberLauncherForActivityResult(
+        ActivityResultContracts.PickVisualMedia()
+    ) { uri ->
+        if (uri != null) {
+            busy = true
+            report = null
+            status = "جارٍ تحليل إطارات الفيديو على الهاتف..."
+            scope.launch {
+                try {
+                    val result = withContext(Dispatchers.IO) {
+                        VideoPoseAnalyzer.analyze(context, uri)
+                    }
+                    report = result
+                    status = if (result.reliablePoseFrames > 0) {
+                        "اكتمل تتبع الحركة الأولي"
+                    } else {
+                        "لم تُكتشف وضعية جسم موثوقة في الإطارات المختارة"
+                    }
+                } catch (error: Exception) {
+                    status = "تعذر تحليل الفيديو: ${error.message ?: "خطأ غير معروف"}"
+                } finally {
+                    busy = false
+                }
+            }
+        }
+    }
+
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(containerColor = Color(0xFF12263B))
+    ) {
+        Column(
+            modifier = Modifier.fillMaxWidth().padding(13.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            Text("تحليل فيديو الحركة • محلياً", color = Color(0xFF43E0C6))
+            Text(
+                "يختار المستخدم الفيديو بنفسه. تُحلل حتى 80 لقطة؛ لا يوجد تسجيل خفي ولا رفع للفيديو.",
+                color = Color(0xFFA8B9CA)
+            )
+            Button(
+                onClick = {
+                    picker.launch(
+                        PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.VideoOnly)
+                    )
+                },
+                enabled = !busy,
+                modifier = Modifier.fillMaxWidth()
+            ) { Text(if (busy) "جارٍ التحليل..." else "اختر فيديو لتحليل الحركة") }
+            if (busy) LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
+            Text(status, color = Color.White)
+            report?.let { result ->
+                Text("مدة الفيديو: ${result.durationMs / 1000} ثانية", color = Color.White)
+                Text("الإطارات المفحوصة: ${result.sampledFrames}", color = Color.White)
+                Text("إطارات بوضعية موثوقة: ${result.reliablePoseFrames}", color = Color.White)
+                Text("إطارات توفرت فيها خريطة فصل الجسم: ${result.segmentationFrames}", color = Color.White)
+                Text(
+                    "هذه نتائج تتبع هيكلي أولي، وليست قياسات محيط الجسم أو تجربة إلباس.",
+                    color = Color(0xFFFFD18A)
+                )
+            }
+        }
+    }
+}
