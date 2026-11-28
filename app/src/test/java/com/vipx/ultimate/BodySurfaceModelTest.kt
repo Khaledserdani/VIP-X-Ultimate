@@ -43,6 +43,14 @@ class BodySurfaceModelTest {
         assertTrue(model.limitations.any { it.contains("قياسات ناقصة") })
     }
 
+    @Test fun rejectsGeometricallyImpossibleCircumferenceAndDepth() {
+        val model = BodySurfaceModel.fromMeasurements(
+            profile().copy(chestCircumferenceCm = 20.0, chestDepthCm = 80.0)
+        )
+        assertFalse(model.ready)
+        assertNull(model.sections.first { it.name == "الصدر" }.halfWidthCm)
+    }
+
     @Test fun userMeasurementsRemainClearlyAttributed() {
         val model = BodySurfaceModel.fromMeasurements(profile(MeasurementSource.USER_ENTERED))
         assertTrue(model.ready)
