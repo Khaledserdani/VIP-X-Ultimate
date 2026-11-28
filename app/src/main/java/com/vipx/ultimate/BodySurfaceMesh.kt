@@ -47,7 +47,15 @@ internal data class BodySurfaceMesh(
                 }
             }
 
-            val triangles = ArrayList<IntArray>((model.sections.size - 1) * segmentsPerRing * 2)
+            // Add cap centers so the torso scaffold is a watertight closed surface.
+            val bottom = model.sections.first()
+            val top = model.sections.last()
+            val bottomCenter = vertices.size
+            vertices += BodySurfaceVertex(0.0, bottom.heightRatio, 0.0, "bottom-cap", bottom.source, bottom.confidence)
+            val topCenter = vertices.size
+            vertices += BodySurfaceVertex(0.0, top.heightRatio, 0.0, "top-cap", top.source, top.confidence)
+
+            val triangles = ArrayList<IntArray>((model.sections.size - 1) * segmentsPerRing * 2 + segmentsPerRing * 2)
             for (ring in 0 until model.sections.lastIndex) {
                 for (segment in 0 until segmentsPerRing) {
                     val next = (segment + 1) % segmentsPerRing
@@ -58,6 +66,13 @@ internal data class BodySurfaceMesh(
                     triangles += intArrayOf(a, c, b)
                     triangles += intArrayOf(b, c, d)
                 }
+            }
+            val lastRingStart = (model.sections.lastIndex) * segmentsPerRing
+            for (segment in 0 until segmentsPerRing) {
+                val next = (segment + 1) % segmentsPerRing
+                // Opposite winding on the two caps keeps their normals outward.
+                triangles += intArrayOf(bottomCenter, next, segment)
+                triangles += intArrayOf(topCenter, lastRingStart + segment, lastRingStart + next)
             }
             return BodySurfaceMesh(vertices, triangles, model.sections.size, segmentsPerRing)
         }
