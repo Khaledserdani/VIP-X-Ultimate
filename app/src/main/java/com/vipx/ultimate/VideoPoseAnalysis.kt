@@ -2,6 +2,8 @@ package com.vipx.ultimate
 
 import android.content.Context
 import android.media.MediaMetadataRetriever
+import android.os.Handler
+import android.os.Looper
 import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
@@ -103,7 +105,7 @@ internal fun VideoPoseAnalysisPanel() {
                 try {
                     val result = withContext(Dispatchers.IO) {
                         VideoPoseAnalyzer.analyze(context, uri) { value ->
-                            withContext(Dispatchers.Main) { progress = value }
+                            Handler(Looper.getMainLooper()).post { progress = value }
                         }
                     }
                     report = result
