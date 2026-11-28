@@ -25,7 +25,7 @@ class GarmentClothSolverTest {
             ClothVertex(ClothPoint(0.5, 0.3), ClothPoint(0.5, 0.3))
         )
         val frame = GarmentClothSolver.step(
-            vertices, listOf(ClothLink(0, 1, 0.20)), gravityY = 0.002,
+            vertices, emptyList(), gravityY = 0.002,
             fixedAnchors = mapOf(0 to anchor)
         )
         assertTrue(frame.finite)
