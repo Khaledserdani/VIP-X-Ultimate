@@ -198,6 +198,7 @@ private fun VipBuilderScreen(loadApps:()->List<InstalledApp>){
             })
             VideoPoseAnalysisPanel(selectedGarmentColorHex, selectedGarmentStyle)
             LiveCameraPanel()
+            ScreenContentAnalysisPanel()
             Card(colors=CardDefaults.cardColors(containerColor=Panel),shape=RoundedCornerShape(18.dp)){
                 Column(Modifier.fillMaxWidth().padding(13.dp),verticalArrangement=Arrangement.spacedBy(8.dp)){
                     Text("1 • اختر التطبيق المثبّت",color=Color.White,fontWeight=FontWeight.Bold)
