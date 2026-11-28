@@ -260,6 +260,8 @@ internal object VideoPoseAnalyzer {
             var maxLocalBandChange = 0f
             var previousGarmentMesh: GarmentOverlayMesh? = null
             val previewFrames = ArrayList<Bitmap>(5)
+            val imageOcclusionTracker = OcclusionAwarePoseTracker()
+            val worldOcclusionTracker = OcclusionAwarePoseTracker()
             val previewTargets = (0..4).map { target -> ((count - 1) * target / 4f).toInt() }.toSet()
             var sampled = 0
             for (index in 0 until count) {
@@ -269,7 +271,11 @@ internal object VideoPoseAnalyzer {
                     MediaMetadataRetriever.OPTION_CLOSEST
                 ) ?: continue
                 try {
-                    val frame = tracker.detect(bitmap, timeMs)
+                    val detectedFrame = tracker.detect(bitmap, timeMs)
+                    val frame = detectedFrame?.copy(
+                        imageLandmarks = imageOcclusionTracker.update(detectedFrame.imageLandmarks, timeMs),
+                        worldLandmarks = worldOcclusionTracker.update(detectedFrame.worldLandmarks, timeMs)
+                    )
                     sampled++
                     if (frame?.hasReliablePose() == true) reliable++
                     if (frame?.segmentationMaskAvailable == true) masks++
@@ -283,6 +289,10 @@ internal object VideoPoseAnalyzer {
                                 maxLocalBandChange = maxOf(maxLocalBandChange, surfaceChange.largestBandChangePercent)
                             }
                         }
+                    }
+                    if (frame == null) {
+                        imageOcclusionTracker.reset()
+                        worldOcclusionTracker.reset()
                     }
                     if (frame != null) {
                         val motion = PoseMotionAnalyzer.analyze(frame)
