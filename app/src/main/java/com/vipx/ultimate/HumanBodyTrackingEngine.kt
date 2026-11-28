@@ -63,8 +63,15 @@ internal class HumanBodyTrackingEngine(
     override fun close() = landmarker.close()
 }
 
+internal enum class LandmarkSource { OBSERVED, TEMPORAL_PREDICTED, UNKNOWN }
+
 internal data class BodyLandmark(
-    val index: Int, val x: Float, val y: Float, val z: Float, val confidence: Float
+    val index: Int,
+    val x: Float,
+    val y: Float,
+    val z: Float,
+    val confidence: Float,
+    val source: LandmarkSource = LandmarkSource.OBSERVED
 )
 
 internal data class TrackedBodyFrame(
