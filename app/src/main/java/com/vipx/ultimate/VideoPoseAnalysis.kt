@@ -47,6 +47,9 @@ internal data class VideoPoseReport(
     val maxLeftElbowFlexionDegrees: Float,
     val maxRightElbowFlexionDegrees: Float,
     val maxForwardBackBendDegrees: Float?,
+    val surfaceComparedFrames: Int,
+    val maxContourChangePercent: Float,
+    val maxLocalBandChangePercent: Float,
     val samplingIntervalMs: Long,
     val previewFrame: Bitmap?
 )
@@ -247,6 +250,10 @@ internal object VideoPoseAnalyzer {
             var maxLeftElbow = 0f
             var maxRightElbow = 0f
             var maxForwardBackBend: Float? = null
+            var referenceSilhouette: PersonSilhouette? = null
+            var surfaceComparedFrames = 0
+            var maxContourChange = 0f
+            var maxLocalBandChange = 0f
             var previewFrame: Bitmap? = null
             var sampled = 0
             for (index in 0 until count) {
@@ -260,6 +267,17 @@ internal object VideoPoseAnalyzer {
                     sampled++
                     if (frame?.hasReliablePose() == true) reliable++
                     if (frame?.segmentationMaskAvailable == true) masks++
+                    frame?.silhouette?.let { silhouette ->
+                        if (referenceSilhouette == null) referenceSilhouette = silhouette
+                        else {
+                            val surfaceChange = BodySurfaceChangeAnalyzer.compare(referenceSilhouette!!, silhouette)
+                            if (surfaceChange.reliable) {
+                                surfaceComparedFrames++
+                                maxContourChange = maxOf(maxContourChange, surfaceChange.meanContourChangePercent)
+                                maxLocalBandChange = maxOf(maxLocalBandChange, surfaceChange.largestBandChangePercent)
+                            }
+                        }
+                    }
                     if (frame != null) {
                         val motion = PoseMotionAnalyzer.analyze(frame)
                         if (motion != null) {
@@ -282,7 +300,7 @@ internal object VideoPoseAnalyzer {
                 }
                 onProgress(((index + 1) * 100 / count).coerceIn(0, 100))
             }
-            return VideoPoseReport(duration, sampled, reliable, masks, overlayReady, postureFrames, maxTorsoLean, maxShoulderTilt, maxHipTilt, maxLeftElbow, maxRightElbow, maxForwardBackBend, interval, previewFrame)
+            return VideoPoseReport(duration, sampled, reliable, masks, overlayReady, postureFrames, maxTorsoLean, maxShoulderTilt, maxHipTilt, maxLeftElbow, maxRightElbow, maxForwardBackBend, surfaceComparedFrames, maxContourChange, maxLocalBandChange, interval, previewFrame)
         } finally {
             tracker?.close()
             retriever.release()
@@ -362,6 +380,9 @@ internal fun VideoPoseAnalysisPanel(selectedColorHex: String, selectedStyle: She
                 Text("إطارات توفرت فيها خريطة فصل الجسم: ${result.segmentationFrames}", color = Color.White)
                 Text("إطارات صالحة لقالب اللباس الهندسي: ${result.overlayReadyFrames}", color = Color.White)
                 Text("إطارات تحليل وضعية الجسم: ${result.postureFrames}", color = Color.White)
+                Text("إطارات مقارنة محيط الشكل الظاهر: ${result.surfaceComparedFrames}", color = Color.White)
+                Text("أكبر تغير متوسط في حدود الشكل: ${result.maxContourChangePercent.toInt()}%", color = Color.White)
+                Text("أكبر تغير محلي في منطقة من الشكل: ${result.maxLocalBandChangePercent.toInt()}%", color = Color.White)
                 Text("أقصى ميل للجذع: ${result.maxTorsoLeanDegrees.toInt()}°", color = Color.White)
                 Text("أقصى ميل للكتفين: ${result.maxShoulderTiltDegrees.toInt()}°", color = Color.White)
                 Text("أقصى ميل للوركين: ${result.maxHipTiltDegrees.toInt()}°", color = Color.White)
@@ -378,7 +399,7 @@ internal fun VideoPoseAnalysisPanel(selectedColorHex: String, selectedStyle: She
                     )
                 }
                 Text(
-                    "تحليل الزوايا يصف وضعية المفاصل في الإطارات المختارة فقط؛ لا يقيس انحناء العمود الفقري طبياً ولا يثبت قياسات الجسم. معاينة اللباس الحالية ثابتة من إطار واحد وليست تتبعاً مرئياً مستمراً بعد.",
+                    "تحليل القناع يقارن حدود الجسم الظاهرة في الصورة على شرائح نسبية؛ قد تتأثر النتائج بالملابس والاحتجاب والمنظور ولا تمثل محيطات حقيقية بالسنتيمتر. زوايا المفاصل مؤشرات وضعية وليست قياسات طبية. معاينة اللباس الحالية ثابتة من إطار واحد وليست تتبعاً مرئياً مستمراً بعد.",
                     color = Color(0xFFFFD18A)
                 )
             }
