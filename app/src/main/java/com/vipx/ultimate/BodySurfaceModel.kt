@@ -50,18 +50,18 @@ internal data class BodySurfaceModel(
                 else -> SurfaceSectionSource.UNAVAILABLE
             }
             val sections = listOf(
-                section("الصدر", 0.30, profile.chestCircumferenceCm, profile.underChestCircumferenceCm ?: profile.chestCircumferenceCm, source, profile.confidence),
-                section("أسفل الصدر", 0.39, profile.underChestCircumferenceCm, profile.underChestCircumferenceCm, source, profile.confidence),
-                section("الخصر", 0.56, profile.waistCircumferenceCm, profile.waistCircumferenceCm, source, profile.confidence),
-                section("البطن", 0.68, profile.abdomenCircumferenceCm, profile.abdomenCircumferenceCm, source, profile.confidence),
-                section("الوركان", 0.84, profile.hipCircumferenceCm, profile.hipCircumferenceCm, source, profile.confidence)
+                section("الصدر", 0.30, profile.chestCircumferenceCm, profile.chestDepthCm, source, profile.confidence),
+                section("أسفل الصدر", 0.39, profile.underChestCircumferenceCm, profile.underChestDepthCm, source, profile.confidence),
+                section("الخصر", 0.56, profile.waistCircumferenceCm, profile.waistDepthCm, source, profile.confidence),
+                section("البطن", 0.68, profile.abdomenCircumferenceCm, profile.abdomenDepthCm, source, profile.confidence),
+                section("الوركان", 0.84, profile.hipCircumferenceCm, profile.hipDepthCm, source, profile.confidence)
             )
             val missing = sections.filter { it.halfWidthCm == null || it.halfDepthCm == null }.map { it.name }
             return BodySurfaceModel(
                 sections, missing.isEmpty(),
                 buildList {
                     if (missing.isNotEmpty()) add("قياسات ناقصة للمقاطع: ${missing.joinToString()}")
-                    add("العمق الأمامي/الخلفي تقديري عند غياب قياس عمق مستقل")
+                    add("لا يتم تخمين العمق الأمامي/الخلفي؛ يلزم قياس عمق مستقل لكل مقطع")
                     add("النموذج مقاطع جسمية؛ ليس شبكة ثلاثية الأبعاد نهائية")
                 }
             )
@@ -72,8 +72,8 @@ internal data class BodySurfaceModel(
             source: SurfaceSectionSource, confidence: Double
         ): BodySurfaceSection {
             if (circumference == null || depth == null || circumference <= 0.0 || depth <= 0.0)
-                return BodySurfaceSection(name, y, null, null, SurfaceSectionSource.UNAVAILABLE, 0.0)
-            val halfDepth = depth / (2.0 * PI)
+                return BodySurfaceSection(name, y, null, depth?.div(2.0), SurfaceSectionSource.UNAVAILABLE, 0.0)
+            val halfDepth = depth / 2.0
             val halfWidth = solveHalfWidth(circumference, halfDepth)
             return BodySurfaceSection(name, y, halfWidth, halfDepth, source, confidence)
         }
