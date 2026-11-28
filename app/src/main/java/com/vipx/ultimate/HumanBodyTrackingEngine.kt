@@ -8,9 +8,8 @@ import com.google.mediapipe.tasks.vision.core.RunningMode
 import com.google.mediapipe.tasks.vision.poselandmarker.PoseLandmarker
 
 /**
- * On-device body pose tracker.
- * Add pose_landmarker_full.task to app/src/main/assets before enabling it.
- * Landmarks are not exact body circumferences or a dense body surface.
+ * On-device pose tracker. Add pose_landmarker_full.task to app/src/main/assets
+ * before runtime use. Pose landmarks are not exact circumferences or a dense surface.
  */
 internal class HumanBodyTrackingEngine(
     context: Context,
@@ -32,25 +31,24 @@ internal class HumanBodyTrackingEngine(
         landmarker = PoseLandmarker.createFromOptions(context, options)
     }
 
-    /** VIDEO timestamps must increase monotonically. */
     fun detect(bitmap: Bitmap, timestampMs: Long): TrackedBodyFrame? {
         require(timestampMs >= 0L)
         val result = landmarker.detectForVideo(BitmapImageBuilder(bitmap).build(), timestampMs)
         val screen = result.landmarks().firstOrNull() ?: return null
-        val world = result.worldLandmarks().firstOrNull().orEmpty()
+        val world = result.worldLandmarks().firstOrNull()
         val screenPoints = screen.mapIndexed { index, p ->
-            BodyLandmark(index, p.x(), p.y(), p.z(), p.visibility())
+            BodyLandmark(index, p.x(), p.y(), p.z(), p.visibility().orElse(0.0f))
         }
-        val worldPoints = world.mapIndexed { index, p ->
-            BodyLandmark(index, p.x(), p.y(), p.z(), p.visibility())
-        }
+        val worldPoints = world?.mapIndexed { index, p ->
+            BodyLandmark(index, p.x(), p.y(), p.z(), p.visibility().orElse(0.0f))
+        } ?: emptyList()
         return TrackedBodyFrame(
             timestampMs = timestampMs,
             imageWidth = bitmap.width,
             imageHeight = bitmap.height,
             imageLandmarks = screenPoints,
             worldLandmarks = worldPoints,
-            segmentationMaskAvailable = result.segmentationMasks()?.isNotEmpty() == true
+            segmentationMaskAvailable = result.segmentationMasks().isPresent
         )
     }
 
@@ -69,19 +67,35 @@ internal data class TrackedBodyFrame(
     val worldLandmarks: List<BodyLandmark>,
     val segmentationMaskAvailable: Boolean
 ) {
-    fun hasReliablePose(minConfidence: Float = 0.60f): Boolean =
-        imageLandmarks.size >= 33 && listOf(11, 12, 23, 24).all { i ->
-            imageLandmarks.getOrNull(i)?.confidence?.let { it >= minConfidence } == true
+    fun hasReliablePose(minConfidence: Float = 0.60f): Boolean {
+        if (imageLandmarks.size < 33) return false
+        for (index in intArrayOf(11, 12, 23, 24)) {
+            val point = imageLandmarks.getOrNull(index) ?: return false
+            if (point.confidence < minConfidence) return false
         }
+        return true
+    }
 
     fun regionBounds(indices: IntArray, minConfidence: Float = 0.35f): BodyRegionBounds? {
-        val points = indices.mapNotNull { imageLandmarks.getOrNull(it) }
-            .filter { it.confidence >= minConfidence && it.x.isFinite() && it.y.isFinite() }
+        val points = ArrayList<BodyLandmark>()
+        for (index in indices) {
+            val point = imageLandmarks.getOrNull(index) ?: continue
+            if (point.confidence >= minConfidence && point.x.isFinite() && point.y.isFinite()) {
+                points.add(point)
+            }
+        }
         if (points.size < 2) return null
-        return BodyRegionBounds(
-            points.minOf { it.x }, points.minOf { it.y },
-            points.maxOf { it.x }, points.maxOf { it.y }
-        )
+        var left = Float.POSITIVE_INFINITY
+        var top = Float.POSITIVE_INFINITY
+        var right = Float.NEGATIVE_INFINITY
+        var bottom = Float.NEGATIVE_INFINITY
+        for (point in points) {
+            left = minOf(left, point.x)
+            top = minOf(top, point.y)
+            right = maxOf(right, point.x)
+            bottom = maxOf(bottom, point.y)
+        }
+        return BodyRegionBounds(left, top, right, bottom)
     }
 
     /** Landmark envelopes only; not pixel-accurate body contours. */
