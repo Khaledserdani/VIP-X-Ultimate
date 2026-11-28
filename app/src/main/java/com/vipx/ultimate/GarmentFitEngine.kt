@@ -4,11 +4,11 @@ import kotlin.math.max
 
 /**
  * Measurement-driven garment fitting core.
- *
- * It sizes the CLOTHING to the measured body. It never changes body measurements.
- * Measurements are centimetres; garment values are finished-garment circumferences.
+ * Garment dimensions adapt to measured body dimensions; body dimensions are read-only.
+ * Measurements are centimetres. Abdomen projection is an optional front-to-back depth.
  */
 internal enum class FitZone { CHEST, WAIST, ABDOMEN, HIP, UPPER_ARM, THIGH }
+
 internal enum class FabricClass(val stretchRatio: Double, val minimumEaseCm: Double) {
     WOVEN(0.02, 4.0),
     KNIT(0.18, 2.0),
@@ -16,14 +16,20 @@ internal enum class FabricClass(val stretchRatio: Double, val minimumEaseCm: Dou
     CHIFFON_LINED(0.03, 5.0),
     LACE_LINED(0.05, 4.0);
 
-    /** Approximate material profile for the later cloth solver; not a measured fabric guarantee. */
     val thicknessMm: Double get() = when (this) {
-        WOVEN -> 0.7; KNIT -> 1.0; SPORTS_STRETCH -> 0.8
-        CHIFFON_LINED -> 0.5; LACE_LINED -> 0.9
+        WOVEN -> 0.7
+        KNIT -> 1.0
+        SPORTS_STRETCH -> 0.8
+        CHIFFON_LINED -> 0.5
+        LACE_LINED -> 0.9
     }
+
     val drapeFlex: Double get() = when (this) {
-        WOVEN -> 0.42; KNIT -> 0.68; SPORTS_STRETCH -> 0.74
-        CHIFFON_LINED -> 0.92; LACE_LINED -> 0.78
+        WOVEN -> 0.42
+        KNIT -> 0.68
+        SPORTS_STRETCH -> 0.74
+        CHIFFON_LINED -> 0.92
+        LACE_LINED -> 0.78
     }
 }
 
@@ -32,17 +38,23 @@ internal data class BodyMeasurements(
     val waistCm: Double,
     val hipCm: Double,
     val upperArmCm: Double,
-    val thighCm: Double
+    val thighCm: Double,
+    val abdomenProjectionCm: Double = 0.0
 ) {
-    fun value(zone: FitZone): Double = when(zone) {
+    fun value(zone: FitZone): Double = when (zone) {
         FitZone.CHEST -> chestCm
         FitZone.WAIST -> waistCm
+        FitZone.ABDOMEN -> abdomenProjectionCm
         FitZone.HIP -> hipCm
         FitZone.UPPER_ARM -> upperArmCm
         FitZone.THIGH -> thighCm
     }
-    fun valid(): Boolean = listOf(chestCm, waistCm, hipCm, upperArmCm, thighCm)
-        .all { it.isFinite() && it > 0.0 && it < 300.0 } &&\n        abdomenProjectionCm.isFinite() && abdomenProjectionCm >= 0.0 && abdomenProjectionCm < 300.0
+
+    fun valid(): Boolean =
+        listOf(chestCm, waistCm, hipCm, upperArmCm, thighCm)
+            .all { it.isFinite() && it > 0.0 && it < 300.0 } &&
+            abdomenProjectionCm.isFinite() &&
+            abdomenProjectionCm >= 0.0 && abdomenProjectionCm < 300.0
 }
 
 internal data class GarmentMeasurements(
@@ -50,17 +62,23 @@ internal data class GarmentMeasurements(
     val waistCm: Double,
     val hipCm: Double,
     val upperArmCm: Double,
-    val thighCm: Double
+    val thighCm: Double,
+    val abdomenProjectionCm: Double = 0.0
 ) {
-    fun value(zone: FitZone): Double = when(zone) {
+    fun value(zone: FitZone): Double = when (zone) {
         FitZone.CHEST -> chestCm
         FitZone.WAIST -> waistCm
+        FitZone.ABDOMEN -> abdomenProjectionCm
         FitZone.HIP -> hipCm
         FitZone.UPPER_ARM -> upperArmCm
         FitZone.THIGH -> thighCm
     }
-    fun valid(): Boolean = listOf(chestCm, waistCm, hipCm, upperArmCm, thighCm)
-        .all { it.isFinite() && it > 0.0 && it < 400.0 } &&\n        abdomenProjectionCm.isFinite() && abdomenProjectionCm >= 0.0 && abdomenProjectionCm < 400.0
+
+    fun valid(): Boolean =
+        listOf(chestCm, waistCm, hipCm, upperArmCm, thighCm)
+            .all { it.isFinite() && it > 0.0 && it < 400.0 } &&
+            abdomenProjectionCm.isFinite() &&
+            abdomenProjectionCm >= 0.0 && abdomenProjectionCm < 400.0
 }
 
 internal data class ZoneFit(
@@ -92,10 +110,14 @@ internal object GarmentFitEngine {
         val zones = FitZone.values().map { zone ->
             val bodyCm = body.value(zone)
             val garmentCm = garment.value(zone)
+            // A zero abdomen projection means the optional depth measurement was not supplied.
+            if (zone == FitZone.ABDOMEN && bodyCm == 0.0 && garmentCm == 0.0) {
+                return@map ZoneFit(zone, 0.0, 0.0, 0.0, 1.0, "غير مقاس")
+            }
             val ease = garmentCm - bodyCm
             val requiredEase = fabric.minimumEaseCm
             val stretchCapacity = bodyCm * fabric.stretchRatio
-            val scale = if (ease >= requiredEase) 1.0
+            val scale = if (ease >= requiredEase || garmentCm <= 0.0) 1.0
                 else (bodyCm + requiredEase) / garmentCm
             val status = when {
                 ease >= requiredEase -> "مريح"
@@ -104,15 +126,20 @@ internal object GarmentFitEngine {
             }
             ZoneFit(zone, bodyCm, garmentCm, ease, max(1.0, scale), status)
         }
-        val fits = zones.all { it.easeCm >= -it.bodyCm * fabric.stretchRatio }
+        val fits = zones.all { it.status != "المقاس غير مناسب" }
         val summary = if (fits) {
-            if (zones.any { it.easeCm < fabric.minimumEaseCm }) "قابل للارتداء مع ضبط اتساع اللباس"
-            else "المقاس مناسب وفق القياسات"
-        } else "المقاس غير مناسب؛ اختر مقاساً أو قصة أوسع"
+            if (zones.any { it.status == "ضيق؛ يحتاج ضبطاً" }) {
+                "قابل للارتداء مع ضبط اتساع اللباس"
+            } else {
+                "المقاس مناسب وفق القياسات"
+            }
+        } else {
+            "المقاس غير مناسب؛ اختر مقاساً أو قصة أوسع"
+        }
         return GarmentFitResult(fits, zones, summary)
     }
 
-    /** Returns the smallest catalog size that fits without reshaping the body. */
+    /** Returns the first catalog size that fits without reshaping the body. */
     fun recommendSize(
         body: BodyMeasurements,
         sizes: List<Pair<String, GarmentMeasurements>>,
