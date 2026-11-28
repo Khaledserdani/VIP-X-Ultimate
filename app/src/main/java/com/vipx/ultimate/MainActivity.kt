@@ -9,6 +9,7 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
@@ -185,6 +186,7 @@ private fun VipBuilderScreen(loadApps:()->List<InstalledApp>){
                 }
                 Icon(Icons.Default.Android,null,tint=Mint,modifier=Modifier.size(34.dp))
             }
+            SheerGarmentPicker(onConfirm = { garmentName, colorName -> status = "تم اعتماد $garmentName باللون $colorName كاختيار للتجربة" })
             Card(colors=CardDefaults.cardColors(containerColor=Panel),shape=RoundedCornerShape(18.dp)){
                 Column(Modifier.fillMaxWidth().padding(13.dp),verticalArrangement=Arrangement.spacedBy(8.dp)){
                     Text("1 • اختر التطبيق المثبّت",color=Color.White,fontWeight=FontWeight.Bold)
@@ -484,6 +486,112 @@ private fun VipBuilderScreen(loadApps:()->List<InstalledApp>){
                 }
             }
             Text("يعمل VIP X كمساعد داخل التطبيق المحدد: قراءة سياق الشاشة، النقر على عنصر ظاهر، التمرير والرجوع. لا يحذف التطبيق الأصلي ولا يتجاوز كلمات المرور أو الدفع أو الحماية.",color=Soft,fontSize=9.sp)
+        }
+    }
+}
+
+
+@Composable
+private fun SheerGarmentPicker(onConfirm: (String, String) -> Unit) {
+    val presets = SheerGarmentCatalog.presets
+    var selectedId by remember { mutableStateOf(presets.first().id) }
+    var selectedColor by remember { mutableStateOf(ModernGarmentColor.WHITE) }
+    val selected = presets.firstOrNull { it.id == selectedId } ?: presets.first()
+    val colors = ModernGarmentColor.values().toList()
+    fun colorOf(hex: String): Color = Color(android.graphics.Color.parseColor(hex))
+
+    Card(Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = Panel), shape = RoundedCornerShape(18.dp)) {
+        Column(Modifier.fillMaxWidth().padding(13.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            Text("معرض الألبسة الشفافة المظهر", color = Mint, fontWeight = FontWeight.Bold, fontSize = 17.sp)
+            Text("اختر التصميم أولاً، ثم اللون، وشاهد المعاينة قبل اعتماد الاختيار.", color = Soft, fontSize = 11.sp)
+            LazyRow(horizontalArrangement = Arrangement.spacedBy(9.dp)) {
+                items(presets, key = { it.id }) { garment ->
+                    val active = garment.id == selectedId
+                    Card(Modifier.width(142.dp).clickable { selectedId = garment.id },
+                        colors = CardDefaults.cardColors(containerColor = if (active) Color(0xFF17463F) else Color(0xFF0B1B2A)),
+                        border = if (active) androidx.compose.foundation.BorderStroke(1.dp, Mint) else null,
+                        shape = RoundedCornerShape(13.dp)) {
+                        Column(Modifier.padding(9.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                            GarmentShapePreview(garment.style, colorOf(selectedColor.hex))
+                            Text(garment.displayNameArabic, color = Color.White, fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
+                            Text(if (active) "محدد للمعاينة" else "اضغط للاختيار", color = if (active) Mint else Soft, fontSize = 9.sp)
+                        }
+                    }
+                }
+            }
+            Divider(color = Color(0xFF294158))
+            Text("التصميم المختار: \${selected.displayNameArabic}", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 13.sp)
+            Text(selected.modernCut, color = Soft, fontSize = 11.sp)
+            Text("اختر اللون", color = Color.White, fontWeight = FontWeight.SemiBold, fontSize = 12.sp)
+            LazyRow(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                items(colors, key = { it.name }) { option ->
+                    Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(4.dp),
+                        modifier = Modifier.clickable { selectedColor = option }.padding(2.dp)) {
+                        Surface(Modifier.size(29.dp), shape = RoundedCornerShape(50), color = colorOf(option.hex),
+                            border = androidx.compose.foundation.BorderStroke(if (selectedColor == option) 3.dp else 1.dp,
+                                if (selectedColor == option) Mint else Color(0xFF60758A))) {}
+                        Text(when(option) {
+                            ModernGarmentColor.WHITE -> "أبيض"
+                            ModernGarmentColor.IVORY -> "عاجي"
+                            ModernGarmentColor.BLACK -> "أسود"
+                            ModernGarmentColor.CHAMPAGNE -> "شامبانيا"
+                            ModernGarmentColor.DUSTY_ROSE -> "وردي"
+                            ModernGarmentColor.BURGUNDY -> "عنابي"
+                            ModernGarmentColor.EMERALD -> "زمردي"
+                            ModernGarmentColor.SAPPHIRE -> "أزرق"
+                            ModernGarmentColor.LAVENDER -> "لافندر"
+                            ModernGarmentColor.POWDER_BLUE -> "سماوي"
+                            ModernGarmentColor.SILVER_GREY -> "فضي"
+                            ModernGarmentColor.MOCHA -> "موكا"
+                            ModernGarmentColor.TERRACOTTA -> "طوبي"
+                        }, color = Soft, fontSize = 8.sp)
+                    }
+                }
+            }
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text("بطانة ساترة • لا تغيير لشكل الجسم", color = Mint, fontSize = 10.sp, modifier = Modifier.weight(1f))
+                Button(onClick = { onConfirm(selected.displayNameArabic, selectedColor.name) }) { Text("اعتماد الاختيار") }
+            }
+        }
+    }
+}
+
+@Composable
+private fun GarmentShapePreview(style: SheerGarmentStyle, color: Color) {
+    androidx.compose.foundation.Canvas(Modifier.fillMaxWidth().height(104.dp)) {
+        val cx = size.width / 2f
+        val top = size.height * 0.08f
+        val bottom = size.height * 0.94f
+        val shoulder = size.width * 0.19f
+        val waist = size.width * 0.14f
+        val hem = when(style) {
+            SheerGarmentStyle.CHIFFON_OVERLAY -> size.width * 0.39f
+            SheerGarmentStyle.TULLE_LAYERED -> size.width * 0.43f
+            SheerGarmentStyle.LACE_OVERLAY -> size.width * 0.31f
+            SheerGarmentStyle.ORGANZA_LAYER -> size.width * 0.34f
+            SheerGarmentStyle.MESH_PANEL -> size.width * 0.32f
+        }
+        val path = androidx.compose.ui.graphics.Path().apply {
+            moveTo(cx - shoulder, top + 8f)
+            lineTo(cx - shoulder * 1.55f, top + 24f)
+            lineTo(cx - waist, top + 48f)
+            lineTo(cx - hem, bottom)
+            lineTo(cx + hem, bottom)
+            lineTo(cx + waist, top + 48f)
+            lineTo(cx + shoulder * 1.55f, top + 24f)
+            lineTo(cx + shoulder, top + 8f)
+            close()
+        }
+        drawPath(path, color.copy(alpha = 0.78f))
+        drawPath(path, Color.White.copy(alpha = 0.85f), style = androidx.compose.ui.graphics.drawscope.Stroke(width = 2f))
+        if (style == SheerGarmentStyle.LACE_OVERLAY || style == SheerGarmentStyle.MESH_PANEL || style == SheerGarmentStyle.TULLE_LAYERED) {
+            for (i in 0..4) {
+                val y = top + 34f + i * 11f
+                drawLine(Color.White.copy(alpha = 0.28f), androidx.compose.ui.geometry.Offset(cx - waist, y), androidx.compose.ui.geometry.Offset(cx + waist, y), strokeWidth = 1f)
+            }
+        }
+        if (style == SheerGarmentStyle.CHIFFON_OVERLAY || style == SheerGarmentStyle.ORGANZA_LAYER) {
+            drawLine(Color.White.copy(alpha = 0.5f), androidx.compose.ui.geometry.Offset(cx, top + 12f), androidx.compose.ui.geometry.Offset(cx, bottom - 4f), strokeWidth = 2f)
         }
     }
 }
