@@ -45,6 +45,7 @@ dependencies {
     implementation("androidx.compose.material:material-icons-extended")
     implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.8.7")
     implementation("com.google.ai.edge.litertlm:litertlm-android:0.18.0")
+    implementation("com.google.mediapipe:tasks-vision:0.10.35")
     testImplementation("junit:junit:4.13.2")
     debugImplementation("androidx.compose.ui:ui-tooling")
 }
