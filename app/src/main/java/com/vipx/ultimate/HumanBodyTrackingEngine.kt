@@ -3,6 +3,7 @@ package com.vipx.ultimate
 import android.content.Context
 import android.graphics.Bitmap
 import com.google.mediapipe.framework.image.BitmapImageBuilder
+import com.google.mediapipe.framework.image.ByteBufferExtractor
 import com.google.mediapipe.tasks.core.BaseOptions
 import com.google.mediapipe.tasks.vision.core.RunningMode
 import com.google.mediapipe.tasks.vision.poselandmarker.PoseLandmarker
@@ -36,6 +37,12 @@ internal class HumanBodyTrackingEngine(
         val result = landmarker.detectForVideo(BitmapImageBuilder(bitmap).build(), timestampMs)
         val screen = result.landmarks().firstOrNull() ?: return null
         val world = result.worldLandmarks().firstOrNull()
+        val silhouette = result.segmentationMasks().orElse(emptyList()).firstOrNull()?.let { mask ->
+            val buffer = ByteBufferExtractor.extract(mask).asFloatBuffer()
+            val values = FloatArray(buffer.remaining())
+            buffer.get(values)
+            PersonSilhouette.fromConfidenceMask(mask.width, mask.height, values)
+        }
         val screenPoints = screen.mapIndexed { index, p ->
             BodyLandmark(index, p.x(), p.y(), p.z(), p.visibility().orElse(0.0f))
         }
@@ -48,7 +55,8 @@ internal class HumanBodyTrackingEngine(
             imageHeight = bitmap.height,
             imageLandmarks = screenPoints,
             worldLandmarks = worldPoints,
-            segmentationMaskAvailable = result.segmentationMasks().isPresent
+            segmentationMaskAvailable = silhouette != null,
+            silhouette = silhouette
         )
     }
 
@@ -65,7 +73,8 @@ internal data class TrackedBodyFrame(
     val imageHeight: Int,
     val imageLandmarks: List<BodyLandmark>,
     val worldLandmarks: List<BodyLandmark>,
-    val segmentationMaskAvailable: Boolean
+    val segmentationMaskAvailable: Boolean,
+    val silhouette: PersonSilhouette?
 ) {
     fun hasReliablePose(minConfidence: Float = 0.60f): Boolean {
         if (imageLandmarks.size < 33) return false
