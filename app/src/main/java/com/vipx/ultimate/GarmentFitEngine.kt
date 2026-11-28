@@ -99,7 +99,8 @@ internal data class GarmentFitResult(
     val fits: Boolean,
     val zones: List<ZoneFit>,
     val summary: String,
-    val bodyMeasurementsUnchanged: Boolean = true
+    val bodyMeasurementsUnchanged: Boolean = true,
+    val measurementCoverageComplete: Boolean = true
 )
 
 internal object GarmentFitEngine {
@@ -130,8 +131,11 @@ internal object GarmentFitEngine {
             }
             ZoneFit(zone, bodyCm, garmentCm, ease, max(1.0, scale), status)
         }
+        val measurementCoverageComplete = zones.none { it.status == "غير مقاس" }
         val fits = zones.all { it.status != "المقاس غير مناسب" }
-        val summary = if (fits) {
+        val summary = if (!measurementCoverageComplete && fits) {
+            "التقييم جزئي؛ محيط البطن أو بروزها غير مقاس، لا تعتمد النتيجة النهائية قبل استكمال القياسات"
+        } else if (fits) {
             if (zones.any { it.status == "ضيق؛ يحتاج ضبطاً" }) {
                 "قابل للارتداء مع ضبط اتساع اللباس"
             } else {
@@ -140,7 +144,7 @@ internal object GarmentFitEngine {
         } else {
             "المقاس غير مناسب؛ اختر مقاساً أو قصة أوسع"
         }
-        return GarmentFitResult(fits, zones, summary)
+        return GarmentFitResult(fits, zones, summary, measurementCoverageComplete = measurementCoverageComplete)
     }
 
     /** Returns the first catalog size that fits without reshaping the body. */
