@@ -28,11 +28,16 @@ internal data class VideoPoseReport(
     val durationMs: Long,
     val sampledFrames: Int,
     val reliablePoseFrames: Int,
-    val segmentationFrames: Int
+    val segmentationFrames: Int,
+    val samplingIntervalMs: Long
 )
 
 internal object VideoPoseAnalyzer {
-    fun analyze(context: Context, uri: Uri, maxFrames: Int = 80): VideoPoseReport {
+    fun analyze(
+        context: Context,
+        uri: Uri,
+        onProgress: (Int) -> Unit = {}
+    ): VideoPoseReport {
         val retriever = MediaMetadataRetriever()
         var tracker: HumanBodyTrackingEngine? = null
         try {
@@ -41,8 +46,16 @@ internal object VideoPoseAnalyzer {
                 ?.toLongOrNull() ?: error("تعذر قراءة مدة الفيديو")
             require(duration > 0L) { "الفيديو فارغ أو غير صالح" }
             tracker = HumanBodyTrackingEngine(context)
-            val count = minOf(maxFrames, maxOf(1, (duration / 500L).toInt()))
-            val interval = if (count <= 1) 0L else duration / count
+            // Dense sampling for short clips; reduce density for long videos to keep
+            // on-device analysis practical without imposing an 80-frame ceiling.
+            val targetIntervalMs = when {
+                duration <= 30_000L -> 125L   // up to 8 frames/second
+                duration <= 120_000L -> 250L  // up to 4 frames/second
+                else -> 500L                  // up to 2 frames/second
+            }
+            val maxFrames = 1800
+            val interval = maxOf(targetIntervalMs, (duration / maxFrames).coerceAtLeast(1L))
+            val count = ((duration + interval - 1L) / interval).toInt().coerceIn(1, maxFrames)
             var reliable = 0
             var masks = 0
             var sampled = 0
@@ -60,8 +73,9 @@ internal object VideoPoseAnalyzer {
                 } finally {
                     bitmap.recycle()
                 }
+                onProgress(((index + 1) * 100 / count).coerceIn(0, 100))
             }
-            return VideoPoseReport(duration, sampled, reliable, masks)
+            return VideoPoseReport(duration, sampled, reliable, masks, interval)
         } finally {
             tracker?.close()
             retriever.release()
@@ -76,17 +90,21 @@ internal fun VideoPoseAnalysisPanel() {
     var busy by remember { mutableStateOf(false) }
     var status by remember { mutableStateOf("اختر فيديو من هاتفك لتحليل الحركة محلياً") }
     var report by remember { mutableStateOf<VideoPoseReport?>(null) }
+    var progress by remember { mutableIntStateOf(0) }
     val picker = rememberLauncherForActivityResult(
         ActivityResultContracts.PickVisualMedia()
     ) { uri ->
         if (uri != null) {
             busy = true
             report = null
+            progress = 0
             status = "جارٍ تحليل إطارات الفيديو على الهاتف..."
             scope.launch {
                 try {
                     val result = withContext(Dispatchers.IO) {
-                        VideoPoseAnalyzer.analyze(context, uri)
+                        VideoPoseAnalyzer.analyze(context, uri) { value ->
+                            withContext(Dispatchers.Main) { progress = value }
+                        }
                     }
                     report = result
                     status = if (result.reliablePoseFrames > 0) {
@@ -113,7 +131,7 @@ internal fun VideoPoseAnalysisPanel() {
         ) {
             Text("تحليل فيديو الحركة • محلياً", color = Color(0xFF43E0C6))
             Text(
-                "يختار المستخدم الفيديو بنفسه. تُحلل حتى 80 لقطة؛ لا يوجد تسجيل خفي ولا رفع للفيديو.",
+                "يختار المستخدم الفيديو بنفسه. كثافة التحليل 2–8 إطارات/ثانية حسب طول الفيديو، حتى 1800 إطار. لا يوجد تسجيل خفي ولا رفع للفيديو.",
                 color = Color(0xFFA8B9CA)
             )
             Button(
@@ -125,13 +143,17 @@ internal fun VideoPoseAnalysisPanel() {
                 enabled = !busy,
                 modifier = Modifier.fillMaxWidth()
             ) { Text(if (busy) "جارٍ التحليل..." else "اختر فيديو لتحليل الحركة") }
-            if (busy) LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
+            if (busy) {
+                LinearProgressIndicator(progress = { progress / 100f }, modifier = Modifier.fillMaxWidth())
+                Text("تقدم التحليل: $progress%", color = Color(0xFF43E0C6))
+            }
             Text(status, color = Color.White)
             report?.let { result ->
                 Text("مدة الفيديو: ${result.durationMs / 1000} ثانية", color = Color.White)
                 Text("الإطارات المفحوصة: ${result.sampledFrames}", color = Color.White)
                 Text("إطارات بوضعية موثوقة: ${result.reliablePoseFrames}", color = Color.White)
                 Text("إطارات توفرت فيها خريطة فصل الجسم: ${result.segmentationFrames}", color = Color.White)
+                Text("الفاصل بين اللقطات: ${result.samplingIntervalMs} مللي ثانية", color = Color.White)
                 Text(
                     "هذه نتائج تتبع هيكلي أولي، وليست قياسات محيط الجسم أو تجربة إلباس.",
                     color = Color(0xFFFFD18A)
