@@ -4,6 +4,7 @@ import android.content.Context
 import android.graphics.Bitmap
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
+import java.util.concurrent.RejectedExecutionException
 import java.util.concurrent.atomic.AtomicBoolean
 
 /**
@@ -28,35 +29,54 @@ internal class LiveFrameProcessor(
         val copy = try {
             frame.copy(Bitmap.Config.ARGB_8888, false)
         } catch (error: Throwable) {
-            onError(error)
+            if (!closed.get()) onError(error)
             return
         }
+
         synchronized(lock) {
             if (pending || closed.get()) {
                 copy.recycle()
                 return
             }
             pending = true
-        }
-        executor.execute {
             try {
-                if (!closed.get()) {
-                    val result = engine.detect(copy, timestampMs)
-                    if (!closed.get()) onFrame(result)
+                executor.execute {
+                    try {
+                        if (!closed.get()) {
+                            val result = engine.detect(copy, timestampMs)
+                            if (!closed.get()) onFrame(result)
+                        }
+                    } catch (error: Throwable) {
+                        if (!closed.get()) onError(error)
+                    } finally {
+                        if (!copy.isRecycled) copy.recycle()
+                        synchronized(lock) { pending = false }
+                    }
                 }
-            } catch (error: Throwable) {
-                if (!closed.get()) onError(error)
-            } finally {
+            } catch (rejected: RejectedExecutionException) {
+                pending = false
                 if (!copy.isRecycled) copy.recycle()
-                synchronized(lock) { pending = false }
+                if (!closed.get()) onError(rejected)
             }
         }
     }
 
     override fun close() {
         if (!closed.compareAndSet(false, true)) return
-        executor.shutdownNow()
-        runCatching { engine.close() }
-        gate.reset()
+        synchronized(lock) {
+            // Queue engine disposal behind any inference already running. Closing
+            // MediaPipe concurrently with detect() can crash native resources.
+            runCatching {
+                executor.execute {
+                    runCatching { engine.close() }
+                    gate.reset()
+                }
+                executor.shutdown()
+            }.onFailure {
+                executor.shutdownNow()
+                runCatching { engine.close() }
+                gate.reset()
+            }
+        }
     }
 }
