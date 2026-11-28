@@ -31,6 +31,7 @@ internal data class VideoPoseReport(
     val sampledFrames: Int,
     val reliablePoseFrames: Int,
     val segmentationFrames: Int,
+    val overlayReadyFrames: Int,
     val samplingIntervalMs: Long
 )
 
@@ -72,6 +73,7 @@ internal object VideoPoseAnalyzer {
             val count = VideoPoseSampling.frameCount(duration)
             var reliable = 0
             var masks = 0
+            var overlayReady = 0
             var sampled = 0
             for (index in 0 until count) {
                 val timeMs = if (count == 1) 0L else index * interval
@@ -84,12 +86,13 @@ internal object VideoPoseAnalyzer {
                     sampled++
                     if (frame?.hasReliablePose() == true) reliable++
                     if (frame?.segmentationMaskAvailable == true) masks++
+                    if (frame != null && PoseGarmentRig.build(frame).valid) overlayReady++
                 } finally {
                     bitmap.recycle()
                 }
                 onProgress(((index + 1) * 100 / count).coerceIn(0, 100))
             }
-            return VideoPoseReport(duration, sampled, reliable, masks, interval)
+            return VideoPoseReport(duration, sampled, reliable, masks, overlayReady, interval)
         } finally {
             tracker?.close()
             retriever.release()
@@ -167,9 +170,10 @@ internal fun VideoPoseAnalysisPanel() {
                 Text("الإطارات المفحوصة: ${result.sampledFrames}", color = Color.White)
                 Text("إطارات بوضعية موثوقة: ${result.reliablePoseFrames}", color = Color.White)
                 Text("إطارات توفرت فيها خريطة فصل الجسم: ${result.segmentationFrames}", color = Color.White)
+                Text("إطارات صالحة لقالب اللباس الهندسي: ${result.overlayReadyFrames}", color = Color.White)
                 Text("الفاصل بين اللقطات: ${result.samplingIntervalMs} مللي ثانية", color = Color.White)
                 Text(
-                    "هذه نتائج تتبع هيكلي أولي، وليست قياسات محيط الجسم أو تجربة إلباس.",
+                    "قالب اللباس الهندسي مرحلة أولية فقط؛ لم يُرسم اللباس فوق الفيديو بعد، وهذه ليست قياسات محيط الجسم.",
                     color = Color(0xFFFFD18A)
                 )
             }
