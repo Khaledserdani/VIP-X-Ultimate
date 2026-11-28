@@ -78,43 +78,139 @@ internal object GarmentOverlayRenderer {
         val output = Bitmap.createScaledBitmap(source, width, height, true)
             .copy(Bitmap.Config.ARGB_8888, true)
         val canvas = AndroidCanvas(output)
-        val points = mesh.vertices
-        fun px(index: Int) = points[index].x * width
-        fun py(index: Int) = points[index].y * height
-
-        val garment = AndroidPath().apply {
-            moveTo(px(0), py(0))
-            lineTo(px(1), py(1))
-            lineTo(px(7), py(7))
-            lineTo(px(9), py(9))
-            lineTo(px(10), py(10))
-            lineTo(px(8), py(8))
-            lineTo(px(6), py(6))
+        val p = mesh.vertices
+        fun x(i: Int) = p[i].x * width
+        fun y(i: Int) = p[i].y * height
+        val base = runCatching { AndroidColor.parseColor(colorHex) }.getOrDefault(AndroidColor.WHITE)
+        fun paint(alpha: Int, style: AndroidPaint.Style = AndroidPaint.Style.FILL, stroke: Float = 2f) =
+            AndroidPaint(AndroidPaint.ANTI_ALIAS_FLAG).apply {
+                color = AndroidColor.argb(alpha, AndroidColor.red(base), AndroidColor.green(base), AndroidColor.blue(base))
+                this.style = style
+                strokeWidth = stroke
+                strokeJoin = AndroidPaint.Join.ROUND
+                strokeCap = AndroidPaint.Cap.ROUND
+            }
+        fun polygon(vararg ids: Int): AndroidPath = AndroidPath().apply {
+            moveTo(x(ids[0]), y(ids[0]))
+            for (i in 1 until ids.size) lineTo(x(ids[i]), y(ids[i]))
             close()
         }
-        val baseColor = runCatching { AndroidColor.parseColor(colorHex) }.getOrDefault(AndroidColor.WHITE)
-        val fabricAlpha = when (garmentStyle) {
-            SheerGarmentStyle.CHIFFON_OVERLAY -> 92
-            SheerGarmentStyle.TULLE_LAYERED -> 128
-            SheerGarmentStyle.LACE_OVERLAY -> 142
-            SheerGarmentStyle.ORGANZA_LAYER -> 108
-            SheerGarmentStyle.MESH_PANEL -> 120
+        fun armSleeve(shoulder: Int, elbow: Int, wrist: Int, widthFactor: Float): AndroidPath {
+            val sx=x(shoulder); val sy=y(shoulder)
+            val ex=x(elbow); val ey=y(elbow)
+            val wx=x(wrist); val wy=y(wrist)
+            fun normal(ax: Float, ay: Float, bx: Float, by: Float): Pair<Float,Float> {
+                val dx=bx-ax; val dy=by-ay
+                val len=kotlin.math.sqrt(dx*dx+dy*dy).coerceAtLeast(1f)
+                return Pair(-dy/len, dx/len)
+            }
+            val n1=normal(sx,sy,ex,ey); val n2=normal(ex,ey,wx,wy)
+            val sw=(kotlin.math.abs(x(1)-x(0))*0.105f*widthFactor).coerceAtLeast(5f)
+            val ew=sw*0.78f; val ww=sw*0.58f
+            return AndroidPath().apply {
+                moveTo(sx+n1.first*sw, sy+n1.second*sw)
+                lineTo(ex+n1.first*ew, ey+n1.second*ew)
+                lineTo(wx+n2.first*ww, wy+n2.second*ww)
+                lineTo(wx-n2.first*ww, wy-n2.second*ww)
+                lineTo(ex-n1.first*ew, ey-n1.second*ew)
+                lineTo(sx-n1.first*sw, sy-n1.second*sw)
+                close()
+            }
         }
-        val fill = AndroidPaint(AndroidPaint.ANTI_ALIAS_FLAG).apply {
-            color = AndroidColor.argb(fabricAlpha, AndroidColor.red(baseColor), AndroidColor.green(baseColor), AndroidColor.blue(baseColor))
-            style = AndroidPaint.Style.FILL
+        val shoulderSpan = kotlin.math.abs(x(1)-x(0))
+        val hemY = maxOf(y(8), y(9)) + shoulderSpan*0.08f
+        val waistLeft = x(0) + (x(8)-x(0))*0.48f
+        val waistRight = x(1) + (x(9)-x(1))*0.48f
+        val torso = AndroidPath().apply {
+            moveTo(x(0)-shoulderSpan*0.035f, y(0))
+            lineTo(x(1)+shoulderSpan*0.035f, y(1))
+            lineTo(waistRight, y(7))
+            lineTo(x(9)+shoulderSpan*0.035f, hemY)
+            lineTo(x(8)-shoulderSpan*0.035f, hemY)
+            lineTo(waistLeft, y(6))
+            close()
         }
-        val stroke = AndroidPaint(AndroidPaint.ANTI_ALIAS_FLAG).apply {
-            color = AndroidColor.argb(235, 210, 255, 246)
-            style = AndroidPaint.Style.STROKE
-            strokeWidth = (width / 220f).coerceAtLeast(2f)
+        val leftSleeve = armSleeve(0,2,4,1f)
+        val rightSleeve = armSleeve(1,3,5,1f)
+        val lining = paint(238)
+        val sheer = paint(112)
+        val seam = paint(225, AndroidPaint.Style.STROKE, (width/300f).coerceAtLeast(1.5f))
+        val detail = paint(175, AndroidPaint.Style.STROKE, (width/420f).coerceAtLeast(1f))
+
+        // A modest opaque base layer preserves coverage; the selected fabric is drawn above it.
+        canvas.drawPath(torso, lining)
+        when (garmentStyle) {
+            SheerGarmentStyle.CHIFFON_OVERLAY -> {
+                val drape = AndroidPath().apply {
+                    moveTo(x(0),y(0)); lineTo(x(1),y(1))
+                    lineTo(x(1)+shoulderSpan*.17f,hemY+shoulderSpan*.10f)
+                    lineTo(x(0)-shoulderSpan*.17f,hemY+shoulderSpan*.10f); close()
+                }
+                canvas.drawPath(drape, paint(86))
+                canvas.drawPath(leftSleeve, paint(100)); canvas.drawPath(rightSleeve, paint(100))
+                canvas.drawPath(drape, seam)
+                val fold=AndroidPath().apply {
+                    moveTo((x(0)+x(1))/2f,y(1))
+                    cubicTo(x(1)+shoulderSpan*.10f,y(0)+shoulderSpan*.35f,
+                        x(0)-shoulderSpan*.10f,y(7), (x(0)+x(1))/2f,hemY)
+                }
+                canvas.drawPath(fold,detail)
+            }
+            SheerGarmentStyle.TULLE_LAYERED -> {
+                canvas.drawPath(torso, paint(95))
+                for (layer in 1..3) {
+                    val offset=shoulderSpan*(0.035f*layer)
+                    val ruffle=AndroidPath().apply {
+                        moveTo(x(8)-offset,y(8)+shoulderSpan*(.025f*layer))
+                        cubicTo(x(8),hemY-offset,x(9),hemY-offset,
+                            x(9)+offset,y(9)+shoulderSpan*(.025f*layer))
+                    }
+                    canvas.drawPath(ruffle, paint(170- layer*18,AndroidPaint.Style.STROKE, (width/170f).coerceAtLeast(2f)))
+                }
+                canvas.drawPath(leftSleeve,paint(90)); canvas.drawPath(rightSleeve,paint(90))
+                canvas.drawPath(torso,seam)
+            }
+            SheerGarmentStyle.LACE_OVERLAY -> {
+                canvas.drawPath(torso,paint(75))
+                canvas.drawPath(leftSleeve,paint(155)); canvas.drawPath(rightSleeve,paint(155))
+                canvas.drawPath(torso,seam)
+                val lace=paint(185,AndroidPaint.Style.STROKE,(width/260f).coerceAtLeast(1f))
+                for (row in 0..5) {
+                    val yy=y(0)+(hemY-y(0))*(row/6f)
+                    val inset=shoulderSpan*(0.10f+row*0.012f)
+                    val path=AndroidPath().apply {
+                        moveTo(x(0)+inset,yy); lineTo(x(1)-inset,yy)
+                    }
+                    canvas.drawPath(path,lace)
+                }
+            }
+            SheerGarmentStyle.ORGANZA_LAYER -> {
+                val jacket=AndroidPath().apply {
+                    moveTo(x(0)-shoulderSpan*.04f,y(0)); lineTo(x(1)+shoulderSpan*.04f,y(1))
+                    lineTo(x(1)+shoulderSpan*.08f,y(7))
+                    lineTo(x(0)-shoulderSpan*.08f,y(7)); close()
+                }
+                canvas.drawPath(jacket,paint(125)); canvas.drawPath(leftSleeve,paint(118)); canvas.drawPath(rightSleeve,paint(118))
+                val opening=AndroidPath().apply { moveTo((x(0)+x(1))/2f,y(0)); lineTo((x(0)+x(1))/2f,y(7)) }
+                canvas.drawPath(opening,seam); canvas.drawPath(jacket,seam)
+            }
+            SheerGarmentStyle.MESH_PANEL -> {
+                canvas.drawPath(torso,paint(245))
+                val panel=AndroidPath().apply {
+                    moveTo(x(0)+(x(1)-x(0))*.16f,y(0))
+                    lineTo(x(0)+(x(1)-x(0))*.31f,y(0))
+                    lineTo(x(8)+(x(9)-x(8))*.31f,hemY)
+                    lineTo(x(8)+(x(9)-x(8))*.16f,hemY); close()
+                }
+                canvas.drawPath(panel,paint(105)); canvas.drawPath(leftSleeve,paint(235)); canvas.drawPath(rightSleeve,paint(235))
+                canvas.drawPath(panel,seam); canvas.drawPath(torso,seam)
+            }
         }
-        canvas.drawPath(garment, fill)
-        canvas.drawPath(garment, stroke)
+        canvas.drawPath(leftSleeve,seam)
+        canvas.drawPath(rightSleeve,seam)
         return output
     }
 }
-
 internal object VideoPoseAnalyzer {
     fun analyze(
         context: Context,
