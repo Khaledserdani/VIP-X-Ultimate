@@ -70,7 +70,7 @@ internal object VideoPoseSampling {
  * This is a 2D proof-of-pipeline preview, not a fitted cloth simulation.
  */
 internal object GarmentOverlayRenderer {
-    fun render(source: Bitmap, mesh: GarmentOverlayMesh): Bitmap? {
+    fun render(source: Bitmap, mesh: GarmentOverlayMesh, colorHex: String, style: SheerGarmentStyle): Bitmap? {
         if (!mesh.valid || mesh.vertices.size < 11) return null
         val scale = minOf(1f, 720f / maxOf(source.width, source.height))
         val width = (source.width * scale).toInt().coerceAtLeast(1)
@@ -92,8 +92,9 @@ internal object GarmentOverlayRenderer {
             lineTo(px(6), py(6))
             close()
         }
+        val baseColor = runCatching { AndroidColor.parseColor(colorHex) }.getOrDefault(AndroidColor.WHITE)
         val fill = AndroidPaint(AndroidPaint.ANTI_ALIAS_FLAG).apply {
-            color = AndroidColor.argb(112, 55, 185, 170)
+            color = AndroidColor.argb(116, AndroidColor.red(baseColor), AndroidColor.green(baseColor), AndroidColor.blue(baseColor))
             style = AndroidPaint.Style.FILL
         }
         val stroke = AndroidPaint(AndroidPaint.ANTI_ALIAS_FLAG).apply {
@@ -111,6 +112,8 @@ internal object VideoPoseAnalyzer {
     fun analyze(
         context: Context,
         uri: Uri,
+        colorHex: String,
+        style: SheerGarmentStyle,
         onProgress: (Int) -> Unit = {}
     ): VideoPoseReport {
         val retriever = MediaMetadataRetriever()
@@ -144,7 +147,7 @@ internal object VideoPoseAnalyzer {
                         val mesh = PoseGarmentRig.build(frame)
                         if (mesh.valid) {
                             overlayReady++
-                            if (previewFrame == null) previewFrame = GarmentOverlayRenderer.render(bitmap, mesh)
+                            if (previewFrame == null) previewFrame = GarmentOverlayRenderer.render(bitmap, mesh, colorHex, style)
                         }
                     }
                 } finally {
@@ -161,7 +164,7 @@ internal object VideoPoseAnalyzer {
 }
 
 @Composable
-internal fun VideoPoseAnalysisPanel() {
+internal fun VideoPoseAnalysisPanel(selectedColorHex: String, selectedStyle: SheerGarmentStyle) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     var busy by remember { mutableStateOf(false) }
@@ -179,7 +182,7 @@ internal fun VideoPoseAnalysisPanel() {
             scope.launch {
                 try {
                     val result = withContext(Dispatchers.IO) {
-                        VideoPoseAnalyzer.analyze(context, uri) { value ->
+                        VideoPoseAnalyzer.analyze(context, uri, selectedColorHex, selectedStyle) { value ->
                             Handler(Looper.getMainLooper()).post { progress = value }
                         }
                     }
@@ -233,7 +236,7 @@ internal fun VideoPoseAnalysisPanel() {
                 Text("إطارات صالحة لقالب اللباس الهندسي: ${result.overlayReadyFrames}", color = Color.White)
                 Text("الفاصل بين اللقطات: ${result.samplingIntervalMs} مللي ثانية", color = Color.White)
                 result.previewFrame?.let { preview ->
-                    Text("معاينة أولية لقالب اللباس فوق إطار حقيقي من الفيديو", color = Color(0xFF43E0C6))
+                    Text("معاينة أولية للتصميم واللون المختارين فوق إطار حقيقي من الفيديو", color = Color(0xFF43E0C6))
                     Image(
                         bitmap = preview.asImageBitmap(),
                         contentDescription = "معاينة هندسية أولية للملابس فوق إطار الفيديو",
