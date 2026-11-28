@@ -19,6 +19,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.width
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -404,7 +405,7 @@ internal fun VideoPoseAnalysisPanel(selectedColorHex: String, selectedStyle: She
                                 Image(
                                     bitmap = preview.asImageBitmap(),
                                     contentDescription = "معاينة هندسية للّباس في اللقطة ${index + 1}",
-                                    modifier = Modifier.fillMaxWidth(0.72f),
+                                    modifier = Modifier.width(220.dp),
                                     contentScale = ContentScale.Fit
                                 )
                             }
