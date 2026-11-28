@@ -138,6 +138,8 @@ private fun VipBuilderScreen(loadApps:()->List<InstalledApp>){
     var modelProgress by remember { mutableIntStateOf(0) }
     var modelReady by remember { mutableStateOf(LocalLlmRuntime.isReady()) }
     var modelStatus by remember { mutableStateOf("") }
+    var selectedGarmentColorHex by remember { mutableStateOf("#FFFFFF") }
+    var selectedGarmentStyle by remember { mutableStateOf(SheerGarmentStyle.CHIFFON_OVERLAY) }
 
     fun startLocalModelSetup() {
         if (modelDownloading || modelReady) return
@@ -189,8 +191,12 @@ private fun VipBuilderScreen(loadApps:()->List<InstalledApp>){
                 }
                 Icon(Icons.Default.Android,null,tint=Mint,modifier=Modifier.size(34.dp))
             }
-            SheerGarmentPicker(onConfirm = { garmentName, colorName -> status = "تم اعتماد $garmentName باللون $colorName كاختيار للتجربة" })
-            VideoPoseAnalysisPanel()
+            SheerGarmentPicker(onConfirm = { garmentName, colorName, colorHex, style ->
+                selectedGarmentColorHex = colorHex
+                selectedGarmentStyle = style
+                status = "تم اعتماد $garmentName باللون $colorName كاختيار للمعاينة"
+            })
+            VideoPoseAnalysisPanel(selectedGarmentColorHex, selectedGarmentStyle)
             Card(colors=CardDefaults.cardColors(containerColor=Panel),shape=RoundedCornerShape(18.dp)){
                 Column(Modifier.fillMaxWidth().padding(13.dp),verticalArrangement=Arrangement.spacedBy(8.dp)){
                     Text("1 • اختر التطبيق المثبّت",color=Color.White,fontWeight=FontWeight.Bold)
@@ -496,7 +502,7 @@ private fun VipBuilderScreen(loadApps:()->List<InstalledApp>){
 
 
 @Composable
-private fun SheerGarmentPicker(onConfirm: (String, String) -> Unit) {
+private fun SheerGarmentPicker(onConfirm: (String, String, String, SheerGarmentStyle) -> Unit) {
     val presets = SheerGarmentCatalog.presets
     var selectedId by remember { mutableStateOf(presets.first().id) }
     var selectedColor by remember { mutableStateOf(ModernGarmentColor.WHITE) }
@@ -554,7 +560,7 @@ private fun SheerGarmentPicker(onConfirm: (String, String) -> Unit) {
             }
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text("بطانة ساترة • لا تغيير لشكل الجسم", color = Mint, fontSize = 10.sp, modifier = Modifier.weight(1f))
-                Button(onClick = { onConfirm(selected.displayNameArabic, selectedColor.name) }) { Text("اعتماد الاختيار") }
+                Button(onClick = { onConfirm(selected.displayNameArabic, selectedColor.name, selectedColor.hex, selected.style) }) { Text("اعتماد الاختيار") }
             }
         }
     }
