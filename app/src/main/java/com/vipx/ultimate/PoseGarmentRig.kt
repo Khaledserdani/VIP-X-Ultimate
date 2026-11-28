@@ -29,8 +29,11 @@ internal object PoseGarmentRig {
         if (!frame.hasReliablePose(MIN_CONFIDENCE)) return invalid("وضعية الجسم غير موثوقة")
         val required = intArrayOf(11, 12, 13, 14, 15, 16, 23, 24)
         val points = required.associateWith { frame.imageLandmarks[it] }
-        if (points.values.any { !it.x.isFinite() || !it.y.isFinite() ||
-                    it.x !in 0f..1f || it.y !in 0f..1f || it.confidence < MIN_CONFIDENCE }) {
+        if (points.values.any {
+                val threshold = if (it.source == LandmarkSource.TEMPORAL_PREDICTED) 0.30f else MIN_CONFIDENCE
+                !it.x.isFinite() || !it.y.isFinite() || it.x !in 0f..1f ||
+                    it.y !in 0f..1f || it.confidence < threshold || it.source == LandmarkSource.UNKNOWN
+            }) {
             return invalid("بعض نقاط الكتفين أو الذراعين أو الوركين غير واضحة")
         }
         val leftShoulder = points.getValue(11)
