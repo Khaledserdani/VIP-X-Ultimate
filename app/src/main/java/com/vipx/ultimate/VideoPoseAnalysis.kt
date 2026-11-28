@@ -15,6 +15,9 @@ import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
@@ -51,7 +54,7 @@ internal data class VideoPoseReport(
     val maxContourChangePercent: Float,
     val maxLocalBandChangePercent: Float,
     val samplingIntervalMs: Long,
-    val previewFrame: Bitmap?
+    val previewFrames: List<Bitmap>
 )
 
 internal object VideoPoseSampling {
@@ -254,7 +257,8 @@ internal object VideoPoseAnalyzer {
             var surfaceComparedFrames = 0
             var maxContourChange = 0f
             var maxLocalBandChange = 0f
-            var previewFrame: Bitmap? = null
+            val previewFrames = ArrayList<Bitmap>(5)
+            val previewTargets = (0..4).map { target -> ((count - 1) * target / 4f).toInt() }.toSet()
             var sampled = 0
             for (index in 0 until count) {
                 val timeMs = if (count == 1) 0L else index * interval
@@ -292,7 +296,9 @@ internal object VideoPoseAnalyzer {
                         val mesh = PoseGarmentRig.build(frame)
                         if (mesh.valid) {
                             overlayReady++
-                            if (previewFrame == null) previewFrame = GarmentOverlayRenderer.render(bitmap, mesh, colorHex, garmentStyle)
+                            if (index in previewTargets && previewFrames.size < 5) {
+                                GarmentOverlayRenderer.render(bitmap, mesh, colorHex, garmentStyle)?.let(previewFrames::add)
+                            }
                         }
                     }
                 } finally {
@@ -300,7 +306,7 @@ internal object VideoPoseAnalyzer {
                 }
                 onProgress(((index + 1) * 100 / count).coerceIn(0, 100))
             }
-            return VideoPoseReport(duration, sampled, reliable, masks, overlayReady, postureFrames, maxTorsoLean, maxShoulderTilt, maxHipTilt, maxLeftElbow, maxRightElbow, maxForwardBackBend, surfaceComparedFrames, maxContourChange, maxLocalBandChange, interval, previewFrame)
+            return VideoPoseReport(duration, sampled, reliable, masks, overlayReady, postureFrames, maxTorsoLean, maxShoulderTilt, maxHipTilt, maxLeftElbow, maxRightElbow, maxForwardBackBend, surfaceComparedFrames, maxContourChange, maxLocalBandChange, interval, previewFrames)
         } finally {
             tracker?.close()
             retriever.release()
@@ -389,17 +395,24 @@ internal fun VideoPoseAnalysisPanel(selectedColorHex: String, selectedStyle: She
                 Text("أقصى ثني للمرفق الأيسر/الأيمن: ${result.maxLeftElbowFlexionDegrees.toInt()}° / ${result.maxRightElbowFlexionDegrees.toInt()}°", color = Color.White)
                 result.maxForwardBackBendDegrees?.let { Text("مؤشر انحناء أمامي/خلفي تقريبي: ${it.toInt()}°", color = Color.White) }
                 Text("الفاصل بين اللقطات: ${result.samplingIntervalMs} مللي ثانية", color = Color.White)
-                result.previewFrame?.let { preview ->
-                    Text("معاينة أولية للتصميم واللون المختارين فوق إطار حقيقي من الفيديو", color = Color(0xFF43E0C6))
-                    Image(
-                        bitmap = preview.asImageBitmap(),
-                        contentDescription = "معاينة هندسية أولية للملابس فوق إطار الفيديو",
-                        modifier = Modifier.fillMaxWidth(),
-                        contentScale = ContentScale.Fit
-                    )
+                if (result.previewFrames.isNotEmpty()) {
+                    Text("لقطات متتابعة للّباس فوق إطارات مختلفة من الفيديو", color = Color(0xFF43E0C6))
+                    Row(modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState())) {
+                        result.previewFrames.forEachIndexed { index, preview ->
+                            Column(modifier = Modifier.padding(end = 8.dp)) {
+                                Text("لقطة ${index + 1}", color = Color.White)
+                                Image(
+                                    bitmap = preview.asImageBitmap(),
+                                    contentDescription = "معاينة هندسية للّباس في اللقطة ${index + 1}",
+                                    modifier = Modifier.fillMaxWidth(0.72f),
+                                    contentScale = ContentScale.Fit
+                                )
+                            }
+                        }
+                    }
                 }
                 Text(
-                    "تحليل القناع يقارن حدود الجسم الظاهرة في الصورة على شرائح نسبية؛ قد تتأثر النتائج بالملابس والاحتجاب والمنظور ولا تمثل محيطات حقيقية بالسنتيمتر. زوايا المفاصل مؤشرات وضعية وليست قياسات طبية. معاينة اللباس الحالية ثابتة من إطار واحد وليست تتبعاً مرئياً مستمراً بعد.",
+                    "تحليل القناع يقارن حدود الجسم الظاهرة في الصورة على شرائح نسبية؛ قد تتأثر النتائج بالملابس والاحتجاب والمنظور ولا تمثل محيطات حقيقية بالسنتيمتر. زوايا المفاصل مؤشرات وضعية وليست قياسات طبية. اللقطات المعروضة عينات متباعدة من الفيديو وليست فيديو نهائياً متحركاً؛ لا تزال المحاكاة بحاجة إلى ربط القماش بكل إطار وتصدير فيديو.",
                     color = Color(0xFFFFD18A)
                 )
             }
