@@ -7,7 +7,7 @@ import kotlin.math.max
  * Garment dimensions adapt to measured body dimensions; body dimensions are read-only.
  * Measurements are centimetres. Abdomen projection is an optional front-to-back depth.
  */
-internal enum class FitZone { CHEST, WAIST, ABDOMEN, HIP, UPPER_ARM, THIGH }
+internal enum class FitZone { CHEST, WAIST, ABDOMEN_CIRCUMFERENCE, ABDOMEN_PROJECTION, HIP, UPPER_ARM, THIGH }
 
 internal enum class FabricClass(val stretchRatio: Double, val minimumEaseCm: Double) {
     WOVEN(0.02, 4.0),
@@ -39,12 +39,14 @@ internal data class BodyMeasurements(
     val hipCm: Double,
     val upperArmCm: Double,
     val thighCm: Double,
-    val abdomenProjectionCm: Double = 0.0
+    val abdomenProjectionCm: Double = 0.0,
+    val abdomenCircumferenceCm: Double = 0.0
 ) {
     fun value(zone: FitZone): Double = when (zone) {
         FitZone.CHEST -> chestCm
         FitZone.WAIST -> waistCm
-        FitZone.ABDOMEN -> abdomenProjectionCm
+        FitZone.ABDOMEN_CIRCUMFERENCE -> abdomenCircumferenceCm
+        FitZone.ABDOMEN_PROJECTION -> abdomenProjectionCm
         FitZone.HIP -> hipCm
         FitZone.UPPER_ARM -> upperArmCm
         FitZone.THIGH -> thighCm
@@ -53,8 +55,8 @@ internal data class BodyMeasurements(
     fun valid(): Boolean =
         listOf(chestCm, waistCm, hipCm, upperArmCm, thighCm)
             .all { it.isFinite() && it > 0.0 && it < 300.0 } &&
-            abdomenProjectionCm.isFinite() &&
-            abdomenProjectionCm >= 0.0 && abdomenProjectionCm < 300.0
+            abdomenProjectionCm.isFinite() && abdomenProjectionCm >= 0.0 && abdomenProjectionCm < 300.0 &&
+            abdomenCircumferenceCm.isFinite() && abdomenCircumferenceCm >= 0.0 && abdomenCircumferenceCm < 300.0
 }
 
 internal data class GarmentMeasurements(
@@ -63,12 +65,14 @@ internal data class GarmentMeasurements(
     val hipCm: Double,
     val upperArmCm: Double,
     val thighCm: Double,
-    val abdomenProjectionCm: Double = 0.0
+    val abdomenProjectionCm: Double = 0.0,
+    val abdomenCircumferenceCm: Double = 0.0
 ) {
     fun value(zone: FitZone): Double = when (zone) {
         FitZone.CHEST -> chestCm
         FitZone.WAIST -> waistCm
-        FitZone.ABDOMEN -> abdomenProjectionCm
+        FitZone.ABDOMEN_CIRCUMFERENCE -> abdomenCircumferenceCm
+        FitZone.ABDOMEN_PROJECTION -> abdomenProjectionCm
         FitZone.HIP -> hipCm
         FitZone.UPPER_ARM -> upperArmCm
         FitZone.THIGH -> thighCm
@@ -77,8 +81,8 @@ internal data class GarmentMeasurements(
     fun valid(): Boolean =
         listOf(chestCm, waistCm, hipCm, upperArmCm, thighCm)
             .all { it.isFinite() && it > 0.0 && it < 400.0 } &&
-            abdomenProjectionCm.isFinite() &&
-            abdomenProjectionCm >= 0.0 && abdomenProjectionCm < 400.0
+            abdomenProjectionCm.isFinite() && abdomenProjectionCm >= 0.0 && abdomenProjectionCm < 400.0 &&
+            abdomenCircumferenceCm.isFinite() && abdomenCircumferenceCm >= 0.0 && abdomenCircumferenceCm < 400.0
 }
 
 internal data class ZoneFit(
@@ -110,8 +114,8 @@ internal object GarmentFitEngine {
         val zones = FitZone.values().map { zone ->
             val bodyCm = body.value(zone)
             val garmentCm = garment.value(zone)
-            // A zero abdomen projection means the optional depth measurement was not supplied.
-            if (zone == FitZone.ABDOMEN && bodyCm == 0.0 && garmentCm == 0.0) {
+            // Optional abdomen circumference/depth are assessed independently.
+            if ((zone == FitZone.ABDOMEN_CIRCUMFERENCE || zone == FitZone.ABDOMEN_PROJECTION) && bodyCm == 0.0 && garmentCm == 0.0) {
                 return@map ZoneFit(zone, 0.0, 0.0, 0.0, 1.0, "غير مقاس")
             }
             val ease = garmentCm - bodyCm
