@@ -45,6 +45,9 @@ jobs:
       - name: Test backend tools and provider failover
         run: node --test server/tools.test.js server/provider.test.js server/agents.test.js
 
+      - name: Test Android body preservation gate
+        run: gradle --no-daemon --stacktrace :app:testDebugUnitTest
+
       - name: Build Android candidate
         run: gradle --no-daemon --stacktrace :app:assembleDebug
 
