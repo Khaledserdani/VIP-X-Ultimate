@@ -39,6 +39,39 @@ class GarmentFitEngineTest {
         assertEquals("XXL", chosen)
     }
 
+    @Test fun abdomenCircumferenceAndProjectionAreMeasuredIndependently() {
+        val measuredBody = body.copy(abdomenCircumferenceCm = 124.0, abdomenProjectionCm = 18.0)
+        val garment = GarmentMeasurements(
+            chestCm = 120.0, waistCm = 114.0, hipCm = 126.0,
+            upperArmCm = 44.0, thighCm = 72.0,
+            abdomenCircumferenceCm = 130.0, abdomenProjectionCm = 22.0
+        )
+        val result = GarmentFitEngine.evaluate(measuredBody, garment, FabricClass.WOVEN)
+        val circumference = result.zones.single { it.zone == FitZone.ABDOMEN_CIRCUMFERENCE }
+        val projection = result.zones.single { it.zone == FitZone.ABDOMEN_PROJECTION }
+
+        assertEquals(124.0, circumference.bodyCm, 0.0)
+        assertEquals(130.0, circumference.garmentCm, 0.0)
+        assertEquals(18.0, projection.bodyCm, 0.0)
+        assertEquals(22.0, projection.garmentCm, 0.0)
+        assertEquals(124.0, measuredBody.abdomenCircumferenceCm, 0.0)
+        assertEquals(18.0, measuredBody.abdomenProjectionCm, 0.0)
+    }
+
+    @Test fun missingAbdomenMeasurementsAreNotInvented() {
+        val result = GarmentFitEngine.evaluate(
+            body,
+            GarmentMeasurements(120.0, 114.0, 126.0, 44.0, 72.0),
+            FabricClass.WOVEN
+        )
+        assertEquals("غير مقاس", result.zones.single {
+            it.zone == FitZone.ABDOMEN_CIRCUMFERENCE
+        }.status)
+        assertEquals("غير مقاس", result.zones.single {
+            it.zone == FitZone.ABDOMEN_PROJECTION
+        }.status)
+    }
+
     @Test fun invalidMeasurementsAreRejected() {
         val invalid = BodyMeasurements(0.0, 100.0, 100.0, 30.0, 50.0)
         assertFalse(runCatching {
