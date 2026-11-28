@@ -87,7 +87,8 @@ internal data class TrackedBodyFrame(
         if (imageLandmarks.size < 33) return false
         for (index in intArrayOf(11, 12, 23, 24)) {
             val point = imageLandmarks.getOrNull(index) ?: return false
-            if (point.confidence < minConfidence) return false
+            val threshold = if (point.source == LandmarkSource.TEMPORAL_PREDICTED) 0.30f else minConfidence
+            if (point.confidence < threshold || point.source == LandmarkSource.UNKNOWN) return false
         }
         return true
     }
