@@ -57,6 +57,7 @@ internal class ScreenCaptureAnalysisService : Service() {
     private val projectionCallback = object : MediaProjection.Callback() {
         override fun onStop() {
             stopCapture("أوقف Android مشاركة الشاشة")
+            stopSelf()
         }
     }
 
