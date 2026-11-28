@@ -74,7 +74,7 @@ internal data class TrackedBodyFrame(
     val imageLandmarks: List<BodyLandmark>,
     val worldLandmarks: List<BodyLandmark>,
     val segmentationMaskAvailable: Boolean,
-    val silhouette: PersonSilhouette?
+    val silhouette: PersonSilhouette? = null
 ) {
     fun hasReliablePose(minConfidence: Float = 0.60f): Boolean {
         if (imageLandmarks.size < 33) return false
