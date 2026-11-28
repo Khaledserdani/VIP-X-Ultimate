@@ -11,6 +11,11 @@ class BodySurfaceModelTest {
             waistCircumferenceCm = 78.0,
             abdomenCircumferenceCm = 88.0,
             hipCircumferenceCm = 102.0,
+            chestDepthCm = 24.0,
+            underChestDepthCm = 21.0,
+            waistDepthCm = 22.0,
+            abdomenDepthCm = 25.0,
+            hipDepthCm = 27.0,
             measurementSource = source,
             confidence = 0.92
         )
@@ -31,8 +36,8 @@ class BodySurfaceModelTest {
         assertTrue(model.sections.isEmpty())
     }
 
-    @Test fun missingMeasurementIsNotInvented() {
-        val model = BodySurfaceModel.fromMeasurements(profile().copy(abdomenCircumferenceCm = null))
+    @Test fun missingDepthIsNotInvented() {
+        val model = BodySurfaceModel.fromMeasurements(profile().copy(abdomenDepthCm = null))
         assertFalse(model.ready)
         assertNull(model.sections.first { it.name == "البطن" }.halfWidthCm)
         assertTrue(model.limitations.any { it.contains("قياسات ناقصة") })
