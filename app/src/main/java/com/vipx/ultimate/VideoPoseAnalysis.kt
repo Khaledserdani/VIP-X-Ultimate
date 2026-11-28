@@ -93,8 +93,15 @@ internal object GarmentOverlayRenderer {
             close()
         }
         val baseColor = runCatching { AndroidColor.parseColor(colorHex) }.getOrDefault(AndroidColor.WHITE)
+        val fabricAlpha = when (style) {
+            SheerGarmentStyle.CHIFFON_OVERLAY -> 92
+            SheerGarmentStyle.TULLE_LAYERED -> 128
+            SheerGarmentStyle.LACE_OVERLAY -> 142
+            SheerGarmentStyle.ORGANZA_LAYER -> 108
+            SheerGarmentStyle.MESH_PANEL -> 120
+        }
         val fill = AndroidPaint(AndroidPaint.ANTI_ALIAS_FLAG).apply {
-            color = AndroidColor.argb(116, AndroidColor.red(baseColor), AndroidColor.green(baseColor), AndroidColor.blue(baseColor))
+            color = AndroidColor.argb(fabricAlpha, AndroidColor.red(baseColor), AndroidColor.green(baseColor), AndroidColor.blue(baseColor))
             style = AndroidPaint.Style.FILL
         }
         val stroke = AndroidPaint(AndroidPaint.ANTI_ALIAS_FLAG).apply {
