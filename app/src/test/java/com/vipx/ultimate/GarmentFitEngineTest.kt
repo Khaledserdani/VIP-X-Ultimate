@@ -70,6 +70,8 @@ class GarmentFitEngineTest {
         assertEquals("غير مقاس", result.zones.single {
             it.zone == FitZone.ABDOMEN_PROJECTION
         }.status)
+        assertFalse(result.measurementCoverageComplete)
+        assertTrue(result.summary.contains("التقييم جزئي"))
     }
 
     @Test fun invalidMeasurementsAreRejected() {
