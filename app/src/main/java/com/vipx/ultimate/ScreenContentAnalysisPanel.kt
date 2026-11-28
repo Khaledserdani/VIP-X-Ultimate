@@ -67,7 +67,7 @@ internal fun ScreenContentAnalysisPanel() {
                 status = intent.getStringExtra(ScreenCaptureAnalysisService.EXTRA_STATUS)
                     ?: "حالة تحليل الشاشة غير معروفة"
                 detected = intent.getBooleanExtra(ScreenCaptureAnalysisService.EXTRA_DETECTED, false)
-                if (status.contains("إيقاف") || status.contains("توقف") || status.contains("ألغى")) {
+                if (status.contains("إيقاف") || status.contains("أوقف") || status.contains("توقف") || status.contains("ألغى")) {
                     running = false
                 }
             }
