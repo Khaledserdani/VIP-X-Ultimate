@@ -1,7 +1,6 @@
 package com.vipx.ultimate
 
 import kotlin.math.max
-import kotlin.math.min
 
 /**
  * Measurement-driven garment fitting core.
@@ -9,13 +8,23 @@ import kotlin.math.min
  * It sizes the CLOTHING to the measured body. It never changes body measurements.
  * Measurements are centimetres; garment values are finished-garment circumferences.
  */
-internal enum class FitZone { CHEST, WAIST, HIP, UPPER_ARM, THIGH }
+internal enum class FitZone { CHEST, WAIST, ABDOMEN, HIP, UPPER_ARM, THIGH }
 internal enum class FabricClass(val stretchRatio: Double, val minimumEaseCm: Double) {
     WOVEN(0.02, 4.0),
     KNIT(0.18, 2.0),
     SPORTS_STRETCH(0.32, 1.0),
     CHIFFON_LINED(0.03, 5.0),
-    LACE_LINED(0.05, 4.0)
+    LACE_LINED(0.05, 4.0);
+
+    /** Approximate material profile for the later cloth solver; not a measured fabric guarantee. */
+    val thicknessMm: Double get() = when (this) {
+        WOVEN -> 0.7; KNIT -> 1.0; SPORTS_STRETCH -> 0.8
+        CHIFFON_LINED -> 0.5; LACE_LINED -> 0.9
+    }
+    val drapeFlex: Double get() = when (this) {
+        WOVEN -> 0.42; KNIT -> 0.68; SPORTS_STRETCH -> 0.74
+        CHIFFON_LINED -> 0.92; LACE_LINED -> 0.78
+    }
 }
 
 internal data class BodyMeasurements(
@@ -33,7 +42,7 @@ internal data class BodyMeasurements(
         FitZone.THIGH -> thighCm
     }
     fun valid(): Boolean = listOf(chestCm, waistCm, hipCm, upperArmCm, thighCm)
-        .all { it.isFinite() && it > 0.0 && it < 300.0 }
+        .all { it.isFinite() && it > 0.0 && it < 300.0 } &&\n        abdomenProjectionCm.isFinite() && abdomenProjectionCm >= 0.0 && abdomenProjectionCm < 300.0
 }
 
 internal data class GarmentMeasurements(
@@ -51,7 +60,7 @@ internal data class GarmentMeasurements(
         FitZone.THIGH -> thighCm
     }
     fun valid(): Boolean = listOf(chestCm, waistCm, hipCm, upperArmCm, thighCm)
-        .all { it.isFinite() && it > 0.0 && it < 400.0 }
+        .all { it.isFinite() && it > 0.0 && it < 400.0 } &&\n        abdomenProjectionCm.isFinite() && abdomenProjectionCm >= 0.0 && abdomenProjectionCm < 400.0
 }
 
 internal data class ZoneFit(
