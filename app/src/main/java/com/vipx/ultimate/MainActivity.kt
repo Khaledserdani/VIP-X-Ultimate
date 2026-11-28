@@ -520,7 +520,7 @@ private fun SheerGarmentPicker(onConfirm: (String, String) -> Unit) {
                 }
             }
             Divider(color = Color(0xFF294158))
-            Text("التصميم المختار: \${selected.displayNameArabic}", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 13.sp)
+            Text("التصميم المختار: ${selected.displayNameArabic}", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 13.sp)
             Text(selected.modernCut, color = Soft, fontSize = 11.sp)
             Text("اختر اللون", color = Color.White, fontWeight = FontWeight.SemiBold, fontSize = 12.sp)
             LazyRow(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
