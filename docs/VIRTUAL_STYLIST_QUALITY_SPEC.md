@@ -19,6 +19,15 @@ A consent-based Android virtual wardrobe for adult subjects. The same garment sh
 7. Color/material fidelity: user-selected colors remain stable under scene lighting while retaining realistic material response.
 8. Consent and safety: process only subjects who have consented; do not generate nudity or intimate undressing.
 
+## Body-shape and anatomy preservation — hard invariant
+The source person's body is the immutable reference. Virtual try-on may change garment pixels and garment silhouette only where the actual garment naturally covers the body; it must not reshape, beautify, normalize, or synthesize the person's anatomy.
+- Preserve the original body volume and proportions, including a fat/large body, a slim body, muscular definition, natural softness, skin folds, and loose/sagging tissue.
+- Never slim the waist, flatten the abdomen, narrow arms or thighs, enlarge shoulders, add muscle, remove cellulite, tighten loose skin, lift or reshape the chest, or otherwise retouch anatomy.
+- For a large or fat body, size and drape the garment around the existing abdomen, waist, hips, arms, and thighs. Do not make the person thinner to make a catalog garment fit; choose a better size/pattern or report that the garment fit cannot be rendered reliably.
+- Preserve body landmarks and silhouette outside the garment's true coverage. Under the garment, infer only the minimum hidden surface needed for cloth simulation; do not use that inference to change the visible body.
+- Separate the person/body mask from the garment mask. The renderer must not apply global warps, face/body beautification, liquify, or body-slimming transforms.
+- Keep an untouched source frame available for side-by-side comparison and provide a body-preservation check in quality evaluation.
+
 ## Processing sources
 - Live camera preview
 - User-selected local videos
@@ -30,6 +39,7 @@ A consent-based Android virtual wardrobe for adult subjects. The same garment sh
 - Temporal person/garment tracking
 - Garment representation with size and material metadata
 - Virtual try-on rendering with temporal consistency and occlusion handling
+- Explicit body-identity/body-shape preservation mask and geometry constraints
 - GPU acceleration where supported; adaptive quality/resolution for device limits
 - Local processing by default; disclose any optional external processing and obtain consent
 
@@ -37,11 +47,14 @@ A consent-based Android virtual wardrobe for adult subjects. The same garment sh
 A build must not be described as photorealistic or production-ready until it passes recorded tests across:
 - front, side, and back views
 - walking, turning, arm raising, and sitting
-- varied body shapes, lighting, and backgrounds
+- varied body shapes, including large/fat bodies, slim bodies, and muscular bodies
+- natural abdomen contours, skin folds, and loose tissue remaining unchanged
+- varied lighting and backgrounds
 - motion blur and partial occlusion
 - long clips with no progressive drift or flicker
+- before/after body silhouette comparison showing no unintended anatomical change
 
-Report measured results and known limitations. A literal 100% realism guarantee is not technically honest; the target is the highest measurable realism on the target phone, with failures clearly reported rather than hidden.
+Any measurable slimming, muscle enhancement, skin tightening, removal of natural folds, or body-proportion drift is a failed test, even if the garment looks attractive. Report measured results and known limitations. A literal 100% realism guarantee is not technically honest; the target is the highest measurable realism on the target phone, with failures clearly reported rather than hidden.
 
 ## Android constraints
 Overlay UI, camera, local media access, and screen capture require their respective Android permissions and user actions. An ordinary app cannot silently capture or modify protected content in other apps.
