@@ -11,6 +11,7 @@ internal enum class SheerGarmentStyle {
 
 internal enum class ModernGarmentColor(val hex: String) {
     BLACK("#171717"),
+    WHITE("#FFFFFF"),
     IVORY("#F3EBDD"),
     CHAMPAGNE("#D8C1A0"),
     DUSTY_ROSE("#C98F98"),
