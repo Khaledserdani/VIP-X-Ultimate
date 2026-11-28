@@ -1,7 +1,6 @@
 package com.vipx.ultimate
 
 import kotlin.math.PI
-import kotlin.math.abs
 import kotlin.math.sqrt
 
 /** Source of each cross-section; estimated values must never masquerade as measurements. */
@@ -75,11 +74,12 @@ internal data class BodySurfaceModel(
                 return BodySurfaceSection(name, y, null, depth?.div(2.0), SurfaceSectionSource.UNAVAILABLE, 0.0)
             val halfDepth = depth / 2.0
             val halfWidth = solveHalfWidth(circumference, halfDepth)
+                ?: return BodySurfaceSection(name, y, null, halfDepth, SurfaceSectionSource.UNAVAILABLE, 0.0)
             return BodySurfaceSection(name, y, halfWidth, halfDepth, source, confidence)
         }
 
         /** Binary-searches ellipse half-width using Ramanujan's circumference approximation. */
-        private fun solveHalfWidth(circumference: Double, halfDepth: Double): Double {
+        private fun solveHalfWidth(circumference: Double, halfDepth: Double): Double? {
             fun perimeter(a: Double): Double {
                 val b = halfDepth
                 val h = ((a - b) * (a - b)) / ((a + b) * (a + b))
@@ -87,11 +87,13 @@ internal data class BodySurfaceModel(
             }
             var low = 0.01
             var high = circumference
+            if (!circumference.isFinite() || !halfDepth.isFinite() || halfDepth <= 0.0 ||
+                circumference <= perimeter(low) || circumference >= perimeter(high)) return null
             repeat(80) {
                 val mid = (low + high) / 2.0
                 if (perimeter(mid) < circumference) low = mid else high = mid
             }
-            return (low + high) / 2.0
+            return ((low + high) / 2.0).takeIf { it.isFinite() && it > 0.0 }
         }
     }
 }
