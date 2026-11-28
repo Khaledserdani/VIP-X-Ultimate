@@ -38,16 +38,18 @@ internal class HumanBodyTrackingEngine(
         val result = landmarker.detectForVideo(BitmapImageBuilder(bitmap).build(), timestampMs)
         val screen = result.landmarks().firstOrNull() ?: return null
         val world = result.worldLandmarks().firstOrNull().orEmpty()
-        fun convert(points: List<com.google.mediapipe.tasks.components.containers.NormalizedLandmark>) =
-            points.mapIndexed { index, p ->
-                BodyLandmark(index, p.x(), p.y(), p.z(), p.visibility())
-            }
+        val screenPoints = screen.mapIndexed { index, p ->
+            BodyLandmark(index, p.x(), p.y(), p.z(), p.visibility())
+        }
+        val worldPoints = world.mapIndexed { index, p ->
+            BodyLandmark(index, p.x(), p.y(), p.z(), p.visibility())
+        }
         return TrackedBodyFrame(
             timestampMs = timestampMs,
             imageWidth = bitmap.width,
             imageHeight = bitmap.height,
-            imageLandmarks = convert(screen),
-            worldLandmarks = convert(world),
+            imageLandmarks = screenPoints,
+            worldLandmarks = worldPoints,
             segmentationMaskAvailable = result.segmentationMasks()?.isNotEmpty() == true
         )
     }
