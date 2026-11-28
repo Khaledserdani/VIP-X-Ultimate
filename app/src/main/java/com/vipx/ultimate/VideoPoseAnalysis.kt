@@ -258,6 +258,7 @@ internal object VideoPoseAnalyzer {
             var surfaceComparedFrames = 0
             var maxContourChange = 0f
             var maxLocalBandChange = 0f
+            var previousGarmentMesh: GarmentOverlayMesh? = null
             val previewFrames = ArrayList<Bitmap>(5)
             val previewTargets = (0..4).map { target -> ((count - 1) * target / 4f).toInt() }.toSet()
             var sampled = 0
@@ -294,12 +295,17 @@ internal object VideoPoseAnalyzer {
                             motion.rightElbowFlexionDegrees?.let { maxRightElbow = maxOf(maxRightElbow, it) }
                             motion.forwardBackBendDegrees?.let { maxForwardBackBend = maxOf(maxForwardBackBend ?: 0f, kotlin.math.abs(it)) }
                         }
-                        val mesh = PoseGarmentRig.build(frame)
-                        if (mesh.valid) {
+                        val rawMesh = PoseGarmentRig.build(frame)
+                        if (rawMesh.valid) {
                             overlayReady++
+                            val stableMesh = GarmentTemporalStabilizer.smooth(previousGarmentMesh, rawMesh)
+                            previousGarmentMesh = stableMesh
                             if (index in previewTargets && previewFrames.size < 5) {
-                                GarmentOverlayRenderer.render(bitmap, mesh, colorHex, garmentStyle)?.let(previewFrames::add)
+                                GarmentOverlayRenderer.render(bitmap, stableMesh, colorHex, garmentStyle)?.let(previewFrames::add)
                             }
+                        } else {
+                            // Do not bridge across missing/invalid pose frames.
+                            previousGarmentMesh = null
                         }
                     }
                 } finally {
