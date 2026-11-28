@@ -1,3 +1,7 @@
+import java.io.File
+import java.net.URL
+import java.security.MessageDigest
+
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
@@ -45,14 +49,14 @@ val downloadPoseLandmarkerModel by tasks.registering {
         val modelUrl = "https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_full/float16/latest/pose_landmarker_full.task"
         poseModelFile.parentFile.mkdirs()
         if (!poseModelFile.exists()) {
-            val temporary = java.io.File(poseModelFile.parentFile, poseModelFile.name + ".download")
-            java.net.URL(modelUrl).openStream().use { input ->
+            val temporary = File(poseModelFile.parentFile, poseModelFile.name + ".download")
+            URL(modelUrl).openStream().use { input ->
                 temporary.outputStream().use { output -> input.copyTo(output) }
             }
             temporary.copyTo(poseModelFile, overwrite = true)
             temporary.delete()
         }
-        val digest = java.security.MessageDigest.getInstance("SHA-256")
+        val digest = MessageDigest.getInstance("SHA-256")
             .digest(poseModelFile.readBytes())
             .joinToString("") { "%02x".format(it) }
         if (digest != expectedSha256) {
