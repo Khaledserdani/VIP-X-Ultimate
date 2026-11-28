@@ -56,7 +56,7 @@ internal object PoseGarmentRig {
         val silhouetteWaistHalfWidth = silhouette?.let { mask ->
             val row = mask.rowWidths[(0.58f * (mask.rowWidths.size - 1)).toInt()]
             val maskBoxWidth = (mask.right - mask.left + 1).toFloat()
-            row * maskBoxWidth / frame.imageWidth.toFloat() * 0.5f
+            row * maskBoxWidth / mask.maskWidth.toFloat() * 0.5f
         }
         val waistHalfWidth = if (silhouetteWaistHalfWidth != null &&
             silhouetteWaistHalfWidth.isFinite() && silhouetteWaistHalfWidth > 0f) {
@@ -66,7 +66,7 @@ internal object PoseGarmentRig {
 
         val hipHalfWidth = silhouette?.let { mask ->
             val row = mask.rowWidths[(0.76f * (mask.rowWidths.size - 1)).toInt()]
-            row * (mask.right - mask.left + 1).toFloat() / frame.imageWidth.toFloat() * 0.5f
+            row * (mask.right - mask.left + 1).toFloat() / mask.maskWidth.toFloat() * 0.5f
         }?.takeIf { it.isFinite() && it > 0f }?.let {
             hipWidth * 0.35f + minOf(it, hipWidth * 0.75f) * 0.65f
         } ?: hipWidth * 0.5f
